@@ -1,3 +1,10 @@
+<script setup>
+import AppHeader from './components/AppHeader.vue'
+</script>
+
 <template>
-  <h1>Trackora</h1>
+  <AppHeader />
+  <main class="page-content" id="main-content">
+    <RouterView />
+  </main>
 </template>

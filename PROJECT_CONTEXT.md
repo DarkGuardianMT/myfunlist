@@ -10,8 +10,8 @@ Users should eventually be able to track, rate, organize, and share the media th
 
 ## Current technical stack
 
-- Frontend: Vue 3, Vite, JavaScript, and normal CSS.
-- No router, state library, CSS framework, or other frontend library has been chosen beyond the current dependencies.
+- Frontend: Vue 3, Vite, Vue Router, JavaScript, and normal CSS.
+- No state library, CSS framework, or other frontend library has been chosen beyond the current dependencies.
 
 ## Planned backend direction
 
@@ -19,7 +19,7 @@ A PHP REST API and MySQL database are planned for a later phase. They are not pa
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It contains a minimal Vue app with the default Vite demo content removed. `npm run dev` and `npm run build` have worked. There are no product features, backend, authentication, or database yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and minimal Home, Discover, Library, and Profile routes. `npm run dev` and `npm run build` have worked. There are no product features, backend, authentication, or database yet.
 
 ## Core product concepts
 
@@ -35,7 +35,7 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 ## Current architectural decisions
 
 - Keep external media metadata separate from user-specific media data.
-- Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase.
+- Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase. Vue Router handles frontend page navigation.
 - Defer backend code, database design, authentication, and additional libraries until their respective needs are defined.
 
 ## Data model direction at a high level
@@ -57,7 +57,7 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend is working. Product requirements and architecture have not yet been defined in detail.
+The base Vue/Vite frontend and four-page application shell are working. Product requirements and architecture have not yet been defined in detail.
 
 ## Next milestone
 

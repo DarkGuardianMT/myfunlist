@@ -1,4 +1,108 @@
-body {
-  margin: 0;
+:root {
   font-family: system-ui, sans-serif;
+  color: #1c2a2a;
+  background: #f7f8f6;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 280px;
+  margin: 0;
+}
+
+a:focus-visible {
+  outline: 2px solid #126b65;
+  outline-offset: 3px;
+}
+
+.site-header {
+  background: #fff;
+  border-bottom: 1px solid #dfe5e1;
+}
+
+.header-inner {
+  width: min(100% - 2.5rem, 1100px);
+  min-height: 76px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  padding: 1rem 0;
+}
+
+.brand {
+  color: #173f3d;
+  font-size: 1.4rem;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.site-nav a {
+  border-radius: 0.4rem;
+  color: #3e5552;
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.6rem 0.85rem;
+  text-decoration: none;
+}
+
+.site-nav a:hover {
+  background: #edf4f1;
+}
+
+.site-nav a.router-link-exact-active {
+  background: #dceee8;
+  color: #164b45;
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+}
+
+.page-content {
+  width: min(100% - 2.5rem, 1100px);
+  margin: 0 auto;
+  padding: clamp(3rem, 8vw, 6rem) 0;
+}
+
+.page-intro {
+  max-width: 45rem;
+}
+
+.page-intro h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(2.5rem, 7vw, 4rem);
+  letter-spacing: -0.055em;
+  line-height: 1.1;
+}
+
+.page-intro p {
+  margin: 0;
+  color: #48615d;
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .header-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-nav {
+    width: 100%;
+  }
 }
