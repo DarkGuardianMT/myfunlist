@@ -27,6 +27,9 @@ defineProps({
         {{ book.authors.length ? book.authors.join(', ') : 'Unknown author' }}
       </p>
       <p v-if="book.publishedYear" class="book-card__year">{{ book.publishedYear }}</p>
+      <div v-if="$slots.default" class="book-card__actions">
+        <slot />
+      </div>
     </div>
   </article>
 </template>

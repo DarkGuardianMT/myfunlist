@@ -101,6 +101,17 @@ a:focus-visible {
   gap: 3rem;
 }
 
+.library-page {
+  display: grid;
+  gap: 2rem;
+}
+
+.section-title {
+  margin: 0 0 1.25rem;
+  color: #173f3d;
+  font-size: 1.5rem;
+}
+
 .book-search h2 {
   margin: 0 0 1.25rem;
   color: #173f3d;
@@ -177,6 +188,25 @@ a:focus-visible {
   color: #a0322c;
 }
 
+.library-feedback {
+  margin: -0.5rem 0 1.5rem;
+  color: #176b62;
+  font-weight: 650;
+}
+
+.library-feedback--error {
+  color: #a0322c;
+}
+
+.library-empty {
+  margin: 0;
+  border: 1px dashed #aabbb6;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #48615d;
+  padding: 1.5rem;
+}
+
 .book-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
@@ -238,6 +268,75 @@ a:focus-visible {
   color: #48615d;
   font-size: 0.9rem;
   line-height: 1.45;
+}
+
+.book-card__actions {
+  margin-top: 1rem;
+}
+
+.book-action-button,
+.remove-button {
+  width: 100%;
+  border: 1px solid #176b62;
+  border-radius: 0.45rem;
+  background: #176b62;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 0.6rem 0.75rem;
+}
+
+.book-action-button:hover:not(:disabled) {
+  background: #11554e;
+}
+
+.book-action-button:focus-visible,
+.remove-button:focus-visible,
+.library-item-controls select:focus-visible {
+  outline: 2px solid #126b65;
+  outline-offset: 2px;
+}
+
+.book-action-button:disabled,
+.remove-button:disabled,
+.library-item-controls select:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.library-item-controls {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.library-item-controls label {
+  color: #334c48;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.library-item-controls select {
+  width: 100%;
+  border: 1px solid #aabbb6;
+  border-radius: 0.45rem;
+  background: #fff;
+  color: #1c2a2a;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.55rem;
+}
+
+.remove-button {
+  margin-top: 0.25rem;
+  border-color: #a0322c;
+  background: #fff;
+  color: #a0322c;
+}
+
+.remove-button:hover:not(:disabled) {
+  background: #faecea;
 }
 
 @media (max-width: 640px) {

@@ -19,7 +19,7 @@ A PHP REST API and MySQL database are planned for a later phase. They are not pa
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover includes the first product slice: book search and result rendering backed by Google Books. There is no personal library behavior, backend, authentication, or database yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books search and adding books to a locally persisted Library. Library entries can be given a reading status or removed. There is no backend, authentication, or database yet.
 
 ## Core product concepts
 
@@ -36,6 +36,8 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 
 - Keep external media metadata separate from user-specific media data.
 - Normalize external API responses into a small Trackora media shape before rendering them. External metadata does not contain user-specific fields.
+- Keep user-specific Library state separate from external media metadata. Components use a domain-oriented Library abstraction and do not access persistence directly.
+- Use localStorage as temporary persistence for the anonymous local Library. A future REST API and database should replace the implementation behind the same Library abstraction.
 - Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase. Vue Router handles frontend page navigation.
 - Defer backend code, database design, authentication, and additional libraries until their respective needs are defined.
 
@@ -58,7 +60,7 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, and Google Books discovery search are working. Personal media tracking has not been implemented yet.
+The base Vue/Vite frontend, four-page application shell, Google Books discovery search, and an anonymous local book Library are working. Library persistence is temporary and limited to the current browser.
 
 ## Next milestone
 
