@@ -12,6 +12,7 @@ const statusLabels = {
 }
 const busyMediaKeys = ref(new Set())
 const feedback = ref('')
+const feedbackType = ref('status')
 const statusFilter = ref('all')
 const sortOrder = ref('recent')
 const {
@@ -30,6 +31,7 @@ onMounted(async () => {
   try {
     await loadLibrary()
   } catch {
+    feedbackType.value = 'alert'
     feedback.value = 'Your Library could not be loaded.'
   }
 })
@@ -45,6 +47,7 @@ async function handleStatusChange(item, event) {
     await updateLibraryStatus(mediaKey, statusControl.value)
   } catch {
     statusControl.value = item.userMedia.status
+    feedbackType.value = 'alert'
     feedback.value = `The status for “${item.media.title}” could not be updated.`
   } finally {
     busyMediaKeys.value.delete(mediaKey)
@@ -63,6 +66,7 @@ async function handleRatingChange(item, event) {
     await updateLibraryRating(mediaKey, rating)
   } catch {
     ratingControl.value = item.userMedia.rating ?? ''
+    feedbackType.value = 'alert'
     feedback.value = `The rating for “${item.media.title}” could not be updated.`
   } finally {
     busyMediaKeys.value.delete(mediaKey)
@@ -76,8 +80,16 @@ async function handleRemove(item) {
   feedback.value = ''
 
   try {
-    await removeLibraryItem(mediaKey)
+    const removed = await removeLibraryItem(mediaKey)
+
+    if (!removed) {
+      throw new Error('Library item was not found')
+    }
+
+    feedbackType.value = 'status'
+    feedback.value = `“${item.media.title}” was removed from your Library.`
   } catch {
+    feedbackType.value = 'alert'
     feedback.value = `“${item.media.title}” could not be removed.`
   } finally {
     busyMediaKeys.value.delete(mediaKey)
@@ -92,14 +104,20 @@ async function handleRemove(item) {
       <p>Your saved books, reading statuses, and personal ratings.</p>
     </section>
 
-    <p v-if="feedback" class="library-feedback library-feedback--error" role="alert">
+    <p
+      v-if="feedback"
+      class="library-feedback"
+      :class="{ 'library-feedback--error': feedbackType === 'alert' }"
+      :role="feedbackType"
+    >
       {{ feedback }}
     </p>
 
     <p v-if="!isLibraryLoaded" class="library-empty" role="status">Loading your Library…</p>
-    <p v-else-if="!libraryItems.length" class="library-empty">
-      Your Library is empty. Add a book from Discover to get started.
-    </p>
+    <div v-else-if="!libraryItems.length" class="library-empty">
+      <p>Your Library is empty.</p>
+      <RouterLink class="inline-link" to="/discover">Discover books to add</RouterLink>
+    </div>
 
     <section v-else aria-labelledby="saved-books-title">
       <h2 id="saved-books-title" class="section-title">Saved books</h2>
@@ -126,9 +144,12 @@ async function handleRemove(item) {
         </div>
       </div>
 
-      <p v-if="!visibleLibraryItems.length" class="library-empty">
-        No books match the selected status filter.
-      </p>
+      <div v-if="!visibleLibraryItems.length" class="library-empty" role="status">
+        <p>No books match the selected status filter.</p>
+        <button class="text-button" type="button" @click="statusFilter = 'all'">
+          Show all books
+        </button>
+      </div>
 
       <div v-else class="book-grid">
         <BookCard

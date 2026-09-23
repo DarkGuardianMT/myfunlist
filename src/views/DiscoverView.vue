@@ -35,6 +35,7 @@ async function handleSearch() {
     return
   }
 
+  libraryFeedback.value = ''
   status.value = 'loading'
   searchedQuery.value = trimmedQuery
 
@@ -117,7 +118,11 @@ function isAdding(book) {
         <p v-else-if="status === 'error'" class="book-search__error" role="alert">
           We couldn’t load books right now. Please try again in a moment.
         </p>
-        <p v-else>{{ books.length }} books found for “{{ searchedQuery }}”.</p>
+        <p v-else>
+          {{ books.length }} {{ books.length === 1 ? 'book' : 'books' }} found for “{{
+            searchedQuery
+          }}”.
+        </p>
       </div>
 
       <p
@@ -127,6 +132,13 @@ function isAdding(book) {
         :role="libraryFeedbackType"
       >
         {{ libraryFeedback }}
+        <RouterLink
+          v-if="libraryFeedbackType === 'status'"
+          class="inline-link"
+          to="/library"
+        >
+          View Library
+        </RouterLink>
       </p>
 
       <div v-if="status === 'success'" class="book-grid" aria-label="Book search results">
@@ -137,6 +149,7 @@ function isAdding(book) {
         >
           <button
             class="book-action-button"
+            :class="{ 'book-action-button--added': hasLibraryItem(book) }"
             type="button"
             :disabled="
               !isLibraryLoaded || !getMediaKey(book) || hasLibraryItem(book) || isAdding(book)

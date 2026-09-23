@@ -116,6 +116,7 @@ a:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
   gap: 1rem;
+  max-width: 34rem;
   margin-bottom: 1.5rem;
 }
 
@@ -226,6 +227,14 @@ a:focus-visible {
   color: #a0322c;
 }
 
+.inline-link {
+  display: inline-block;
+  margin-left: 0.35rem;
+  color: #126b65;
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
 .library-empty {
   margin: 0;
   border: 1px dashed #aabbb6;
@@ -233,6 +242,16 @@ a:focus-visible {
   background: #fff;
   color: #48615d;
   padding: 1.5rem;
+}
+
+.library-empty p {
+  margin: 0;
+}
+
+.library-empty .inline-link,
+.library-empty .text-button {
+  margin-top: 0.75rem;
+  margin-left: 0;
 }
 
 .book-grid {
@@ -276,6 +295,7 @@ a:focus-visible {
   font-size: 0.75rem;
   font-weight: 650;
   text-align: center;
+  box-shadow: inset 0 0 0 1px #cfdbd7;
 }
 
 .book-card__details {
@@ -296,10 +316,12 @@ a:focus-visible {
   color: #48615d;
   font-size: 0.9rem;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .book-card__actions {
-  margin-top: 1rem;
+  grid-column: 1 / -1;
+  padding-top: 0.25rem;
 }
 
 .book-action-button,
@@ -318,6 +340,13 @@ a:focus-visible {
 
 .book-action-button:hover:not(:disabled) {
   background: #11554e;
+}
+
+.book-action-button.book-action-button--added:disabled {
+  border-color: #8eb2aa;
+  background: #edf4f1;
+  color: #164b45;
+  opacity: 1;
 }
 
 .book-action-button:focus-visible,
@@ -373,6 +402,23 @@ a:focus-visible {
 
 .remove-button:hover:not(:disabled) {
   background: #faecea;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #126b65;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.text-button:focus-visible {
+  outline: 2px solid #126b65;
+  outline-offset: 3px;
 }
 
 @media (max-width: 640px) {
