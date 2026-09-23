@@ -112,6 +112,34 @@ a:focus-visible {
   font-size: 1.5rem;
 }
 
+.library-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.library-toolbar__field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.library-toolbar label {
+  color: #334c48;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.library-toolbar select {
+  width: 100%;
+  border: 1px solid #aabbb6;
+  border-radius: 0.55rem;
+  background: #fff;
+  color: #1c2a2a;
+  font: inherit;
+  padding: 0.7rem;
+}
+
 .book-search h2 {
   margin: 0 0 1.25rem;
   color: #173f3d;
@@ -294,6 +322,7 @@ a:focus-visible {
 
 .book-action-button:focus-visible,
 .remove-button:focus-visible,
+.library-toolbar select:focus-visible,
 .library-item-controls select:focus-visible {
   outline: 2px solid #126b65;
   outline-offset: 2px;

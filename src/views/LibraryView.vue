@@ -1,8 +1,9 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import BookCard from '../components/BookCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { BOOK_RATINGS, BOOK_STATUSES } from '../services/libraryRepository.js'
+import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
 
 const statusLabels = {
   'want-to-read': 'Want to read',
@@ -11,6 +12,8 @@ const statusLabels = {
 }
 const busyMediaKeys = ref(new Set())
 const feedback = ref('')
+const statusFilter = ref('all')
+const sortOrder = ref('recent')
 const {
   libraryItems,
   isLibraryLoaded,
@@ -19,6 +22,9 @@ const {
   updateLibraryRating,
   removeLibraryItem,
 } = useLibrary()
+const visibleLibraryItems = computed(() =>
+  getVisibleLibraryItems(libraryItems.value, statusFilter.value, sortOrder.value),
+)
 
 onMounted(async () => {
   try {
@@ -97,9 +103,36 @@ async function handleRemove(item) {
 
     <section v-else aria-labelledby="saved-books-title">
       <h2 id="saved-books-title" class="section-title">Saved books</h2>
-      <div class="book-grid">
+
+      <div class="library-toolbar" role="group" aria-label="Library display options">
+        <div class="library-toolbar__field">
+          <label for="library-status-filter">Filter by status</label>
+          <select id="library-status-filter" v-model="statusFilter">
+            <option value="all">All</option>
+            <option value="want-to-read">Want to Read</option>
+            <option value="reading">Reading</option>
+            <option value="finished">Finished</option>
+          </select>
+        </div>
+
+        <div class="library-toolbar__field">
+          <label for="library-sort-order">Sort by</label>
+          <select id="library-sort-order" v-model="sortOrder">
+            <option value="recent">Recently Added</option>
+            <option value="title">Title A–Z</option>
+            <option value="rating-high-low">Rating High–Low</option>
+            <option value="rating-low-high">Rating Low–High</option>
+          </select>
+        </div>
+      </div>
+
+      <p v-if="!visibleLibraryItems.length" class="library-empty">
+        No books match the selected status filter.
+      </p>
+
+      <div v-else class="book-grid">
         <BookCard
-          v-for="(item, index) in libraryItems"
+          v-for="(item, index) in visibleLibraryItems"
           :key="item.userMedia.mediaKey"
           :book="item.media"
         >
