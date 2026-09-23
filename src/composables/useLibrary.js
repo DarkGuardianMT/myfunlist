@@ -4,6 +4,7 @@ import {
   getLibrary,
   getMediaKey,
   removeItem,
+  updateRating,
   updateStatus,
 } from '../services/libraryRepository.js'
 
@@ -58,6 +59,18 @@ export function useLibrary() {
     return updatedItem
   }
 
+  async function updateLibraryRating(mediaKey, rating) {
+    const updatedItem = await updateRating(mediaKey, rating)
+
+    if (updatedItem) {
+      libraryItems.value = libraryItems.value.map((item) =>
+        item.userMedia.mediaKey === mediaKey ? updatedItem : item,
+      )
+    }
+
+    return updatedItem
+  }
+
   async function removeLibraryItem(mediaKey) {
     const removed = await removeItem(mediaKey)
 
@@ -78,6 +91,7 @@ export function useLibrary() {
     hasLibraryItem,
     addLibraryItem,
     updateLibraryStatus,
+    updateLibraryRating,
     removeLibraryItem,
   }
 }

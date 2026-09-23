@@ -3,6 +3,7 @@ const SCHEMA_VERSION = 1
 const DEFAULT_STATUS = 'want-to-read'
 
 export const BOOK_STATUSES = ['want-to-read', 'reading', 'finished']
+export const BOOK_RATINGS = Array.from({ length: 20 }, (_, index) => (index + 1) / 2)
 
 function getStorage() {
   try {
@@ -62,6 +63,7 @@ function normalizeLibraryItem(item) {
       status: BOOK_STATUSES.includes(item.userMedia.status)
         ? item.userMedia.status
         : DEFAULT_STATUS,
+      rating: BOOK_RATINGS.includes(item.userMedia.rating) ? item.userMedia.rating : null,
       addedAt:
         typeof item.userMedia.addedAt === 'string'
           ? item.userMedia.addedAt
@@ -159,6 +161,7 @@ export async function addItem(media) {
     userMedia: {
       mediaKey,
       status: DEFAULT_STATUS,
+      rating: null,
       addedAt: new Date().toISOString(),
     },
   }
@@ -184,6 +187,31 @@ export async function updateStatus(mediaKey, status) {
     userMedia: {
       ...items[itemIndex].userMedia,
       status,
+    },
+  }
+
+  items[itemIndex] = updatedItem
+  writeLibrary(items)
+  return updatedItem
+}
+
+export async function updateRating(mediaKey, rating) {
+  if (rating !== null && !BOOK_RATINGS.includes(rating)) {
+    throw new Error('Invalid book rating')
+  }
+
+  const items = readLibrary()
+  const itemIndex = items.findIndex((item) => item.userMedia.mediaKey === mediaKey)
+
+  if (itemIndex === -1) {
+    return null
+  }
+
+  const updatedItem = {
+    ...items[itemIndex],
+    userMedia: {
+      ...items[itemIndex].userMedia,
+      rating,
     },
   }
 

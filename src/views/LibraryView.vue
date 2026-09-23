@@ -2,7 +2,7 @@
 import { onMounted, ref } from 'vue'
 import BookCard from '../components/BookCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
-import { BOOK_STATUSES } from '../services/libraryRepository.js'
+import { BOOK_RATINGS, BOOK_STATUSES } from '../services/libraryRepository.js'
 
 const statusLabels = {
   'want-to-read': 'Want to read',
@@ -16,6 +16,7 @@ const {
   isLibraryLoaded,
   loadLibrary,
   updateLibraryStatus,
+  updateLibraryRating,
   removeLibraryItem,
 } = useLibrary()
 
@@ -44,6 +45,24 @@ async function handleStatusChange(item, event) {
   }
 }
 
+async function handleRatingChange(item, event) {
+  const mediaKey = item.userMedia.mediaKey
+  const ratingControl = event.target
+  const rating = ratingControl.value === '' ? null : Number(ratingControl.value)
+
+  busyMediaKeys.value.add(mediaKey)
+  feedback.value = ''
+
+  try {
+    await updateLibraryRating(mediaKey, rating)
+  } catch {
+    ratingControl.value = item.userMedia.rating ?? ''
+    feedback.value = `The rating for “${item.media.title}” could not be updated.`
+  } finally {
+    busyMediaKeys.value.delete(mediaKey)
+  }
+}
+
 async function handleRemove(item) {
   const mediaKey = item.userMedia.mediaKey
 
@@ -64,7 +83,7 @@ async function handleRemove(item) {
   <div class="library-page">
     <section class="page-intro" aria-labelledby="page-title">
       <h1 id="page-title">Library</h1>
-      <p>Your saved books and their current reading status.</p>
+      <p>Your saved books, reading statuses, and personal ratings.</p>
     </section>
 
     <p v-if="feedback" class="library-feedback library-feedback--error" role="alert">
@@ -95,6 +114,25 @@ async function handleRemove(item) {
             >
               <option v-for="bookStatus in BOOK_STATUSES" :key="bookStatus" :value="bookStatus">
                 {{ statusLabels[bookStatus] }}
+              </option>
+            </select>
+            <p class="personal-rating">
+              Personal rating:
+              <strong>
+                {{ item.userMedia.rating === null ? 'Unrated' : `${item.userMedia.rating} / 10` }}
+              </strong>
+            </p>
+            <label :for="`book-rating-${index}`">Personal rating</label>
+            <select
+              :id="`book-rating-${index}`"
+              :value="item.userMedia.rating ?? ''"
+              :disabled="busyMediaKeys.has(item.userMedia.mediaKey)"
+              :aria-label="`Personal rating for ${item.media.title}`"
+              @change="handleRatingChange(item, $event)"
+            >
+              <option value="">Not rated</option>
+              <option v-for="rating in BOOK_RATINGS" :key="rating" :value="rating">
+                {{ rating }} / 10
               </option>
             </select>
             <button

@@ -317,6 +317,13 @@ a:focus-visible {
   font-weight: 650;
 }
 
+.personal-rating {
+  margin: 0.4rem 0 0;
+  color: #334c48;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
 .library-item-controls select {
   width: 100%;
   border: 1px solid #aabbb6;
