@@ -19,7 +19,7 @@ A PHP REST API and MySQL database are planned for a later phase. They are not pa
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and minimal Home, Discover, Library, and Profile routes. `npm run dev` and `npm run build` have worked. There are no product features, backend, authentication, or database yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover includes the first product slice: book search and result rendering backed by Google Books. There is no personal library behavior, backend, authentication, or database yet.
 
 ## Core product concepts
 
@@ -35,6 +35,7 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 ## Current architectural decisions
 
 - Keep external media metadata separate from user-specific media data.
+- Normalize external API responses into a small Trackora media shape before rendering them. External metadata does not contain user-specific fields.
 - Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase. Vue Router handles frontend page navigation.
 - Defer backend code, database design, authentication, and additional libraries until their respective needs are defined.
 
@@ -44,12 +45,12 @@ An external media item is expected to have a source, source ID (`sourceId`), med
 
 ## External API direction
 
-- Books: Google Books API is a likely source, not a final choice.
+- Books: Google Books API powers the first discovery implementation. It is used only for external book metadata.
 - Movies and TV: TMDb is a likely source, not a final choice.
 - Games: source undecided.
 - Anime: source undecided.
 
-API integration details and data synchronization behavior are undecided.
+Data synchronization behavior is undecided.
 
 ## Development principles
 
@@ -57,11 +58,11 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend and four-page application shell are working. Product requirements and architecture have not yet been defined in detail.
+The base Vue/Vite frontend, four-page application shell, and Google Books discovery search are working. Personal media tracking has not been implemented yet.
 
 ## Next milestone
 
-Define the initial product requirements and first implementation scope before building product features. The specific first feature is undecided.
+Define the next product slice while preserving the boundary between external media metadata and future user-specific media data.
 
 ## Future ideas
 
