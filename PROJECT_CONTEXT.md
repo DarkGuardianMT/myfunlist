@@ -19,7 +19,7 @@ A PHP REST API and MySQL database are planned for a later phase. They are not pa
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books search and adding books to a locally persisted Library. Library entries can be given a reading status or removed. There is no backend, authentication, or database yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, and TMDB TV show search. Books can be added to a locally persisted Library, where entries can be given a reading status, personal rating, or removed. Movie and TV Library support is intentionally not implemented yet. There is no backend, authentication, or database yet.
 
 ## Core product concepts
 
@@ -36,6 +36,10 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 
 - Keep external media metadata separate from user-specific media data.
 - Normalize external API responses into a small Trackora media shape before rendering them. External metadata does not contain user-specific fields.
+- Treat movies and TV shows as separate media types even though they share some discovery presentation.
+- Use a Vite environment variable containing a TMDB API Read Access Token for application-level Bearer authentication. TMDB response fields and image paths are normalized in the TMDB service before reaching Vue components.
+- Do not treat TMDB public vote data as a Trackora personal rating.
+- Show TMDB's approved logo and required notice in a discovery credits section when displaying TMDB-powered search.
 - Keep user-specific Library state separate from external media metadata. Components use a domain-oriented Library abstraction and do not access persistence directly.
 - Treat ratings as user-specific media state. Personal ratings currently use a 10-point scale in 0.5 increments and may be unset.
 - Use localStorage as temporary persistence for the anonymous local Library. A future REST API and database should replace the implementation behind the same Library abstraction.
@@ -49,7 +53,7 @@ An external media item is expected to have a source, source ID (`sourceId`), med
 ## External API direction
 
 - Books: Google Books API powers the first discovery implementation. It is used only for external book metadata.
-- Movies and TV: TMDb is a likely source, not a final choice.
+- Movies and TV: TMDB powers discovery and normalized external metadata.
 - Games: source undecided.
 - Anime: source undecided.
 
@@ -61,11 +65,11 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, Google Books discovery search, and an anonymous local book Library are working. Library persistence is temporary and limited to the current browser.
+The base Vue/Vite frontend, four-page application shell, Books/Movie/TV discovery search, and an anonymous local book Library are working. Library persistence is temporary, limited to books, and limited to the current browser.
 
 ## Next milestone
 
-Define the next product slice while preserving the boundary between external media metadata and future user-specific media data.
+Verify multi-media discovery, then define movie and TV Library persistence while preserving the boundary between external media metadata and user-specific media data.
 
 ## Future ideas
 
