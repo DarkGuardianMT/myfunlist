@@ -1,7 +1,7 @@
 <template>
   <header class="site-header">
     <div class="header-inner">
-      <RouterLink class="brand" to="/">Trackora</RouterLink>
+      <RouterLink class="brand" to="/">MyFunList</RouterLink>
 
       <nav class="site-nav" aria-label="Main navigation">
         <RouterLink to="/">Home</RouterLink>

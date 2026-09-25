@@ -1,6 +1,6 @@
-# Working in Trackora
+# Working in MyFunList
 
-This repository is the main Trackora project. Read `PROJECT_CONTEXT.md` for the current project state and agreed direction before making changes.
+This repository is the main MyFunList project. Read `PROJECT_CONTEXT.md` for the current project state and agreed direction before making changes.
 
 ## Scope and implementation
 

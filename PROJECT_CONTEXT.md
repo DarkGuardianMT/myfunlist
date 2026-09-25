@@ -1,8 +1,8 @@
-# Trackora project context
+# MyFunList project context
 
 ## Project overview
 
-Trackora is the new main repository for a long-term, full-stack media tracking platform and portfolio project. The previous vanilla JavaScript Trackora repository is considered a prototype.
+MyFunList is the main repository for a long-term, full-stack media tracking platform and portfolio project. The project was originally developed under the working name Trackora; the previous vanilla JavaScript repository under that name is considered a prototype. The planned public domain is `myfunlist.app`; its deployment status is not confirmed.
 
 ## Product vision
 
@@ -35,14 +35,14 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 ## Current architectural decisions
 
 - Keep external media metadata separate from user-specific media data.
-- Normalize external API responses into a small Trackora media shape before rendering them. External metadata does not contain user-specific fields.
+- Normalize external API responses into a small MyFunList media shape before rendering them. External metadata does not contain user-specific fields.
 - Treat movies and TV shows as separate media types even though they share some discovery presentation.
 - Use a Vite environment variable containing a TMDB API Read Access Token for application-level Bearer authentication. TMDB response fields and image paths are normalized in the TMDB service before reaching Vue components.
-- Do not treat TMDB public vote data as a Trackora personal rating.
+- Do not treat TMDB public vote data as a MyFunList personal rating.
 - Show TMDB's approved logo and required notice in a discovery credits section when displaying TMDB-powered search.
 - Keep user-specific Library state separate from external media metadata. Components use a domain-oriented Library abstraction and do not access persistence directly.
 - Treat ratings as user-specific media state. Personal ratings currently use a 10-point scale in 0.5 increments and may be unset.
-- Use localStorage as temporary persistence for the anonymous local Library. A future REST API and database should replace the implementation behind the same Library abstraction.
+- Use localStorage as temporary persistence for the anonymous local Library. The canonical key is `myfunlist_library`; valid data under the former `trackora_library` key migrates on first read. A future REST API and database should replace the implementation behind the same Library abstraction.
 - Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase. Vue Router handles frontend page navigation.
 - Defer backend code, database design, authentication, and additional libraries until their respective needs are defined.
 

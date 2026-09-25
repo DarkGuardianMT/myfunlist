@@ -1,4 +1,5 @@
-const STORAGE_KEY = 'trackora_library'
+const STORAGE_KEY = 'myfunlist_library'
+const LEGACY_STORAGE_KEY = 'trackora_library'
 const SCHEMA_VERSION = 1
 const DEFAULT_STATUS = 'want-to-read'
 
@@ -72,20 +73,12 @@ function normalizeLibraryItem(item) {
   }
 }
 
-function readLibrary() {
-  const storage = getStorage()
-
-  if (!storage) {
-    return []
+function parseLibrary(rawLibrary) {
+  if (!rawLibrary) {
+    return null
   }
 
   try {
-    const rawLibrary = storage.getItem(STORAGE_KEY)
-
-    if (!rawLibrary) {
-      return []
-    }
-
     const storedLibrary = JSON.parse(rawLibrary)
 
     if (
@@ -94,7 +87,7 @@ function readLibrary() {
       storedLibrary.version !== SCHEMA_VERSION ||
       !Array.isArray(storedLibrary.items)
     ) {
-      return []
+      return null
     }
 
     const seenMediaKeys = new Set()
@@ -110,6 +103,41 @@ function readLibrary() {
       items.push(item)
       return items
     }, [])
+  } catch {
+    return null
+  }
+}
+
+function readLibrary() {
+  const storage = getStorage()
+
+  if (!storage) {
+    return []
+  }
+
+  try {
+    const currentLibrary = parseLibrary(storage.getItem(STORAGE_KEY))
+
+    if (currentLibrary !== null) {
+      return currentLibrary
+    }
+
+    const legacyRaw = storage.getItem(LEGACY_STORAGE_KEY)
+    const legacyLibrary = parseLibrary(legacyRaw)
+
+    if (legacyLibrary === null) {
+      return []
+    }
+
+    try {
+      // Bewaar de oude data ongewijzigd en verwijder de oude sleutel pas na een geslaagde kopie.
+      storage.setItem(STORAGE_KEY, legacyRaw)
+      storage.removeItem(LEGACY_STORAGE_KEY)
+    } catch {
+      // De oude data blijft beschikbaar als opslag niet kan worden bijgewerkt.
+    }
+
+    return legacyLibrary
   } catch {
     return []
   }
