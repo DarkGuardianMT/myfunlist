@@ -16,5 +16,7 @@ defineProps({
     :image-alt="`Poster for ${movie.title}`"
     :year="movie.releaseYear"
     :description="movie.description"
-  />
+  >
+    <slot />
+  </MediaCard>
 </template>

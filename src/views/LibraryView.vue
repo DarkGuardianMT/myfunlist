@@ -1,18 +1,14 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import BookCard from '../components/BookCard.vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import LibraryItemCard from '../components/LibraryItemCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
-import { BOOK_RATINGS, BOOK_STATUSES } from '../services/libraryRepository.js'
+import { getStatusOptions } from '../domain/libraryMedia.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
 
-const statusLabels = {
-  'want-to-read': 'Want to read',
-  reading: 'Reading',
-  finished: 'Finished',
-}
 const busyMediaKeys = ref(new Set())
 const feedback = ref('')
 const feedbackType = ref('status')
+const mediaTypeFilter = ref('all')
 const statusFilter = ref('all')
 const sortOrder = ref('recent')
 const {
@@ -24,8 +20,18 @@ const {
   removeLibraryItem,
 } = useLibrary()
 const visibleLibraryItems = computed(() =>
-  getVisibleLibraryItems(libraryItems.value, statusFilter.value, sortOrder.value),
+  getVisibleLibraryItems(
+    libraryItems.value,
+    mediaTypeFilter.value,
+    statusFilter.value,
+    sortOrder.value,
+  ),
 )
+const statusOptions = computed(() => getStatusOptions(mediaTypeFilter.value))
+
+watch(mediaTypeFilter, () => {
+  statusFilter.value = 'all'
+})
 
 onMounted(async () => {
   try {
@@ -38,15 +44,14 @@ onMounted(async () => {
 
 async function handleStatusChange(item, event) {
   const mediaKey = item.userMedia.mediaKey
-  const statusControl = event.target
-
+  const control = event.target
   busyMediaKeys.value.add(mediaKey)
   feedback.value = ''
 
   try {
-    await updateLibraryStatus(mediaKey, statusControl.value)
+    await updateLibraryStatus(mediaKey, control.value)
   } catch {
-    statusControl.value = item.userMedia.status
+    control.value = item.userMedia.status
     feedbackType.value = 'alert'
     feedback.value = `The status for “${item.media.title}” could not be updated.`
   } finally {
@@ -56,16 +61,15 @@ async function handleStatusChange(item, event) {
 
 async function handleRatingChange(item, event) {
   const mediaKey = item.userMedia.mediaKey
-  const ratingControl = event.target
-  const rating = ratingControl.value === '' ? null : Number(ratingControl.value)
-
+  const control = event.target
+  const rating = control.value === '' ? null : Number(control.value)
   busyMediaKeys.value.add(mediaKey)
   feedback.value = ''
 
   try {
     await updateLibraryRating(mediaKey, rating)
   } catch {
-    ratingControl.value = item.userMedia.rating ?? ''
+    control.value = item.userMedia.rating ?? ''
     feedbackType.value = 'alert'
     feedback.value = `The rating for “${item.media.title}” could not be updated.`
   } finally {
@@ -75,17 +79,12 @@ async function handleRatingChange(item, event) {
 
 async function handleRemove(item) {
   const mediaKey = item.userMedia.mediaKey
-
   busyMediaKeys.value.add(mediaKey)
   feedback.value = ''
 
   try {
     const removed = await removeLibraryItem(mediaKey)
-
-    if (!removed) {
-      throw new Error('Library item was not found')
-    }
-
+    if (!removed) throw new Error('Library item was not found')
     feedbackType.value = 'status'
     feedback.value = `“${item.media.title}” was removed from your Library.`
   } catch {
@@ -101,7 +100,7 @@ async function handleRemove(item) {
   <div class="library-page">
     <section class="page-intro" aria-labelledby="page-title">
       <h1 id="page-title">Library</h1>
-      <p>Your saved books, reading statuses, and personal ratings.</p>
+      <p>Your saved books, movies, TV shows, statuses, and personal ratings.</p>
     </section>
 
     <p
@@ -116,20 +115,30 @@ async function handleRemove(item) {
     <p v-if="!isLibraryLoaded" class="library-empty" role="status">Loading your Library…</p>
     <div v-else-if="!libraryItems.length" class="library-empty">
       <p>Your Library is empty.</p>
-      <RouterLink class="inline-link" to="/discover">Discover books to add</RouterLink>
+      <RouterLink class="inline-link" to="/discover">Discover media to add</RouterLink>
     </div>
 
-    <section v-else aria-labelledby="saved-books-title">
-      <h2 id="saved-books-title" class="section-title">Saved books</h2>
+    <section v-else aria-labelledby="saved-media-title">
+      <h2 id="saved-media-title" class="section-title">Saved media</h2>
 
       <div class="library-toolbar" role="group" aria-label="Library display options">
         <div class="library-toolbar__field">
+          <label for="library-media-filter">Media type</label>
+          <select id="library-media-filter" v-model="mediaTypeFilter">
+            <option value="all">All</option>
+            <option value="book">Books</option>
+            <option value="movie">Movies</option>
+            <option value="tv">TV Shows</option>
+          </select>
+        </div>
+
+        <div v-if="mediaTypeFilter !== 'all'" class="library-toolbar__field">
           <label for="library-status-filter">Filter by status</label>
           <select id="library-status-filter" v-model="statusFilter">
-            <option value="all">All</option>
-            <option value="want-to-read">Want to Read</option>
-            <option value="reading">Reading</option>
-            <option value="finished">Finished</option>
+            <option value="all">All statuses</option>
+            <option v-for="option in statusOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
           </select>
         </div>
 
@@ -145,61 +154,26 @@ async function handleRemove(item) {
       </div>
 
       <div v-if="!visibleLibraryItems.length" class="library-empty" role="status">
-        <p>No books match the selected status filter.</p>
-        <button class="text-button" type="button" @click="statusFilter = 'all'">
-          Show all books
+        <p>No items match the selected filters.</p>
+        <button
+          class="text-button"
+          type="button"
+          @click="mediaTypeFilter = 'all'; statusFilter = 'all'"
+        >
+          Show all media
         </button>
       </div>
 
-      <div v-else class="book-grid">
-        <BookCard
-          v-for="(item, index) in visibleLibraryItems"
+      <div v-else class="library-grid">
+        <LibraryItemCard
+          v-for="item in visibleLibraryItems"
           :key="item.userMedia.mediaKey"
-          :book="item.media"
-        >
-          <div class="library-item-controls">
-            <label :for="`book-status-${index}`">Reading status</label>
-            <select
-              :id="`book-status-${index}`"
-              :value="item.userMedia.status"
-              :disabled="busyMediaKeys.has(item.userMedia.mediaKey)"
-              :aria-label="`Reading status for ${item.media.title}`"
-              @change="handleStatusChange(item, $event)"
-            >
-              <option v-for="bookStatus in BOOK_STATUSES" :key="bookStatus" :value="bookStatus">
-                {{ statusLabels[bookStatus] }}
-              </option>
-            </select>
-            <p class="personal-rating">
-              Personal rating:
-              <strong>
-                {{ item.userMedia.rating === null ? 'Unrated' : `${item.userMedia.rating} / 10` }}
-              </strong>
-            </p>
-            <label :for="`book-rating-${index}`">Personal rating</label>
-            <select
-              :id="`book-rating-${index}`"
-              :value="item.userMedia.rating ?? ''"
-              :disabled="busyMediaKeys.has(item.userMedia.mediaKey)"
-              :aria-label="`Personal rating for ${item.media.title}`"
-              @change="handleRatingChange(item, $event)"
-            >
-              <option value="">Not rated</option>
-              <option v-for="rating in BOOK_RATINGS" :key="rating" :value="rating">
-                {{ rating }} / 10
-              </option>
-            </select>
-            <button
-              class="remove-button"
-              type="button"
-              :disabled="busyMediaKeys.has(item.userMedia.mediaKey)"
-              :aria-label="`Remove ${item.media.title} from Library`"
-              @click="handleRemove(item)"
-            >
-              Remove from Library
-            </button>
-          </div>
-        </BookCard>
+          :item="item"
+          :busy="busyMediaKeys.has(item.userMedia.mediaKey)"
+          @status-change="handleStatusChange"
+          @rating-change="handleRatingChange"
+          @remove="handleRemove"
+        />
       </div>
     </section>
   </div>

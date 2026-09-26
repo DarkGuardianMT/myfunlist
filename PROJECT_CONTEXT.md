@@ -19,7 +19,7 @@ A PHP REST API and MySQL database are planned for a later phase. They are not pa
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, and TMDB TV show search. Books can be added to a locally persisted Library, where entries can be given a reading status, personal rating, or removed. Movie and TV Library support is intentionally not implemented yet. There is no backend, authentication, or database yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, and TMDB TV show search. Books, movies, and TV shows can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. There is no backend, authentication, or database yet.
 
 ## Core product concepts
 
@@ -42,7 +42,9 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 - Show TMDB's approved logo and required notice in a discovery credits section when displaying TMDB-powered search.
 - Keep user-specific Library state separate from external media metadata. Components use a domain-oriented Library abstraction and do not access persistence directly.
 - Treat ratings as user-specific media state. Personal ratings currently use a 10-point scale in 0.5 increments and may be unset.
-- Use localStorage as temporary persistence for the anonymous local Library. The canonical key is `myfunlist_library`; valid data under the former `trackora_library` key migrates on first read. A future REST API and database should replace the implementation behind the same Library abstraction.
+- The Library is one multi-media collection. Book statuses are want-to-read, reading, and finished; movie statuses are want-to-watch and watched; TV statuses are want-to-watch, watching, and completed. Personal ratings remain common userMedia data, independent of status.
+- Canonical media identity combines source, media type, and source ID, so TMDB movies and TV shows with the same numeric ID remain distinct.
+- Use localStorage as temporary persistence for the anonymous local Library. The canonical key is `myfunlist_library`; schema version 2 migrates version 1 book keys to type-aware keys while preserving status, rating, and addedAt. Valid data under the former `trackora_library` key still migrates on first read. A future REST API and database should replace the implementation behind the same Library abstraction.
 - Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase. Vue Router handles frontend page navigation.
 - Defer backend code, database design, authentication, and additional libraries until their respective needs are defined.
 
@@ -65,11 +67,11 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, Books/Movie/TV discovery search, and an anonymous local book Library are working. Library persistence is temporary, limited to books, and limited to the current browser.
+The base Vue/Vite frontend, four-page application shell, Books/Movie/TV discovery search, and an anonymous unified local Library are working. Library persistence is temporary and limited to the current browser.
 
 ## Next milestone
 
-Verify multi-media discovery, then define movie and TV Library persistence while preserving the boundary between external media metadata and user-specific media data.
+Verify the multi-media Library in use, then plan the next milestone while preserving the boundary between external media metadata and user-specific media data.
 
 ## Future ideas
 

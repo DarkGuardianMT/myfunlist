@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import BookCard from '../components/BookCard.vue'
+import LibraryAddButton from '../components/LibraryAddButton.vue'
 import MovieCard from '../components/MovieCard.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
@@ -107,6 +108,7 @@ onMounted(async () => {
 
 function selectMediaType(mediaType) {
   activeMediaType.value = mediaType
+  libraryFeedback.value = ''
 }
 
 async function handleSearch() {
@@ -118,9 +120,7 @@ async function handleSearch() {
     return
   }
 
-  if (mediaType === 'book') {
-    libraryFeedback.value = ''
-  }
+  libraryFeedback.value = ''
 
   searchState.status = 'loading'
   searchState.searchedQuery = trimmedQuery
@@ -139,10 +139,10 @@ async function handleSearch() {
   }
 }
 
-async function handleAddToLibrary(book) {
-  const mediaKey = getMediaKey(book)
+async function handleAddToLibrary(media) {
+  const mediaKey = getMediaKey(media)
 
-  if (!mediaKey || hasLibraryItem(book) || addingMediaKeys.value.has(mediaKey)) {
+  if (!mediaKey || hasLibraryItem(media) || addingMediaKeys.value.has(mediaKey)) {
     return
   }
 
@@ -150,21 +150,21 @@ async function handleAddToLibrary(book) {
   libraryFeedback.value = ''
 
   try {
-    const result = await addLibraryItem(book)
+    const result = await addLibraryItem(media)
     libraryFeedbackType.value = 'status'
     libraryFeedback.value = result.added
-      ? `“${book.title}” was added to your Library.`
-      : `“${book.title}” is already in your Library.`
+      ? `“${media.title}” was added to your Library.`
+      : `“${media.title}” is already in your Library.`
   } catch {
     libraryFeedbackType.value = 'alert'
-    libraryFeedback.value = 'This book could not be added. Please try again.'
+    libraryFeedback.value = 'This item could not be added. Please try again.'
   } finally {
     addingMediaKeys.value.delete(mediaKey)
   }
 }
 
-function isAdding(book) {
-  const mediaKey = getMediaKey(book)
+function isAdding(media) {
+  const mediaKey = getMediaKey(media)
 
   return Boolean(mediaKey && addingMediaKeys.value.has(mediaKey))
 }
@@ -235,7 +235,7 @@ function isAdding(book) {
       </div>
 
       <p
-        v-if="activeMediaType === 'book' && libraryFeedback"
+        v-if="libraryFeedback"
         class="library-feedback"
         :class="{ 'library-feedback--error': libraryFeedbackType === 'alert' }"
         :role="libraryFeedbackType"
@@ -257,23 +257,17 @@ function isAdding(book) {
       >
         <BookCard
           v-for="(book, index) in activeSearch.results"
-          :key="`${book.source}:${book.sourceId || index}`"
+          :key="getMediaKey(book) || index"
           :book="book"
         >
-          <button
-            class="book-action-button"
-            :class="{ 'book-action-button--added': hasLibraryItem(book) }"
-            type="button"
-            :disabled="
-              !isLibraryLoaded || !getMediaKey(book) || hasLibraryItem(book) || isAdding(book)
-            "
-            @click="handleAddToLibrary(book)"
-          >
-            <template v-if="hasLibraryItem(book)">In Library</template>
-            <template v-else-if="isAdding(book)">Adding…</template>
-            <template v-else-if="!isLibraryLoaded">Loading Library…</template>
-            <template v-else>Add to Library</template>
-          </button>
+          <LibraryAddButton
+            :media="book"
+            :is-library-loaded="isLibraryLoaded"
+            :is-added="hasLibraryItem(book)"
+            :is-adding="isAdding(book)"
+            :has-identity="Boolean(getMediaKey(book))"
+            @add="handleAddToLibrary"
+          />
         </BookCard>
       </div>
 
@@ -284,9 +278,18 @@ function isAdding(book) {
       >
         <MovieCard
           v-for="(movie, index) in activeSearch.results"
-          :key="`${movie.source}:${movie.sourceId || index}`"
+          :key="getMediaKey(movie) || index"
           :movie="movie"
-        />
+        >
+          <LibraryAddButton
+            :media="movie"
+            :is-library-loaded="isLibraryLoaded"
+            :is-added="hasLibraryItem(movie)"
+            :is-adding="isAdding(movie)"
+            :has-identity="Boolean(getMediaKey(movie))"
+            @add="handleAddToLibrary"
+          />
+        </MovieCard>
       </div>
 
       <div
@@ -296,9 +299,18 @@ function isAdding(book) {
       >
         <TvCard
           v-for="(show, index) in activeSearch.results"
-          :key="`${show.source}:${show.sourceId || index}`"
+          :key="getMediaKey(show) || index"
           :show="show"
-        />
+        >
+          <LibraryAddButton
+            :media="show"
+            :is-library-loaded="isLibraryLoaded"
+            :is-added="hasLibraryItem(show)"
+            :is-adding="isAdding(show)"
+            :has-identity="Boolean(getMediaKey(show))"
+            @add="handleAddToLibrary"
+          />
+        </TvCard>
       </div>
 
       <TmdbAttribution v-if="activeMediaType !== 'book'" />

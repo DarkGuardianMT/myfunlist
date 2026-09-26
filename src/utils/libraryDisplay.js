@@ -34,11 +34,12 @@ function compareRatings(firstItem, secondItem, direction) {
   return ratingDifference || compareTitles(firstItem, secondItem)
 }
 
-export function getVisibleLibraryItems(items, statusFilter, sortOrder) {
-  const visibleItems =
-    statusFilter === 'all'
-      ? [...items]
-      : items.filter((item) => item.userMedia.status === statusFilter)
+export function getVisibleLibraryItems(items, mediaTypeFilter, statusFilter, sortOrder) {
+  const visibleItems = items.filter(
+    (item) =>
+      (mediaTypeFilter === 'all' || item.media.mediaType === mediaTypeFilter) &&
+      (mediaTypeFilter === 'all' || statusFilter === 'all' || item.userMedia.status === statusFilter),
+  )
 
   return visibleItems.sort((firstItem, secondItem) => {
     if (sortOrder === 'title') {

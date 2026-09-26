@@ -309,6 +309,13 @@ a:focus-visible {
   gap: 1.25rem;
 }
 
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
 .media-card {
   display: grid;
   grid-template-columns: 6rem minmax(0, 1fr);
@@ -349,6 +356,22 @@ a:focus-visible {
 
 .media-card__details {
   min-width: 0;
+}
+
+.media-card__actions {
+  grid-column: 1 / -1;
+  padding-top: 0.25rem;
+}
+
+.library-media-badge {
+  width: fit-content;
+  margin: 0 0 0.75rem;
+  border-radius: 0.35rem;
+  background: #dceee8;
+  color: #164b45;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
 }
 
 .media-card h3 {

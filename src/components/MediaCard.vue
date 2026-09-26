@@ -54,5 +54,8 @@ watch(
       <p class="media-card__year">{{ year || 'Year unknown' }}</p>
       <p class="media-card__description">{{ description || 'No description available.' }}</p>
     </div>
+    <div v-if="$slots.default" class="media-card__actions">
+      <slot />
+    </div>
   </article>
 </template>
