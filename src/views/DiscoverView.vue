@@ -1,12 +1,14 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import BookCard from '../components/BookCard.vue'
+import GameCard from '../components/GameCard.vue'
 import LibraryAddButton from '../components/LibraryAddButton.vue'
 import MovieCard from '../components/MovieCard.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { searchBooks } from '../services/googleBooks.js'
+import { getRawgErrorMessage, searchGames } from '../services/rawg.js'
 import {
   getTmdbErrorMessage,
   searchMovies,
@@ -53,6 +55,19 @@ const discoveryTypes = [
     singular: 'TV show',
     plural: 'TV shows',
   },
+  {
+    id: 'game',
+    label: 'Games',
+    heading: 'Discover games',
+    intro: 'Search for games using information and artwork from RAWG.',
+    searchTitle: 'Search games',
+    searchLabel: 'Game title',
+    placeholder: 'For example: Stardew Valley',
+    idleMessage: 'Enter a title to find games.',
+    provider: 'RAWG',
+    singular: 'game',
+    plural: 'games',
+  },
 ]
 
 function createSearchState() {
@@ -70,11 +85,13 @@ const searchStates = {
   book: createSearchState(),
   movie: createSearchState(),
   tv: createSearchState(),
+  game: createSearchState(),
 }
 const searchFunctions = {
   book: searchBooks,
   movie: searchMovies,
   tv: searchTvShows,
+  game: searchGames,
 }
 const activeType = computed(
   () => discoveryTypes.find((type) => type.id === activeMediaType.value) || discoveryTypes[0],
@@ -135,6 +152,8 @@ async function handleSearch() {
     searchState.errorMessage =
       mediaType === 'book'
         ? 'We couldn’t load books right now. Please try again in a moment.'
+        : mediaType === 'game'
+          ? getRawgErrorMessage(error)
         : getTmdbErrorMessage(error)
   }
 }
@@ -313,7 +332,23 @@ function isAdding(media) {
         </TvCard>
       </div>
 
-      <TmdbAttribution v-if="activeMediaType !== 'book'" />
+      <div
+        v-else-if="activeMediaType === 'game' && activeSearch.status === 'success'"
+        class="game-grid"
+        aria-label="Game search results"
+      >
+        <GameCard
+          v-for="game in activeSearch.results"
+          :key="`rawg:game:${game.sourceId}`"
+          :game="game"
+        />
+      </div>
+
+      <TmdbAttribution v-if="activeMediaType === 'movie' || activeMediaType === 'tv'" />
+      <section v-if="activeMediaType === 'game'" class="rawg-attribution" aria-label="Data credits">
+        Game data and artwork provided by
+        <a href="https://rawg.io/" target="_blank" rel="noopener noreferrer">RAWG</a>.
+      </section>
     </section>
   </div>
 </template>

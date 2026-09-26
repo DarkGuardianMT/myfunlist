@@ -19,7 +19,7 @@ A PHP REST API and MySQL database are planned for a later phase. They are not pa
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, and TMDB TV show search. Books, movies, and TV shows can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. There is no backend, authentication, or database yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, and TV shows can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. Games are discovery-only. There is no backend, authentication, or database yet.
 
 ## Core product concepts
 
@@ -37,6 +37,9 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 - Keep external media metadata separate from user-specific media data.
 - Normalize external API responses into a small MyFunList media shape before rendering them. External metadata does not contain user-specific fields.
 - Treat movies and TV shows as separate media types even though they share some discovery presentation.
+- Treat games as mediaType `game`. Normalize RAWG responses into the external media model before rendering, with source `rawg` and string source IDs. Game Library support is deferred.
+- Show a RAWG attribution backlink wherever RAWG data or images are used, as required by RAWG's API terms.
+- Use `VITE_RAWG_API_KEY` for frontend RAWG requests temporarily. Vite exposes this key in the browser bundle; when the PHP backend is introduced, preferably move RAWG requests behind it so the key is no longer client-visible.
 - Use a Vite environment variable containing a TMDB API Read Access Token for application-level Bearer authentication. TMDB response fields and image paths are normalized in the TMDB service before reaching Vue components.
 - Do not treat TMDB public vote data as a MyFunList personal rating.
 - Show TMDB's approved logo and required notice in a discovery credits section when displaying TMDB-powered search.
@@ -56,7 +59,7 @@ An external media item is expected to have a source, source ID (`sourceId`), med
 
 - Books: Google Books API powers the first discovery implementation. It is used only for external book metadata.
 - Movies and TV: TMDB powers discovery and normalized external metadata.
-- Games: source undecided.
+- Games: RAWG powers discovery and normalized external metadata.
 - Anime: source undecided.
 
 Data synchronization behavior is undecided.
@@ -67,7 +70,7 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, Books/Movie/TV discovery search, and an anonymous unified local Library are working. Library persistence is temporary and limited to the current browser.
+The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for books, movies, and TV shows are working. Library persistence is temporary and limited to the current browser.
 
 ## Next milestone
 

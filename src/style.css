@@ -309,6 +309,78 @@ a:focus-visible {
   gap: 1.25rem;
 }
 
+.game-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 1.25rem;
+}
+
+.game-card {
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid #dfe5e1;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+
+.game-card__image {
+  aspect-ratio: 16 / 9;
+  background: #e6eeeb;
+}
+
+.game-card__image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.game-card__image-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: #60736f;
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.game-card__details {
+  padding: 1rem;
+}
+
+.game-card h3 {
+  margin: 0;
+  color: #173f3d;
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.game-card p {
+  margin: 0.45rem 0 0;
+  color: #48615d;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.rawg-attribution {
+  max-width: 39rem;
+  margin-top: 2rem;
+  border-top: 1px solid #dfe5e1;
+  color: #60736f;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  padding-top: 1.25rem;
+}
+
+.rawg-attribution a {
+  color: #126b65;
+  font-weight: 700;
+  text-underline-offset: 0.2em;
+}
+
 .library-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
