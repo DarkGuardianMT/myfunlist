@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import LibraryItemCard from '../components/LibraryItemCard.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
+import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { getStatusOptions } from '../domain/libraryMedia.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
@@ -31,6 +32,9 @@ const visibleLibraryItems = computed(() =>
 const statusOptions = computed(() => getStatusOptions(mediaTypeFilter.value))
 const hasVisibleGames = computed(() =>
   visibleLibraryItems.value.some((item) => item.media.mediaType === 'game'),
+)
+const hasVisibleTmdbMedia = computed(() =>
+  visibleLibraryItems.value.some((item) => item.media.source === 'tmdb'),
 )
 
 watch(mediaTypeFilter, () => {
@@ -180,6 +184,7 @@ async function handleRemove(item) {
           @remove="handleRemove"
         />
       </div>
+      <TmdbAttribution v-if="hasVisibleTmdbMedia" />
       <RawgAttribution v-if="hasVisibleGames" />
     </section>
   </div>

@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { useLibrary } from '../src/composables/useLibrary.js'
+import { addItem } from '../src/services/libraryRepository.js'
 
 const game = {
   source: 'rawg',
@@ -44,4 +45,10 @@ test('shared Library state reacts to adding, updating, and removing a game', asy
   assert.equal(discoverLibrary.hasLibraryItem(game), false)
   assert.equal(libraryPage.libraryItems.value.length, 0)
   assert.equal(JSON.parse(values.get('myfunlist_library')).items.length, 0)
+
+  await addItem(game)
+  assert.equal(discoverLibrary.hasLibraryItem(game), false)
+  assert.equal((await discoverLibrary.addLibraryItem(game)).added, false)
+  assert.equal(discoverLibrary.hasLibraryItem(game), true)
+  assert.equal(libraryPage.libraryItems.value.length, 1)
 })

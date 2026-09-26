@@ -89,6 +89,7 @@ test('game Library card and discovery controls render with shared components', a
       assert.ok(libraryViewHtml.includes(title), `Missing Library item: ${title}`)
     }
     assert.ok(libraryViewHtml.includes('href="https://rawg.io/"'))
+    assert.ok(libraryViewHtml.includes('TMDB API but is not endorsed'))
 
   } finally {
     delete globalThis.window

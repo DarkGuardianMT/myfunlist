@@ -573,7 +573,7 @@ a:focus-visible {
   padding-top: 0.25rem;
 }
 
-.book-action-button,
+.library-add-button,
 .remove-button {
   width: 100%;
   border: 1px solid #176b62;
@@ -587,18 +587,18 @@ a:focus-visible {
   padding: 0.6rem 0.75rem;
 }
 
-.book-action-button:hover:not(:disabled) {
+.library-add-button:hover:not(:disabled) {
   background: #11554e;
 }
 
-.book-action-button.book-action-button--added:disabled {
+.library-add-button.library-add-button--added:disabled {
   border-color: #8eb2aa;
   background: #edf4f1;
   color: #164b45;
   opacity: 1;
 }
 
-.book-action-button:focus-visible,
+.library-add-button:focus-visible,
 .remove-button:focus-visible,
 .library-toolbar select:focus-visible,
 .library-item-controls select:focus-visible {
@@ -606,7 +606,7 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
-.book-action-button:disabled,
+.library-add-button:disabled,
 .remove-button:disabled,
 .library-item-controls select:disabled {
   cursor: not-allowed;

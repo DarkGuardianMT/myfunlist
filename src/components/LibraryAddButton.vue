@@ -12,8 +12,8 @@ defineEmits(['add'])
 
 <template>
   <button
-    class="book-action-button"
-    :class="{ 'book-action-button--added': isAdded }"
+    class="library-add-button"
+    :class="{ 'library-add-button--added': isAdded }"
     type="button"
     :disabled="!isLibraryLoaded || !hasIdentity || isAdded || isAdding"
     :aria-label="`${isAdded ? 'In Library:' : 'Add to Library:'} ${media.title}`"

@@ -39,10 +39,11 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 - Treat movies and TV shows as separate media types even though they share some discovery presentation.
 - Treat games as mediaType `game`. Normalize RAWG responses into the external media model before rendering, with source `rawg` and string source IDs.
 - Show a RAWG attribution backlink wherever RAWG data or images are used, as required by RAWG's API terms.
-- Use `VITE_RAWG_API_KEY` for frontend RAWG requests temporarily. Vite exposes this key in the browser bundle; when the PHP backend is introduced, preferably move RAWG requests behind it so the key is no longer client-visible.
+- Use `VITE_RAWG_API_KEY` for frontend RAWG requests temporarily.
 - Use a Vite environment variable containing a TMDB API Read Access Token for application-level Bearer authentication. TMDB response fields and image paths are normalized in the TMDB service before reaching Vue components.
+- Vite client environment values, including the RAWG key, TMDB token, and any configured Google Books key, are visible in the browser bundle. When the PHP backend is introduced, move provider requests that need private credentials behind it.
 - Do not treat TMDB public vote data as a MyFunList personal rating.
-- Show TMDB's approved logo and required notice in a discovery credits section when displaying TMDB-powered search.
+- Show TMDB's approved logo and required notice in a credits section where TMDB data or images are displayed.
 - Keep user-specific Library state separate from external media metadata. Components use a domain-oriented Library abstraction and do not access persistence directly.
 - Treat ratings as user-specific media state. Personal ratings currently use a 10-point scale in 0.5 increments and may be unset.
 - The Library is one source-independent multi-media collection. Book statuses are want-to-read, reading, and finished; movie statuses are want-to-watch and watched; TV statuses are want-to-watch, watching, and completed; game statuses are want-to-play, playing, completed, and dropped. The default game status is want-to-play. Games use the same nullable personal 0.5–10 rating model in userMedia, independent of status and RAWG ratings.

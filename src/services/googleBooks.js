@@ -1,5 +1,29 @@
 const GOOGLE_BOOKS_API_URL = 'https://www.googleapis.com/books/v1/volumes'
 
+const ERROR_MESSAGES = {
+  unauthorized: 'Google Books could not authorize this search. Check the configured API key.',
+  'rate-limited': 'Google Books is receiving too many requests right now. Please try again shortly.',
+  unavailable: 'Google Books is temporarily unavailable. Please try again in a moment.',
+  network: 'We could not reach Google Books. Check your connection and try again.',
+  'invalid-response': 'Google Books returned an unexpected response. Please try again later.',
+  default: 'We could not load books right now. Please try again in a moment.',
+}
+
+class GoogleBooksError extends Error {
+  constructor(code) {
+    super(`Google Books request failed: ${code}`)
+    this.name = 'GoogleBooksError'
+    this.code = code
+  }
+}
+
+function getErrorCode(status) {
+  if (status === 401 || status === 403) return 'unauthorized'
+  if (status === 429) return 'rate-limited'
+  if (status >= 500) return 'unavailable'
+  return 'request-failed'
+}
+
 function getCoverImage(imageLinks = {}) {
   const safeImageLinks = imageLinks && typeof imageLinks === 'object' ? imageLinks : {}
   const coverImage = safeImageLinks.thumbnail || safeImageLinks.smallThumbnail
@@ -36,7 +60,10 @@ export function normalizeGoogleBook(item = {}) {
   }
 }
 
-export async function searchBooks(query) {
+export async function searchBooks(query, {
+  apiKey = import.meta.env?.VITE_GOOGLE_BOOKS_API_KEY,
+  fetchImpl = fetch,
+} = {}) {
   const normalizedQuery = typeof query === 'string' ? query.trim() : ''
 
   if (!normalizedQuery) {
@@ -48,19 +75,38 @@ export async function searchBooks(query) {
     printType: 'books',
     maxResults: '24',
   })
-  const apiKey = import.meta.env?.VITE_GOOGLE_BOOKS_API_KEY?.trim()
-
-  if (apiKey) {
-    params.set('key', apiKey)
+  const normalizedKey = typeof apiKey === 'string' ? apiKey.trim() : ''
+  if (normalizedKey) {
+    params.set('key', normalizedKey)
   }
 
-  const response = await fetch(`${GOOGLE_BOOKS_API_URL}?${params}`)
+  let response
+  try {
+    response = await fetchImpl(`${GOOGLE_BOOKS_API_URL}?${params}`)
+  } catch {
+    throw new GoogleBooksError('network')
+  }
 
   if (!response.ok) {
-    throw new Error('Google Books request failed')
+    throw new GoogleBooksError(getErrorCode(response.status))
   }
 
-  const data = await response.json()
+  let data
+  try {
+    data = await response.json()
+  } catch {
+    throw new GoogleBooksError('invalid-response')
+  }
 
-  return Array.isArray(data?.items) ? data.items.map(normalizeGoogleBook) : []
+  if (!data || typeof data !== 'object' ||
+    (data.items !== undefined && !Array.isArray(data.items)) ||
+    (data.items === undefined && data.totalItems !== 0)) {
+    throw new GoogleBooksError('invalid-response')
+  }
+
+  return Array.isArray(data.items) ? data.items.map(normalizeGoogleBook) : []
+}
+
+export function getGoogleBooksErrorMessage(error) {
+  return ERROR_MESSAGES[error instanceof GoogleBooksError ? error.code : 'default'] || ERROR_MESSAGES.default
 }

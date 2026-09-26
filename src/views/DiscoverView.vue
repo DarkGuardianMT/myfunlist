@@ -8,7 +8,7 @@ import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
-import { searchBooks } from '../services/googleBooks.js'
+import { getGoogleBooksErrorMessage, searchBooks } from '../services/googleBooks.js'
 import { getRawgErrorMessage, searchGames } from '../services/rawg.js'
 import {
   getTmdbErrorMessage,
@@ -94,10 +94,23 @@ const searchFunctions = {
   tv: searchTvShows,
   game: searchGames,
 }
+const searchErrorMessages = {
+  book: getGoogleBooksErrorMessage,
+  movie: getTmdbErrorMessage,
+  tv: getTmdbErrorMessage,
+  game: getRawgErrorMessage,
+}
+const resultPresentation = {
+  book: { component: BookCard, prop: 'book', grid: 'book-grid', label: 'Book search results' },
+  movie: { component: MovieCard, prop: 'movie', grid: 'media-grid', label: 'Movie search results' },
+  tv: { component: TvCard, prop: 'show', grid: 'media-grid', label: 'TV show search results' },
+  game: { component: GameCard, prop: 'game', grid: 'game-grid', label: 'Game search results' },
+}
 const activeType = computed(
   () => discoveryTypes.find((type) => type.id === activeMediaType.value) || discoveryTypes[0],
 )
 const activeSearch = computed(() => searchStates[activeMediaType.value])
+const activeResultPresentation = computed(() => resultPresentation[activeMediaType.value])
 const activeQuery = computed({
   get: () => activeSearch.value.query,
   set: (value) => {
@@ -150,12 +163,7 @@ async function handleSearch() {
   } catch (error) {
     searchState.results = []
     searchState.status = 'error'
-    searchState.errorMessage =
-      mediaType === 'book'
-        ? 'We couldn’t load books right now. Please try again in a moment.'
-        : mediaType === 'game'
-          ? getRawgErrorMessage(error)
-        : getTmdbErrorMessage(error)
+    searchState.errorMessage = searchErrorMessages[mediaType](error)
   }
 }
 
@@ -187,6 +195,10 @@ function isAdding(media) {
   const mediaKey = getMediaKey(media)
 
   return Boolean(mediaKey && addingMediaKeys.value.has(mediaKey))
+}
+
+function cardProps(media) {
+  return { [activeResultPresentation.value.prop]: media }
 }
 </script>
 
@@ -271,87 +283,25 @@ function isAdding(media) {
       </p>
 
       <div
-        v-if="activeMediaType === 'book' && activeSearch.status === 'success'"
-        class="book-grid"
-        aria-label="Book search results"
+        v-if="activeSearch.status === 'success'"
+        :class="activeResultPresentation.grid"
+        :aria-label="activeResultPresentation.label"
       >
-        <BookCard
-          v-for="(book, index) in activeSearch.results"
-          :key="getMediaKey(book) || index"
-          :book="book"
+        <component
+          :is="activeResultPresentation.component"
+          v-for="(media, index) in activeSearch.results"
+          :key="getMediaKey(media) || index"
+          v-bind="cardProps(media)"
         >
           <LibraryAddButton
-            :media="book"
+            :media="media"
             :is-library-loaded="isLibraryLoaded"
-            :is-added="hasLibraryItem(book)"
-            :is-adding="isAdding(book)"
-            :has-identity="Boolean(getMediaKey(book))"
+            :is-added="hasLibraryItem(media)"
+            :is-adding="isAdding(media)"
+            :has-identity="Boolean(getMediaKey(media))"
             @add="handleAddToLibrary"
           />
-        </BookCard>
-      </div>
-
-      <div
-        v-else-if="activeMediaType === 'movie' && activeSearch.status === 'success'"
-        class="media-grid"
-        aria-label="Movie search results"
-      >
-        <MovieCard
-          v-for="(movie, index) in activeSearch.results"
-          :key="getMediaKey(movie) || index"
-          :movie="movie"
-        >
-          <LibraryAddButton
-            :media="movie"
-            :is-library-loaded="isLibraryLoaded"
-            :is-added="hasLibraryItem(movie)"
-            :is-adding="isAdding(movie)"
-            :has-identity="Boolean(getMediaKey(movie))"
-            @add="handleAddToLibrary"
-          />
-        </MovieCard>
-      </div>
-
-      <div
-        v-else-if="activeMediaType === 'tv' && activeSearch.status === 'success'"
-        class="media-grid"
-        aria-label="TV show search results"
-      >
-        <TvCard
-          v-for="(show, index) in activeSearch.results"
-          :key="getMediaKey(show) || index"
-          :show="show"
-        >
-          <LibraryAddButton
-            :media="show"
-            :is-library-loaded="isLibraryLoaded"
-            :is-added="hasLibraryItem(show)"
-            :is-adding="isAdding(show)"
-            :has-identity="Boolean(getMediaKey(show))"
-            @add="handleAddToLibrary"
-          />
-        </TvCard>
-      </div>
-
-      <div
-        v-else-if="activeMediaType === 'game' && activeSearch.status === 'success'"
-        class="game-grid"
-        aria-label="Game search results"
-      >
-        <GameCard
-          v-for="game in activeSearch.results"
-          :key="getMediaKey(game)"
-          :game="game"
-        >
-          <LibraryAddButton
-            :media="game"
-            :is-library-loaded="isLibraryLoaded"
-            :is-added="hasLibraryItem(game)"
-            :is-adding="isAdding(game)"
-            :has-identity="Boolean(getMediaKey(game))"
-            @add="handleAddToLibrary"
-          />
-        </GameCard>
+        </component>
       </div>
 
       <TmdbAttribution v-if="activeMediaType === 'movie' || activeMediaType === 'tv'" />

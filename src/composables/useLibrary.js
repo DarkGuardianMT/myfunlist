@@ -40,7 +40,9 @@ export function useLibrary() {
   async function addLibraryItem(media) {
     const result = await addItem(media)
 
-    if (result.added) {
+    if (result.item && !libraryItems.value.some(
+      (item) => item.userMedia.mediaKey === result.item.userMedia.mediaKey,
+    )) {
       libraryItems.value = [...libraryItems.value, result.item]
     }
 
