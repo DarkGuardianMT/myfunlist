@@ -56,6 +56,21 @@ function normalizeMedia(media) {
     }
   }
 
+  if (media.mediaType === 'game') {
+    return {
+      ...common,
+      releaseDate: optionalText(media.releaseDate),
+      releaseYear: optionalText(media.releaseYear),
+      coverImage: optionalText(media.coverImage),
+      platforms: Array.isArray(media.platforms)
+        ? media.platforms
+            .filter((platform) => typeof platform === 'string')
+            .map((platform) => platform.trim())
+            .filter(Boolean)
+        : [],
+    }
+  }
+
   const movie = media.mediaType === 'movie'
   return {
     ...common,

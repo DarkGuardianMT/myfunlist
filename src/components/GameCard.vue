@@ -42,5 +42,8 @@ watch(
       <p>{{ game.releaseYear || 'Release year unknown' }}</p>
       <p :title="game.platforms.join(', ')">{{ platformSummary }}</p>
     </div>
+    <div v-if="$slots.default" class="game-card__actions">
+      <slot />
+    </div>
   </article>
 </template>

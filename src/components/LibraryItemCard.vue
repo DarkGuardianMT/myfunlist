@@ -1,5 +1,6 @@
 <script setup>
 import BookCard from './BookCard.vue'
+import GameCard from './GameCard.vue'
 import MovieCard from './MovieCard.vue'
 import TvCard from './TvCard.vue'
 import { getStatusOptions, PERSONAL_RATINGS } from '../domain/libraryMedia.js'
@@ -11,9 +12,14 @@ defineProps({
 
 defineEmits(['status-change', 'rating-change', 'remove'])
 
-const cards = { book: BookCard, movie: MovieCard, tv: TvCard }
-const typeLabels = { book: 'Book', movie: 'Movie', tv: 'TV show' }
-const statusLabels = { book: 'Reading status', movie: 'Watch status', tv: 'Watching status' }
+const cards = { book: BookCard, movie: MovieCard, tv: TvCard, game: GameCard }
+const typeLabels = { book: 'Book', movie: 'Movie', tv: 'TV show', game: 'Game' }
+const statusLabels = {
+  book: 'Reading status',
+  movie: 'Watch status',
+  tv: 'Watching status',
+  game: 'Play status',
+}
 
 function cardProps(item) {
   return { [item.media.mediaType === 'tv' ? 'show' : item.media.mediaType]: item.media }

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import LibraryItemCard from '../components/LibraryItemCard.vue'
+import RawgAttribution from '../components/RawgAttribution.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { getStatusOptions } from '../domain/libraryMedia.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
@@ -28,6 +29,9 @@ const visibleLibraryItems = computed(() =>
   ),
 )
 const statusOptions = computed(() => getStatusOptions(mediaTypeFilter.value))
+const hasVisibleGames = computed(() =>
+  visibleLibraryItems.value.some((item) => item.media.mediaType === 'game'),
+)
 
 watch(mediaTypeFilter, () => {
   statusFilter.value = 'all'
@@ -100,7 +104,7 @@ async function handleRemove(item) {
   <div class="library-page">
     <section class="page-intro" aria-labelledby="page-title">
       <h1 id="page-title">Library</h1>
-      <p>Your saved books, movies, TV shows, statuses, and personal ratings.</p>
+      <p>Your saved books, movies, TV shows, games, statuses, and personal ratings.</p>
     </section>
 
     <p
@@ -129,6 +133,7 @@ async function handleRemove(item) {
             <option value="book">Books</option>
             <option value="movie">Movies</option>
             <option value="tv">TV Shows</option>
+            <option value="game">Games</option>
           </select>
         </div>
 
@@ -175,6 +180,7 @@ async function handleRemove(item) {
           @remove="handleRemove"
         />
       </div>
+      <RawgAttribution v-if="hasVisibleGames" />
     </section>
   </div>
 </template>

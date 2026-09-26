@@ -4,6 +4,7 @@ import BookCard from '../components/BookCard.vue'
 import GameCard from '../components/GameCard.vue'
 import LibraryAddButton from '../components/LibraryAddButton.vue'
 import MovieCard from '../components/MovieCard.vue'
+import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
@@ -339,16 +340,22 @@ function isAdding(media) {
       >
         <GameCard
           v-for="game in activeSearch.results"
-          :key="`rawg:game:${game.sourceId}`"
+          :key="getMediaKey(game)"
           :game="game"
-        />
+        >
+          <LibraryAddButton
+            :media="game"
+            :is-library-loaded="isLibraryLoaded"
+            :is-added="hasLibraryItem(game)"
+            :is-adding="isAdding(game)"
+            :has-identity="Boolean(getMediaKey(game))"
+            @add="handleAddToLibrary"
+          />
+        </GameCard>
       </div>
 
       <TmdbAttribution v-if="activeMediaType === 'movie' || activeMediaType === 'tv'" />
-      <section v-if="activeMediaType === 'game'" class="rawg-attribution" aria-label="Data credits">
-        Game data and artwork provided by
-        <a href="https://rawg.io/" target="_blank" rel="noopener noreferrer">RAWG</a>.
-      </section>
+      <RawgAttribution v-if="activeMediaType === 'game'" />
     </section>
   </div>
 </template>

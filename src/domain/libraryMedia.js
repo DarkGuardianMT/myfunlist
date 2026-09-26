@@ -1,4 +1,4 @@
-export const MEDIA_TYPES = ['book', 'movie', 'tv']
+export const MEDIA_TYPES = ['book', 'movie', 'tv', 'game']
 
 const STATUS_OPTIONS = {
   book: [
@@ -14,6 +14,12 @@ const STATUS_OPTIONS = {
     { value: 'want-to-watch', label: 'Want to watch' },
     { value: 'watching', label: 'Watching' },
     { value: 'completed', label: 'Completed' },
+  ],
+  game: [
+    { value: 'want-to-play', label: 'Want to Play' },
+    { value: 'playing', label: 'Playing' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'dropped', label: 'Dropped' },
   ],
 }
 
