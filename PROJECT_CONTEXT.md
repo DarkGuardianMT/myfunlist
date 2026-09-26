@@ -13,13 +13,15 @@ Users should eventually be able to track, rate, organize, and share the media th
 - Frontend: Vue 3, Vite, Vue Router, JavaScript, and normal CSS.
 - No state library, CSS framework, or other frontend library has been chosen beyond the current dependencies.
 
-## Planned backend direction
+## Backend direction and current foundation
 
-A PHP REST API and MySQL database are planned for a later phase. They are not part of the current repository implementation. Backend architecture, authentication, and database schema remain undecided.
+A small structured plain PHP REST API now lives in `backend/`. Composer provides PSR-4 autoloading; PDO is configured for a MySQL-compatible database. The API is JSON, versioned under `/api/v1`, and currently exposes only a health endpoint that checks database connectivity. No application tables, authentication, or Library endpoints exist yet. Browser and future native clients should use the same client-agnostic API contracts.
+
+The planned production deployment serves Vue and `/api/v1` from the same `https://myfunlist.app` origin. Web authentication will initially use PHP sessions and secure HttpOnly cookies. A future native client may use token authentication; controllers and services should receive authenticated user context through a dedicated boundary instead of reading PHP sessions directly. Authentication and the database schema remain unimplemented.
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. There is no backend, authentication, or database yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. A backend foundation exists, but there is no authentication or application database schema yet.
 
 ## Core product concepts
 
@@ -41,7 +43,7 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 - Show a RAWG attribution backlink wherever RAWG data or images are used, as required by RAWG's API terms.
 - Use `VITE_RAWG_API_KEY` for frontend RAWG requests temporarily.
 - Use a Vite environment variable containing a TMDB API Read Access Token for application-level Bearer authentication. TMDB response fields and image paths are normalized in the TMDB service before reaching Vue components.
-- Vite client environment values, including the RAWG key, TMDB token, and any configured Google Books key, are visible in the browser bundle. When the PHP backend is introduced, move provider requests that need private credentials behind it.
+- Vite client environment values, including the RAWG key, TMDB token, and any configured Google Books key, are visible in the browser bundle. Move provider requests that need private credentials behind PHP during the later provider integration phase.
 - Do not treat TMDB public vote data as a MyFunList personal rating.
 - Show TMDB's approved logo and required notice in a credits section where TMDB data or images are displayed.
 - Keep user-specific Library state separate from external media metadata. Components use a domain-oriented Library abstraction and do not access persistence directly.
@@ -50,7 +52,7 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 - Canonical media identity combines source, media type, and source ID, so TMDB movies and TV shows with the same numeric ID remain distinct.
 - Use localStorage as temporary persistence for the anonymous local Library. The canonical key is `myfunlist_library`; schema version 2 migrates version 1 book keys to type-aware keys while preserving status, rating, and addedAt. Valid data under the former `trackora_library` key still migrates on first read. Adding Games required no schema migration because the persisted structure remains compatible. A future REST API and database should replace the implementation behind the same Library abstraction.
 - Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase. Vue Router handles frontend page navigation.
-- Defer backend code, database design, authentication, and additional libraries until their respective needs are defined.
+- Keep the backend foundation limited to routing, JSON responses, environment configuration, and database connectivity until authentication and Library behavior are designed for implementation.
 
 ## Data model direction at a high level
 
@@ -71,11 +73,11 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser.
+The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser. The PHP backend foundation coexists with the frontend but is not yet used by it.
 
 ## Next milestone
 
-Verify the multi-media Library in use, then plan the next milestone while preserving the boundary between external media metadata and user-specific media data.
+Plan the application schema and authentication milestone while preserving the boundary between external media metadata and user-specific media data.
 
 ## Future ideas
 

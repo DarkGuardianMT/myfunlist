@@ -14,6 +14,7 @@ dist-ssr
 .env
 .env.*
 !.env.example
+/backend/vendor/
 
 # Editor directories and files
 .vscode/*
