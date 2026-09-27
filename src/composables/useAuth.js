@@ -31,6 +31,9 @@ async function finishAuthentication(user) {
   setAccount(user)
   try { await refreshCsrfToken() } catch { clearCsrfToken() }
   try { await loadLibrary() } catch { /* Het bibliotheekscherm toont de laadfout. */ }
+  if (currentUser.value?.id !== user.id) {
+    throw new Error('Your session ended. Please log in again.')
+  }
   checkLegacyImport()
 }
 

@@ -7,7 +7,7 @@ import {
 } from '../src/services/legacyImport.js'
 import { clearCsrfToken } from '../src/services/apiClient.js'
 import { currentUser } from '../src/composables/authState.js'
-import { checkLegacyImport, useLegacyImport } from '../src/composables/useLegacyImport.js'
+import { checkLegacyImport, resetImportPrompt, useLegacyImport } from '../src/composables/useLegacyImport.js'
 import { resetLibrary, useLibrary } from '../src/composables/useLibrary.js'
 
 const book = { source: 'google-books', mediaType: 'book', sourceId: 'b1',
@@ -157,6 +157,48 @@ test('partial import failure stays retryable and does not set completion flag', 
   assert.equal(offer.importSummary.value.failed, 1)
   assert.equal(isImportCompleted('partial-user', legacyCandidate()), false)
   assert.ok(values.has('myfunlist_library'))
+  offer.dismissImport()
+  assert.equal(offer.offerVisible.value, false)
+  assert.equal(offer.importSummary.value, null)
+  assert.equal(offer.importError.value, '')
+  checkLegacyImport()
+  assert.equal(offer.offerVisible.value, false)
+  currentUser.value = null
+  resetLibrary()
+})
+
+test('late import result from another account cannot show a prompt or mark completion', async () => {
+  clearCsrfToken()
+  currentUser.value = { id: 'old-user', email: 'old@example.test' }
+  resetLibrary()
+  storage([['myfunlist_library', JSON.stringify({ version: 2, items: [localItem()] })]])
+  let releaseImport
+  let signalStarted
+  const importStarted = new Promise((resolve) => { signalStarted = resolve })
+  globalThis.fetch = async (path) => {
+    if (path.endsWith('/csrf')) return { ok: true, status: 200,
+      json: async () => ({ data: { csrfToken: 'csrf' } }) }
+    if (path.endsWith('/import')) return new Promise((resolve) => {
+      releaseImport = resolve
+      signalStarted()
+    })
+    return { ok: true, status: 200, json: async () => ({ data: [] }) }
+  }
+  checkLegacyImport()
+  const offer = useLegacyImport()
+  const pending = offer.startImport()
+  await importStarted
+  currentUser.value = { id: 'new-user', email: 'new@example.test' }
+  resetLibrary()
+  resetImportPrompt()
+  releaseImport({ ok: true, status: 200, json: async () => ({ data: {
+    summary: { imported: 1, existing: 0, duplicate: 0, failed: 0 },
+  } }) })
+  await pending
+  assert.equal(offer.importSummary.value, null)
+  assert.equal(offer.offerVisible.value, false)
+  assert.equal(offer.isImporting.value, false)
+  assert.equal(isImportCompleted('old-user', legacyCandidate()), false)
   currentUser.value = null
   resetLibrary()
 })

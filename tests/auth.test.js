@@ -66,3 +66,41 @@ test('register/login errors stay on form; successful auth rotates CSRF and logou
   assert.equal(currentUser.value, null)
   assert.deepEqual(useLibrary().libraryItems.value, [])
 })
+
+test('unexpected mutation 401 clears a loaded account without retrying', async () => {
+  clearCsrfToken()
+  let unauthorizedCalls = 0
+  const saved = { media: { source: 'rawg', mediaType: 'game', sourceId: '77', title: 'Game' },
+    userMedia: { id: '7', mediaKey: 'rawg:game:77', status: 'playing', rating: 7.5,
+      addedAt: '2026-01-01T00:00:00Z' } }
+  globalThis.fetch = async (path, options) => {
+    if (path.endsWith('/csrf')) return data({ csrfToken: 'csrf' })
+    if (path.endsWith('/login')) return data({ user: { id: '7', email: 'seven@example.com' } })
+    if (path === '/api/v1/library' && options.method === 'GET') return data([saved])
+    unauthorizedCalls++
+    return error('unauthenticated', 401)
+  }
+  const auth = useAuth()
+  const library = useLibrary()
+  await auth.login('seven@example.com', 'long-password')
+  assert.equal(library.libraryItems.value.length, 1)
+  await assert.rejects(library.updateLibraryRating('rawg:game:77', 8), { status: 401 })
+  assert.equal(auth.currentUser.value, null)
+  assert.deepEqual(library.libraryItems.value, [])
+  assert.equal(library.isLibraryLoaded.value, false)
+  assert.equal(unauthorizedCalls, 1)
+})
+
+test('login does not report success when its initial Library request expires the session', async () => {
+  clearCsrfToken()
+  globalThis.fetch = async (path) => {
+    if (path.endsWith('/csrf')) return data({ csrfToken: 'csrf' })
+    if (path.endsWith('/login')) return data({ user: { id: '8', email: 'eight@example.com' } })
+    return error('unauthenticated', 401)
+  }
+  const auth = useAuth()
+  await assert.rejects(auth.login('eight@example.com', 'long-password'),
+    /Your session ended/)
+  assert.equal(auth.currentUser.value, null)
+  assert.deepEqual(useLibrary().libraryItems.value, [])
+})

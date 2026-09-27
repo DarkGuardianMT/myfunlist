@@ -64,3 +64,21 @@ test('a late User A response cannot overwrite User B', async () => {
   currentUser.value = null
   resetLibrary()
 })
+
+test('a failed load is not an empty Library and can be retried', async () => {
+  currentUser.value = { id: 'failed-load' }
+  resetLibrary()
+  const library = useLibrary()
+  globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({
+    error: { code: 'service_unavailable', message: 'Service unavailable.' },
+  }) })
+  await assert.rejects(library.loadLibrary())
+  assert.equal(library.isLibraryLoaded.value, false)
+  assert.equal(library.libraryError.value, 'Service unavailable.')
+  globalThis.fetch = async () => json([])
+  assert.deepEqual(await library.loadLibrary(), [])
+  assert.equal(library.isLibraryLoaded.value, true)
+  assert.equal(library.libraryError.value, '')
+  currentUser.value = null
+  resetLibrary()
+})

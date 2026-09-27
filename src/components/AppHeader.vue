@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 
@@ -7,6 +7,8 @@ const router = useRouter()
 const { currentUser, isAuthLoading, logout } = useAuth()
 const logoutError = ref('')
 const isLoggingOut = ref(false)
+
+watch(currentUser, () => { logoutError.value = '' })
 
 async function handleLogout() {
   isLoggingOut.value = true

@@ -12,8 +12,10 @@ const importSummary = ref(null)
 const importError = ref('')
 let candidate = []
 const dismissed = new Set()
+let importVersion = 0
 
 export function resetImportPrompt() {
+  importVersion++
   offerVisible.value = false
   isImporting.value = false
   importSummary.value = null
@@ -37,22 +39,27 @@ export function useLegacyImport() {
   function dismissImport() {
     if (currentUser.value) dismissed.add(`${currentUser.value.id}:${importFingerprint(candidate)}`)
     offerVisible.value = false
+    importSummary.value = null
+    importError.value = ''
   }
 
   async function startImport() {
     if (!currentUser.value || !candidate.length || isImporting.value) return
     const userId = currentUser.value.id
+    const version = importVersion
     isImporting.value = true
     importError.value = ''
     let result
     try {
       result = await importLegacyItems(candidate)
     } catch {
-      importError.value = 'Import could not start. Your browser copy is safe.'
-      isImporting.value = false
+      if (version === importVersion) {
+        importError.value = 'Import could not start. Your browser copy is safe.'
+        isImporting.value = false
+      }
       return
     }
-    if (currentUser.value?.id !== userId) return
+    if (version !== importVersion || currentUser.value?.id !== userId) return
     importSummary.value = result.summary
     if (result.error) importError.value = 'Import paused. Your browser copy is safe; try again later.'
     else if (result.summary.failed) importError.value = 'Some items could not be imported. Your browser copy is safe.'
@@ -60,8 +67,10 @@ export function useLegacyImport() {
       try { markImportCompleted(userId, candidate) } catch { /* Opslag kan uitgeschakeld zijn. */ }
       offerVisible.value = false
     }
-    try { await loadLibrary(true) } catch { importError.value += ' Your account Library could not be refreshed.' }
-    isImporting.value = false
+    try { await loadLibrary(true) } catch {
+      if (version === importVersion) importError.value += ' Your account Library could not be refreshed.'
+    }
+    if (version === importVersion) isImporting.value = false
   }
 
   return {
