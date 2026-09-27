@@ -37,7 +37,25 @@ final class LibraryService
 
     public function add(AuthenticatedUser $user, array $input): array
     {
-        [$source, $mediaType, $sourceId] = self::identity($input);
+        [$source, $mediaType, $sourceId] = self::validateIdentity($input);
+
+        return $this->addItem($user, $source, $mediaType, $sourceId);
+    }
+
+    public function importItem(AuthenticatedUser $user, array $identity, array $personalState): array
+    {
+        [$source, $mediaType, $sourceId] = $identity;
+
+        return $this->addItem($user, $source, $mediaType, $sourceId, $personalState);
+    }
+
+    private function addItem(
+        AuthenticatedUser $user,
+        string $source,
+        string $mediaType,
+        string $sourceId,
+        ?array $personalState = null,
+    ): array {
         $media = $this->media()->findByIdentity($source, $mediaType, $sourceId);
         if ($media !== null) {
             $existing = $this->entries()->findByMedia($user->id, $media['id']);
@@ -93,9 +111,14 @@ final class LibraryService
             $added = false;
             if ($item === null) {
                 try {
-                    $entryId = $this->entries()->create(
-                        $user->id, $mediaId, MediaRules::defaultStatus($mediaType),
-                    );
+                    $entryId = $personalState === null
+                        ? $this->entries()->create(
+                            $user->id, $mediaId, MediaRules::defaultStatus($mediaType),
+                        )
+                        : $this->entries()->createImported(
+                            $user->id, $mediaId, $personalState['status'],
+                            $personalState['rating'], $personalState['addedAt'],
+                        );
                     $added = true;
                     $item = $this->entries()->findById($user->id, $entryId);
                 } catch (PDOException $exception) {
@@ -153,7 +176,7 @@ final class LibraryService
         }
     }
 
-    private static function identity(array $input): array
+    public static function validateIdentity(array $input): array
     {
         $media = $input['media'] ?? null;
         if (!$media instanceof stdClass || array_keys($input) !== ['media']) {

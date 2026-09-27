@@ -66,6 +66,21 @@ SQL;
         return $this->connection->lastInsertId();
     }
 
+    public function createImported(
+        string $userId,
+        string $mediaId,
+        string $status,
+        int|float|null $rating,
+        string $addedAt,
+    ): string {
+        $statement = $this->connection->prepare(
+            'INSERT INTO user_media (user_id, media_id, status, rating, added_at) VALUES (?, ?, ?, ?, ?)',
+        );
+        $statement->execute([$userId, $mediaId, $status, $rating, $addedAt]);
+
+        return $this->connection->lastInsertId();
+    }
+
     public function update(string $userId, string $entryId, array $changes): void
     {
         $assignments = [];

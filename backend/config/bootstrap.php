@@ -11,6 +11,7 @@ use MyFunList\Http\Controllers\LibraryController;
 use MyFunList\Http\Middleware\AuthMiddleware;
 use MyFunList\Http\Router;
 use MyFunList\Library\LibraryService;
+use MyFunList\Library\LibraryImportService;
 use MyFunList\Provider\CurlProviderHttpClient;
 use MyFunList\Provider\ProviderMediaResolver;
 use MyFunList\Infrastructure\Database;
@@ -28,10 +29,11 @@ $auth = new AuthController(
     $session,
 );
 $middleware = new AuthMiddleware($session, new SessionCurrentUserProvider($session));
-$library = new LibraryController(new LibraryService(
+$libraryService = new LibraryService(
     $database,
     new ProviderMediaResolver(new CurlProviderHttpClient()),
-));
+);
+$library = new LibraryController($libraryService, new LibraryImportService($libraryService));
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
 $router->add('GET', '/api/v1/auth/csrf', [$auth, 'csrf']);
@@ -44,6 +46,9 @@ $router->add('GET', '/api/v1/auth/me', $middleware->requireUser([$auth, 'me']));
 $router->add('GET', '/api/v1/library', $middleware->requireUser([$library, 'list']));
 $router->add('POST', '/api/v1/library', $middleware->requireUser(
     $middleware->csrf([$library, 'add']),
+));
+$router->add('POST', '/api/v1/library/import', $middleware->requireUser(
+    $middleware->csrf([$library, 'import']),
 ));
 $router->add('PATCH', '/api/v1/library/{entryId}', $middleware->requireUser(
     $middleware->csrf([$library, 'update']),
