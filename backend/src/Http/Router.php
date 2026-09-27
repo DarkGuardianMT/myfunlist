@@ -19,10 +19,24 @@ final class Router
             return ($this->routes[$method][$path])();
         }
 
+        foreach ($this->routes[$method] ?? [] as $route => $handler) {
+            $parameter = $this->matchEntryId($route, $path);
+            if ($parameter !== null) {
+                return $handler($parameter);
+            }
+        }
+
         $allowed = [];
         foreach ($this->routes as $routeMethod => $paths) {
             if (isset($paths[$path])) {
                 $allowed[] = $routeMethod;
+                continue;
+            }
+            foreach ($paths as $route => $_handler) {
+                if ($this->matchEntryId($route, $path) !== null) {
+                    $allowed[] = $routeMethod;
+                    break;
+                }
             }
         }
 
@@ -36,5 +50,21 @@ final class Router
         }
 
         return JsonResponse::error(404, 'not_found', 'Route not found.');
+    }
+
+    private function matchEntryId(string $route, string $path): ?string
+    {
+        if (!str_ends_with($route, '/{entryId}')) {
+            return null;
+        }
+
+        $prefix = substr($route, 0, -strlen('{entryId}'));
+        if (!str_starts_with($path, $prefix)) {
+            return null;
+        }
+
+        $id = substr($path, strlen($prefix));
+
+        return preg_match('/^[1-9][0-9]{0,19}$/D', $id) === 1 ? $id : null;
     }
 }

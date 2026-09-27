@@ -7,8 +7,12 @@ use MyFunList\Auth\AuthService;
 use MyFunList\Auth\PasswordHasher;
 use MyFunList\Http\Controllers\AuthController;
 use MyFunList\Http\Controllers\HealthController;
+use MyFunList\Http\Controllers\LibraryController;
 use MyFunList\Http\Middleware\AuthMiddleware;
 use MyFunList\Http\Router;
+use MyFunList\Library\LibraryService;
+use MyFunList\Provider\CurlProviderHttpClient;
+use MyFunList\Provider\ProviderMediaResolver;
 use MyFunList\Infrastructure\Database;
 use MyFunList\Infrastructure\PhpSession;
 use MyFunList\Infrastructure\SessionCurrentUserProvider;
@@ -24,6 +28,10 @@ $auth = new AuthController(
     $session,
 );
 $middleware = new AuthMiddleware($session, new SessionCurrentUserProvider($session));
+$library = new LibraryController(new LibraryService(
+    $database,
+    new ProviderMediaResolver(new CurlProviderHttpClient()),
+));
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
 $router->add('GET', '/api/v1/auth/csrf', [$auth, 'csrf']);
@@ -33,5 +41,15 @@ $router->add('POST', '/api/v1/auth/logout', $middleware->requireUser(
     $middleware->csrf([$auth, 'logout']),
 ));
 $router->add('GET', '/api/v1/auth/me', $middleware->requireUser([$auth, 'me']));
+$router->add('GET', '/api/v1/library', $middleware->requireUser([$library, 'list']));
+$router->add('POST', '/api/v1/library', $middleware->requireUser(
+    $middleware->csrf([$library, 'add']),
+));
+$router->add('PATCH', '/api/v1/library/{entryId}', $middleware->requireUser(
+    $middleware->csrf([$library, 'update']),
+));
+$router->add('DELETE', '/api/v1/library/{entryId}', $middleware->requireUser(
+    $middleware->csrf([$library, 'delete']),
+));
 
 return new Application($router);

@@ -15,7 +15,7 @@ Users should eventually be able to track, rate, organize, and share the media th
 
 ## Backend direction and current foundation
 
-A small structured plain PHP REST API lives in `backend/`. Composer provides PSR-4 autoloading; PDO is configured for a MySQL-compatible database. The API is JSON, versioned under `/api/v1`, and exposes health and session authentication endpoints. Browser and future native clients should use the same client-agnostic API contracts. Library endpoints are not implemented yet.
+A small structured plain PHP REST API lives in `backend/`. Composer provides PSR-4 autoloading; PDO is configured for a MySQL-compatible database. The API is JSON, versioned under `/api/v1`, and exposes health, session authentication, and authenticated Library endpoints. Browser and future native clients use the same client-agnostic API contracts.
 
 The core schema now has `users`, shared `media`, and per-user `user_media` tables. Database uniqueness protects both `(source, media_type, source_id)` and `(user_id, media_id)`. Normalized provider-specific fields are JSON text with a database validity check; this avoids MariaDB/MySQL native JSON differences. Ratings are nullable exact `DECIMAL(3,1)`, with a database range check and half-point validation in PHP. Media-type-specific statuses and source/type combinations are PHP domain rules, not SQL ENUMs. Database defaults manage creation and update timestamps; each PDO connection sets the database session to UTC. Future API JSON should expose internal BIGINT IDs as strings.
 
@@ -23,9 +23,11 @@ Project-owned, ordered PHP migrations are tracked in `schema_migrations` and run
 
 The planned production deployment serves Vue and `/api/v1` from the same `https://myfunlist.app` origin. Web authentication uses native PHP sessions with host-only HttpOnly cookies, SameSite=Lax, and Secure in production. Local HTTP uses a separate non-Secure cookie name. A session-bound random CSRF token is required in `X-CSRF-Token` for registration, login, and logout; authentication rotates both the session ID and token. Registration requires a 12–128 character password, stored with PHP's Argon2id when available or PASSWORD_DEFAULT otherwise; login verifies and upgrades old hashes. Only the user ID and CSRF token are stored in the session. A `CurrentUserProvider` supplies an `AuthenticatedUser` identity to controllers; future native bearer authentication can supply the same identity without coupling application logic to `$_SESSION`. Rate limiting for login and registration is required before public launch.
 
+The Library API derives ownership from `AuthenticatedUser` and requires CSRF for mutations. First add resolves provider detail on the server, outside a database transaction, then stores a normalized shared media row and a separate user relationship. Later adds reuse cached media; unique database constraints settle concurrent duplicates. List, update, and delete use the opaque string `userMedia.id` with user-scoped queries, while `mediaKey` remains the client-friendly `source:mediaType:sourceId` identity. The frontend still stores its anonymous Library in localStorage; replacing that persistence and adding frontend auth remain later work.
+
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. The backend has a core database schema and authentication API, but no Library HTTP API. Frontend auth integration remains deferred; localStorage Library behavior is unchanged.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. The backend has a core database schema, authentication API, and Library API. Frontend auth integration remains deferred; localStorage Library behavior is unchanged.
 
 ## Core product concepts
 
@@ -77,11 +79,11 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser. The PHP backend, core tables, and session auth API coexist with the frontend but are not yet used by it.
+The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser. The PHP backend, core tables, session auth API, and Library API coexist with the frontend but are not yet used by it.
 
 ## Next milestone
 
-Integrate frontend authentication with the existing session API, then add Library API behavior behind the existing Library abstraction. Add production rate limiting before public launch.
+Integrate frontend authentication and the Library API behind the existing Library abstraction. Add production rate limiting before public launch.
 
 ## Future ideas
 

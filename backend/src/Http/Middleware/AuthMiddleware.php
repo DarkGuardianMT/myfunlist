@@ -31,13 +31,13 @@ final class AuthMiddleware
 
     public function requireUser(callable $next): Closure
     {
-        return function () use ($next): JsonResponse {
+        return function (...$arguments) use ($next): JsonResponse {
             $identity = $this->currentUsers->currentUser();
             if ($identity === null) {
                 return JsonResponse::error(401, 'unauthenticated', 'Authentication required.');
             }
 
-            return $next($identity);
+            return $next($identity, ...$arguments);
         };
     }
 }
