@@ -16,6 +16,7 @@ test('game Library card and discovery controls render with shared components', a
     const { default: HomeView } = await server.ssrLoadModule('/src/views/HomeView.vue')
     const { default: ProfileView } = await server.ssrLoadModule('/src/views/ProfileView.vue')
     const { useLibrary } = await server.ssrLoadModule('/src/composables/useLibrary.js')
+    const { currentUser, isAuthLoading } = await server.ssrLoadModule('/src/composables/authState.js')
     const game = {
       source: 'rawg', sourceId: '654', mediaType: 'game', title: 'Stardew Valley',
       releaseYear: '2016', coverImage: null, platforms: ['PC', 'Switch'],
@@ -41,6 +42,13 @@ test('game Library card and discovery controls render with shared components', a
       media: game, isLibraryLoaded: true, isAdded: false, isAdding: false, hasIdentity: true,
     }) }))
     assert.ok(addButtonHtml.includes('Add to Library'))
+
+    const anonymousButtonHtml = await renderToString(createSSRApp({ render: () => h(LibraryAddButton, {
+      media: game, isLibraryLoaded: false, isAnonymous: true, isAdded: false,
+      isAdding: false, hasIdentity: true,
+    }) }))
+    assert.ok(anonymousButtonHtml.includes('Log in to add'))
+    assert.ok(!anonymousButtonHtml.includes('disabled'))
 
     const missingMetadataHtml = await renderToString(createSSRApp({ render: () => h(GameCard, {
       game: { ...game, releaseYear: null, platforms: [] },
@@ -79,7 +87,13 @@ test('game Library card and discovery controls render with shared components', a
       },
       item,
     ] })
-    globalThis.window = { localStorage: { getItem: () => stored } }
+    currentUser.value = { id: '1', email: 'test@example.com' }
+    isAuthLoading.value = false
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({
+      data: JSON.parse(stored).items.map((entry, index) => ({
+        ...entry, userMedia: { ...entry.userMedia, id: String(index + 1) },
+      })),
+    }) })
     await useLibrary().loadLibrary()
     const libraryApp = createSSRApp({ render: () => h(LibraryView) })
     libraryApp.component('RouterLink', { render: () => null })
@@ -92,7 +106,7 @@ test('game Library card and discovery controls render with shared components', a
     assert.ok(libraryViewHtml.includes('TMDB API but is not endorsed'))
 
   } finally {
-    delete globalThis.window
+    delete globalThis.fetch
     await server.close()
   }
 })

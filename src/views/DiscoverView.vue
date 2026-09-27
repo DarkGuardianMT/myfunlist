@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import BookCard from '../components/BookCard.vue'
 import GameCard from '../components/GameCard.vue'
 import LibraryAddButton from '../components/LibraryAddButton.vue'
@@ -8,6 +8,7 @@ import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
+import { useAuth } from '../composables/useAuth.js'
 import { getGoogleBooksErrorMessage, searchBooks } from '../services/googleBooks.js'
 import { getRawgErrorMessage, searchGames } from '../services/rawg.js'
 import {
@@ -120,22 +121,22 @@ const activeQuery = computed({
 const addingMediaKeys = ref(new Set())
 const libraryFeedback = ref('')
 const libraryFeedbackType = ref('status')
+const { currentUser, isAuthLoading } = useAuth()
 const {
   isLibraryLoaded,
+  libraryError,
   loadLibrary,
   getMediaKey,
   hasLibraryItem,
   addLibraryItem,
 } = useLibrary()
 
-onMounted(async () => {
-  try {
-    await loadLibrary()
-  } catch {
-    libraryFeedbackType.value = 'alert'
-    libraryFeedback.value = 'Your Library could not be loaded.'
-  }
-})
+watch([currentUser, isAuthLoading], async () => {
+  libraryFeedback.value = ''
+  addingMediaKeys.value = new Set()
+  if (!currentUser.value || isAuthLoading.value) return
+  try { await loadLibrary() } catch { /* De gedeelde foutstatus toont de oorzaak. */ }
+}, { immediate: true })
 
 function selectMediaType(mediaType) {
   activeMediaType.value = mediaType
@@ -168,6 +169,11 @@ async function handleSearch() {
 }
 
 async function handleAddToLibrary(media) {
+  if (!currentUser.value) {
+    libraryFeedbackType.value = 'alert'
+    libraryFeedback.value = 'Log in or register to add items to your Library.'
+    return
+  }
   const mediaKey = getMediaKey(media)
 
   if (!mediaKey || hasLibraryItem(media) || addingMediaKeys.value.has(mediaKey)) {
@@ -175,19 +181,22 @@ async function handleAddToLibrary(media) {
   }
 
   addingMediaKeys.value.add(mediaKey)
+  const accountId = currentUser.value.id
   libraryFeedback.value = ''
 
   try {
     const result = await addLibraryItem(media)
+    if (currentUser.value?.id !== accountId) return
     libraryFeedbackType.value = 'status'
     libraryFeedback.value = result.added
       ? `“${media.title}” was added to your Library.`
       : `“${media.title}” is already in your Library.`
   } catch {
+    if (currentUser.value?.id !== accountId) return
     libraryFeedbackType.value = 'alert'
     libraryFeedback.value = 'This item could not be added. Please try again.'
   } finally {
-    addingMediaKeys.value.delete(mediaKey)
+    if (currentUser.value?.id === accountId) addingMediaKeys.value.delete(mediaKey)
   }
 }
 
@@ -273,6 +282,10 @@ function cardProps(media) {
         :role="libraryFeedbackType"
       >
         {{ libraryFeedback }}
+        <template v-if="!currentUser">
+          <RouterLink class="inline-link" to="/login">Login</RouterLink>
+          <RouterLink class="inline-link" to="/register">Register</RouterLink>
+        </template>
         <RouterLink
           v-if="libraryFeedbackType === 'status'"
           class="inline-link"
@@ -280,6 +293,11 @@ function cardProps(media) {
         >
           View Library
         </RouterLink>
+      </p>
+
+      <p v-if="currentUser && libraryError" class="library-feedback library-feedback--error" role="alert">
+        Your Library could not be loaded.
+        <button class="text-button" type="button" @click="loadLibrary()">Try again</button>
       </p>
 
       <div
@@ -296,6 +314,8 @@ function cardProps(media) {
           <LibraryAddButton
             :media="media"
             :is-library-loaded="isLibraryLoaded"
+            :is-anonymous="!currentUser && !isAuthLoading"
+            :has-load-error="Boolean(libraryError)"
             :is-added="hasLibraryItem(media)"
             :is-adding="isAdding(media)"
             :has-identity="Boolean(getMediaKey(media))"

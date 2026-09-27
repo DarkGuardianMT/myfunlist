@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import LibraryItemCard from '../components/LibraryItemCard.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useLibrary } from '../composables/useLibrary.js'
+import { useAuth } from '../composables/useAuth.js'
 import { getStatusOptions } from '../domain/libraryMedia.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
 
@@ -13,9 +14,12 @@ const feedbackType = ref('status')
 const mediaTypeFilter = ref('all')
 const statusFilter = ref('all')
 const sortOrder = ref('recent')
+const { currentUser, isAuthLoading, authError } = useAuth()
 const {
   libraryItems,
   isLibraryLoaded,
+  isLibraryLoading,
+  libraryError,
   loadLibrary,
   updateLibraryStatus,
   updateLibraryRating,
@@ -41,16 +45,16 @@ watch(mediaTypeFilter, () => {
   statusFilter.value = 'all'
 })
 
-onMounted(async () => {
-  try {
-    await loadLibrary()
-  } catch {
-    feedbackType.value = 'alert'
-    feedback.value = 'Your Library could not be loaded.'
+watch([currentUser, isAuthLoading], async () => {
+  feedback.value = ''
+  busyMediaKeys.value = new Set()
+  if (currentUser.value && !isAuthLoading.value) {
+    try { await loadLibrary() } catch { /* De gedeelde foutstatus toont de oorzaak. */ }
   }
-})
+}, { immediate: true })
 
 async function handleStatusChange(item, event) {
+  const accountId = currentUser.value?.id
   const mediaKey = item.userMedia.mediaKey
   const control = event.target
   busyMediaKeys.value.add(mediaKey)
@@ -59,15 +63,17 @@ async function handleStatusChange(item, event) {
   try {
     await updateLibraryStatus(mediaKey, control.value)
   } catch {
+    if (currentUser.value?.id !== accountId) return
     control.value = item.userMedia.status
     feedbackType.value = 'alert'
     feedback.value = `The status for “${item.media.title}” could not be updated.`
   } finally {
-    busyMediaKeys.value.delete(mediaKey)
+    if (currentUser.value?.id === accountId) busyMediaKeys.value.delete(mediaKey)
   }
 }
 
 async function handleRatingChange(item, event) {
+  const accountId = currentUser.value?.id
   const mediaKey = item.userMedia.mediaKey
   const control = event.target
   const rating = control.value === '' ? null : Number(control.value)
@@ -77,29 +83,33 @@ async function handleRatingChange(item, event) {
   try {
     await updateLibraryRating(mediaKey, rating)
   } catch {
+    if (currentUser.value?.id !== accountId) return
     control.value = item.userMedia.rating ?? ''
     feedbackType.value = 'alert'
     feedback.value = `The rating for “${item.media.title}” could not be updated.`
   } finally {
-    busyMediaKeys.value.delete(mediaKey)
+    if (currentUser.value?.id === accountId) busyMediaKeys.value.delete(mediaKey)
   }
 }
 
 async function handleRemove(item) {
+  const accountId = currentUser.value?.id
   const mediaKey = item.userMedia.mediaKey
   busyMediaKeys.value.add(mediaKey)
   feedback.value = ''
 
   try {
     const removed = await removeLibraryItem(mediaKey)
+    if (currentUser.value?.id !== accountId) return
     if (!removed) throw new Error('Library item was not found')
     feedbackType.value = 'status'
     feedback.value = `“${item.media.title}” was removed from your Library.`
   } catch {
+    if (currentUser.value?.id !== accountId) return
     feedbackType.value = 'alert'
     feedback.value = `“${item.media.title}” could not be removed.`
   } finally {
-    busyMediaKeys.value.delete(mediaKey)
+    if (currentUser.value?.id === accountId) busyMediaKeys.value.delete(mediaKey)
   }
 }
 </script>
@@ -120,7 +130,17 @@ async function handleRemove(item) {
       {{ feedback }}
     </p>
 
-    <p v-if="!isLibraryLoaded" class="library-empty" role="status">Loading your Library…</p>
+    <p v-if="isAuthLoading" class="library-empty" role="status">Checking your session…</p>
+    <div v-else-if="!currentUser" class="library-empty">
+      <p>{{ authError || 'Log in or register to view your account Library.' }}</p>
+      <RouterLink class="inline-link" to="/login">Login</RouterLink>
+      <RouterLink class="inline-link" to="/register">Register</RouterLink>
+    </div>
+    <div v-else-if="libraryError" class="library-empty" role="alert">
+      <p>Your Library could not be loaded. {{ libraryError }}</p>
+      <button class="text-button" type="button" @click="loadLibrary()">Try again</button>
+    </div>
+    <p v-else-if="isLibraryLoading || !isLibraryLoaded" class="library-empty" role="status">Loading your Library…</p>
     <div v-else-if="!libraryItems.length" class="library-empty">
       <p>Your Library is empty.</p>
       <RouterLink class="inline-link" to="/discover">Discover media to add</RouterLink>
