@@ -17,6 +17,13 @@ final class Application
     {
         try {
             return $this->router->dispatch($method, $path);
+        } catch (ApiException $exception) {
+            return JsonResponse::error(
+                $exception->status,
+                $exception->errorCode,
+                $exception->getMessage(),
+                fields: $exception->fields,
+            );
         } catch (DatabaseUnavailable) {
             error_log('API database check failed');
             return JsonResponse::error(503, 'service_unavailable', 'Service unavailable.');

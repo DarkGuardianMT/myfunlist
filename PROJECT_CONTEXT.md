@@ -15,17 +15,17 @@ Users should eventually be able to track, rate, organize, and share the media th
 
 ## Backend direction and current foundation
 
-A small structured plain PHP REST API lives in `backend/`. Composer provides PSR-4 autoloading; PDO is configured for a MySQL-compatible database. The API is JSON, versioned under `/api/v1`, and currently exposes only a health endpoint that checks database connectivity. Browser and future native clients should use the same client-agnostic API contracts. Authentication and Library endpoints are not implemented yet.
+A small structured plain PHP REST API lives in `backend/`. Composer provides PSR-4 autoloading; PDO is configured for a MySQL-compatible database. The API is JSON, versioned under `/api/v1`, and exposes health and session authentication endpoints. Browser and future native clients should use the same client-agnostic API contracts. Library endpoints are not implemented yet.
 
 The core schema now has `users`, shared `media`, and per-user `user_media` tables. Database uniqueness protects both `(source, media_type, source_id)` and `(user_id, media_id)`. Normalized provider-specific fields are JSON text with a database validity check; this avoids MariaDB/MySQL native JSON differences. Ratings are nullable exact `DECIMAL(3,1)`, with a database range check and half-point validation in PHP. Media-type-specific statuses and source/type combinations are PHP domain rules, not SQL ENUMs. Database defaults manage creation and update timestamps; each PDO connection sets the database session to UTC. Future API JSON should expose internal BIGINT IDs as strings.
 
-Project-owned, ordered PHP migrations are tracked in `schema_migrations` and run only from the CLI. Local development uses MariaDB 10.4; production should use a compatible modern MySQL release (8.0.16+ for enforced CHECK constraints). Integration tests reset only a separate local `myfunlist_test` database. Later account logic should trim and lowercase ASCII email addresses before insert; the database's case-insensitive unique email index remains the final duplicate guard. International email support is deferred.
+Project-owned, ordered PHP migrations are tracked in `schema_migrations` and run only from the CLI. Local development uses MariaDB 10.4; production should use a compatible modern MySQL release (8.0.16+ for enforced CHECK constraints). Integration tests reset only a separate local `myfunlist_test` database. Account logic trims and lowercases ASCII email addresses before registration and login lookup; the database's case-insensitive unique email index remains the final duplicate guard. International email support is deferred.
 
-The planned production deployment serves Vue and `/api/v1` from the same `https://myfunlist.app` origin. Web authentication will initially use PHP sessions and secure HttpOnly cookies. A future native client may use token authentication; controllers and services should receive authenticated user context through a dedicated boundary instead of reading PHP sessions directly.
+The planned production deployment serves Vue and `/api/v1` from the same `https://myfunlist.app` origin. Web authentication uses native PHP sessions with host-only HttpOnly cookies, SameSite=Lax, and Secure in production. Local HTTP uses a separate non-Secure cookie name. A session-bound random CSRF token is required in `X-CSRF-Token` for registration, login, and logout; authentication rotates both the session ID and token. Registration requires a 12–128 character password, stored with PHP's Argon2id when available or PASSWORD_DEFAULT otherwise; login verifies and upgrades old hashes. Only the user ID and CSRF token are stored in the session. A `CurrentUserProvider` supplies an `AuthenticatedUser` identity to controllers; future native bearer authentication can supply the same identity without coupling application logic to `$_SESSION`. Rate limiting for login and registration is required before public launch.
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. The backend has a core database schema but no authentication or Library HTTP API yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. The backend has a core database schema and authentication API, but no Library HTTP API. Frontend auth integration remains deferred; localStorage Library behavior is unchanged.
 
 ## Core product concepts
 
@@ -77,11 +77,11 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser. The PHP backend and core tables coexist with the frontend but are not yet used by it.
+The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser. The PHP backend, core tables, and session auth API coexist with the frontend but are not yet used by it.
 
 ## Next milestone
 
-Implement authentication on the core schema while preserving the boundary between external media metadata and user-specific media data.
+Integrate frontend authentication with the existing session API, then add Library API behavior behind the existing Library abstraction. Add production rate limiting before public launch.
 
 ## Future ideas
 

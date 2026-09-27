@@ -17,7 +17,8 @@
   "scripts": {
     "test": [
       "@php tests/foundation.php",
-      "@php tests/schema.php"
+      "@php tests/schema.php",
+      "@php tests/auth_http.php"
     ],
     "migrate": "@php bin/migrate.php migrate",
     "migrate:status": "@php bin/migrate.php status"
