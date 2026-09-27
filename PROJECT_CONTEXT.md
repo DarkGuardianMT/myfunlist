@@ -15,13 +15,17 @@ Users should eventually be able to track, rate, organize, and share the media th
 
 ## Backend direction and current foundation
 
-A small structured plain PHP REST API now lives in `backend/`. Composer provides PSR-4 autoloading; PDO is configured for a MySQL-compatible database. The API is JSON, versioned under `/api/v1`, and currently exposes only a health endpoint that checks database connectivity. No application tables, authentication, or Library endpoints exist yet. Browser and future native clients should use the same client-agnostic API contracts.
+A small structured plain PHP REST API lives in `backend/`. Composer provides PSR-4 autoloading; PDO is configured for a MySQL-compatible database. The API is JSON, versioned under `/api/v1`, and currently exposes only a health endpoint that checks database connectivity. Browser and future native clients should use the same client-agnostic API contracts. Authentication and Library endpoints are not implemented yet.
 
-The planned production deployment serves Vue and `/api/v1` from the same `https://myfunlist.app` origin. Web authentication will initially use PHP sessions and secure HttpOnly cookies. A future native client may use token authentication; controllers and services should receive authenticated user context through a dedicated boundary instead of reading PHP sessions directly. Authentication and the database schema remain unimplemented.
+The core schema now has `users`, shared `media`, and per-user `user_media` tables. Database uniqueness protects both `(source, media_type, source_id)` and `(user_id, media_id)`. Normalized provider-specific fields are JSON text with a database validity check; this avoids MariaDB/MySQL native JSON differences. Ratings are nullable exact `DECIMAL(3,1)`, with a database range check and half-point validation in PHP. Media-type-specific statuses and source/type combinations are PHP domain rules, not SQL ENUMs. Database defaults manage creation and update timestamps; each PDO connection sets the database session to UTC. Future API JSON should expose internal BIGINT IDs as strings.
+
+Project-owned, ordered PHP migrations are tracked in `schema_migrations` and run only from the CLI. Local development uses MariaDB 10.4; production should use a compatible modern MySQL release (8.0.16+ for enforced CHECK constraints). Integration tests reset only a separate local `myfunlist_test` database. Later account logic should trim and lowercase ASCII email addresses before insert; the database's case-insensitive unique email index remains the final duplicate guard. International email support is deferred.
+
+The planned production deployment serves Vue and `/api/v1` from the same `https://myfunlist.app` origin. Web authentication will initially use PHP sessions and secure HttpOnly cookies. A future native client may use token authentication; controllers and services should receive authenticated user context through a dedicated boundary instead of reading PHP sessions directly.
 
 ## Current repository state
 
-The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. A backend foundation exists, but there is no authentication or application database schema yet.
+The frontend was initialized directly in the repository root. It now has an application shell with shared navigation and Home, Discover, Library, and Profile routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Books, movies, TV shows, and games can be added to one locally persisted Library, given media-specific statuses and personal ratings, or removed. The backend has a core database schema but no authentication or Library HTTP API yet.
 
 ## Core product concepts
 
@@ -52,11 +56,11 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 - Canonical media identity combines source, media type, and source ID, so TMDB movies and TV shows with the same numeric ID remain distinct.
 - Use localStorage as temporary persistence for the anonymous local Library. The canonical key is `myfunlist_library`; schema version 2 migrates version 1 book keys to type-aware keys while preserving status, rating, and addedAt. Valid data under the former `trackora_library` key still migrates on first read. Adding Games required no schema migration because the persisted structure remains compatible. A future REST API and database should replace the implementation behind the same Library abstraction.
 - Stay with Vue 3, Vite, JavaScript, and CSS for the current frontend phase. Vue Router handles frontend page navigation.
-- Keep the backend foundation limited to routing, JSON responses, environment configuration, and database connectivity until authentication and Library behavior are designed for implementation.
+- Keep database migrations separate from normal HTTP requests and use the backend domain rules when authentication and Library behavior are implemented.
 
 ## Data model direction at a high level
 
-An external media item is expected to have a source, source ID (`sourceId`), media type, title, image/poster/cover, and metadata. A separate user-specific record is expected to hold status, rating, notes, timestamps, and list membership. This separation should guide future database design; the exact schema and relationships are undecided.
+An external media item has a source, source ID (`sourceId`), media type, title, and normalized metadata. A separate user-specific record holds status, rating, and timestamps. Notes and list membership remain future features.
 
 ## External API direction
 
@@ -73,11 +77,11 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser. The PHP backend foundation coexists with the frontend but is not yet used by it.
+The base Vue/Vite frontend, four-page application shell, Books/Movie/TV/Game discovery search, and an anonymous unified local Library for all four media types are working. Library persistence is temporary and limited to the current browser. The PHP backend and core tables coexist with the frontend but are not yet used by it.
 
 ## Next milestone
 
-Plan the application schema and authentication milestone while preserving the boundary between external media metadata and user-specific media data.
+Implement authentication on the core schema while preserving the boundary between external media metadata and user-specific media data.
 
 ## Future ideas
 

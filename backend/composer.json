@@ -15,7 +15,12 @@
     }
   },
   "scripts": {
-    "test": "@php tests/foundation.php"
+    "test": [
+      "@php tests/foundation.php",
+      "@php tests/schema.php"
+    ],
+    "migrate": "@php bin/migrate.php migrate",
+    "migrate:status": "@php bin/migrate.php status"
   },
   "config": {
     "sort-packages": true
