@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev:backend": "node scripts/checkBackendPort.js",
+    "dev:backend": "C:\\xampp\\php\\php.exe -S 127.0.0.1:8080 -t backend/public backend/public/index.php",
+    "dev:full": "concurrently --kill-others --names frontend,backend --prefix-colors cyan,magenta \"npm run dev\" \"npm run dev:backend\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -14,6 +17,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.8",
+    "concurrently": "^10.0.5",
     "vite": "^8.3.0"
   }
 }

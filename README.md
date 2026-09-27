@@ -6,11 +6,11 @@ The planned public domain is `myfunlist.app`. Its deployment status is not confi
 
 ## Local development
 
-Start XAMPP MySQL (and Apache if you use an Apache virtual host). Run `npm install`, copy `.env.example` to `.env`, and set the discovery keys. A Google Books API key is optional for local book search. Movie and TV search requires `VITE_TMDB_API_TOKEN`; game search requires `VITE_RAWG_API_KEY`.
+Run `npm install`, copy `.env.example` to `.env`, and set the discovery keys. A Google Books API key is optional for local book search. Movie and TV search requires `VITE_TMDB_API_TOKEN`; game search requires `VITE_RAWG_API_KEY`.
 
-Configure `backend/.env`, then run `composer install`, `composer migrate:status`, and `composer migrate` from `backend/`. Start the PHP router from the repository root with `C:\xampp\php\php.exe -S 127.0.0.1:8000 -t backend/public backend/public/index.php`. In another terminal, run `npm run dev`. Vite proxies `/api` to `http://127.0.0.1:8000`, so the app and session cookie share the browser origin. Open `http://127.0.0.1:5173/` and verify `http://127.0.0.1:5173/api/v1/health` returns `{"data":{"status":"ok"}}`.
+Configure `backend/.env`, then run `composer install`, `composer migrate:status`, and `composer migrate` from `backend/` when needed. For normal development, open XAMPP, start **MySQL**, then run `npm run dev:full` from the project root. Open the Vite URL printed in the terminal. Vite proxies `/api` to the PHP server at `http://127.0.0.1:8080`, keeping browser requests on one origin. Press Ctrl+C to stop both development processes.
 
-If you use XAMPP Apache for the API, set a virtual host's document root to `backend/public` and set `VITE_API_PROXY_TARGET` to that host before starting Vite. The repository's `.htaccess` routes API paths to `index.php`. Stock XAMPP serves `C:/xampp/htdocs` and returns 404 for `/api/v1/*` until that host is configured. The built-in PHP router above is the tested default local path.
+`npm run dev` starts only Vite; `npm run dev:backend` starts only the PHP router using `C:\xampp\php\php.exe`. Apache is not required for this workflow. If you use a custom Apache virtual host instead, point its document root at `backend/public` and set `VITE_API_PROXY_TARGET` to that host.
 
 Run `node --test tests/*.test.js` and `npm run build` to verify the frontend. Account Library data uses the PHP API and MySQL. Existing browser storage is offered as a read-only import source after login or registration.
 
@@ -20,7 +20,7 @@ The PHP API provides `GET /api/v1/health`, session authentication under `/api/v1
 
 From `backend/`, run `composer install`, `composer migrate:status`, and `composer migrate`. Rerunning migrations skips applied versions. DDL cannot be reliably rolled back: if a migration fails, inspect the configured database before retrying. Run `composer test` to check the API foundation, reset and migrate **only** the local `myfunlist_test` tables, and exercise auth, Library, and import behavior over HTTP with fake provider details. The development database is not reset by tests.
 
-The API can also be started from `backend/` with `php -S 127.0.0.1:8000 -t public public/index.php`. A configured database returns `{"data":{"status":"ok"}}` at `/api/v1/health`. Composer needs PHP's ZIP extension or an archive extractor; XAMPP includes `php_zip` but it may need enabling for CLI use.
+The API can also be started from `backend/` with `C:\xampp\php\php.exe -S 127.0.0.1:8080 -t public public/index.php`. A configured database returns `{"data":{"status":"ok"}}` at `/api/v1/health`. Composer needs PHP's ZIP extension or an archive extractor; XAMPP includes `php_zip` but it may need enabling for CLI use.
 
 For browser auth, first call `GET /api/v1/auth/csrf` with cookies enabled, then send its `data.csrfToken` in `X-CSRF-Token` for `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, or `POST /api/v1/auth/logout`. Registration and login accept JSON `email` and `password`; both rotate the session and CSRF token, so fetch a new token afterward. `GET /api/v1/auth/me` returns the current user. Local HTTP uses a host-only HttpOnly cookie; production HTTPS uses a Secure host-only cookie. Configure server-side session storage for production if the PHP default is unsuitable.
 

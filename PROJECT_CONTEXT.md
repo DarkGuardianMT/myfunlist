@@ -82,7 +82,7 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The Vue frontend has account registration, login, logout, current-user bootstrap, server Library persistence, explicit browser-data import, and account-safe state reset. All four discovery media types remain available. Vite proxies `/api` to the PHP built-in server on `127.0.0.1:8000` by default; `VITE_API_PROXY_TARGET` can target a configured Apache virtual host. Stock XAMPP Apache `htdocs` does not route `/api` for this repository.
+The Vue frontend has account registration, login, logout, current-user bootstrap, server Library persistence, explicit browser-data import, and account-safe state reset. All four discovery media types remain available. Normal local development starts XAMPP MySQL manually and runs `npm run dev:full` to launch Vite and the XAMPP PHP built-in server together. Vite proxies `/api` to `127.0.0.1:8080` by default; `VITE_API_PROXY_TARGET` can target a configured Apache virtual host. Apache is not required for the normal local workflow.
 
 ## Next milestone
 
