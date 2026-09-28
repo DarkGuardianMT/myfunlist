@@ -20,9 +20,9 @@ final class Router
         }
 
         foreach ($this->routes[$method] ?? [] as $route => $handler) {
-            $parameter = $this->matchEntryId($route, $path);
-            if ($parameter !== null) {
-                return $handler($parameter);
+            $parameters = $this->matchParameters($route, $path);
+            if ($parameters !== null) {
+                return $handler(...$parameters);
             }
         }
 
@@ -33,7 +33,7 @@ final class Router
                 continue;
             }
             foreach ($paths as $route => $_handler) {
-                if ($this->matchEntryId($route, $path) !== null) {
+                if ($this->matchParameters($route, $path) !== null) {
                     $allowed[] = $routeMethod;
                     break;
                 }
@@ -52,19 +52,26 @@ final class Router
         return JsonResponse::error(404, 'not_found', 'Route not found.');
     }
 
-    private function matchEntryId(string $route, string $path): ?string
+    private function matchParameters(string $route, string $path): ?array
     {
-        if (!str_ends_with($route, '/{entryId}')) {
+        $routeParts = explode('/', trim($route, '/'));
+        $pathParts = explode('/', trim($path, '/'));
+        if (count($routeParts) !== count($pathParts)) {
             return null;
         }
 
-        $prefix = substr($route, 0, -strlen('{entryId}'));
-        if (!str_starts_with($path, $prefix)) {
-            return null;
+        $parameters = [];
+        foreach ($routeParts as $index => $part) {
+            if (preg_match('/^\{[A-Za-z][A-Za-z0-9]*\}$/D', $part) === 1) {
+                if (preg_match('/^[1-9][0-9]{0,19}$/D', $pathParts[$index]) !== 1) {
+                    return null;
+                }
+                $parameters[] = $pathParts[$index];
+            } elseif ($part !== $pathParts[$index]) {
+                return null;
+            }
         }
 
-        $id = substr($path, strlen($prefix));
-
-        return preg_match('/^[1-9][0-9]{0,19}$/D', $id) === 1 ? $id : null;
+        return $parameters === [] ? null : $parameters;
     }
 }

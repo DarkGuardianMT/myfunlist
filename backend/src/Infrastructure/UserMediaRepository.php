@@ -36,6 +36,23 @@ SQL;
         return array_map(self::item(...), $statement->fetchAll());
     }
 
+    public function listForCustomList(string $userId, string $listId): array
+    {
+        $statement = $this->connection->prepare(<<<'SQL'
+SELECT um.id, um.status, um.rating, um.added_at,
+       m.source, m.media_type, m.source_id, m.title, m.metadata,
+       li.added_at AS list_added_at
+FROM list_items li
+JOIN user_media um ON um.id = li.user_media_id
+JOIN media m ON m.id = um.media_id
+WHERE li.list_id = ? AND um.user_id = ?
+ORDER BY li.added_at DESC, li.user_media_id DESC
+SQL);
+        $statement->execute([$listId, $userId]);
+
+        return array_map(self::item(...), $statement->fetchAll());
+    }
+
     public function findById(string $userId, string $entryId, bool $lock = false): ?array
     {
         $statement = $this->connection->prepare(
@@ -133,7 +150,7 @@ SQL;
             throw new UnexpectedValueException('Stored Library timestamp is invalid.');
         }
 
-        return [
+        $item = [
             'media' => [
                 ...get_object_vars($metadata),
                 'source' => $row['source'],
@@ -149,5 +166,16 @@ SQL;
                 'addedAt' => $date->format('Y-m-d\TH:i:s.u\Z'),
             ],
         ];
+        if (array_key_exists('list_added_at', $row)) {
+            $listDate = DateTimeImmutable::createFromFormat(
+                '!Y-m-d H:i:s.u', $row['list_added_at'], new DateTimeZone('UTC'),
+            );
+            if ($listDate === false) {
+                throw new UnexpectedValueException('Stored list item timestamp is invalid.');
+            }
+            $item['listItem'] = ['addedAt' => $listDate->format('Y-m-d\TH:i:s.u\Z')];
+        }
+
+        return $item;
     }
 }

@@ -21,7 +21,8 @@
       "@php tests/schema.php",
       "@php tests/auth_http.php",
       "@php tests/library_http.php",
-      "@php tests/import_http.php"
+      "@php tests/import_http.php",
+      "@php tests/lists_http.php"
     ],
     "migrate": "@php bin/migrate.php migrate",
     "migrate:status": "@php bin/migrate.php status"

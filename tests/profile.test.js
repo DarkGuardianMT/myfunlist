@@ -24,7 +24,7 @@ test('Profile and header render account fields, fallback, and anonymous prompt',
     const render = async (component) => {
       const app = createSSRApp({ render: () => h(component) })
       app.use(createRouter({ history: createMemoryHistory(), routes: [
-        ...['/', '/login', '/register', '/discover', '/library', '/profile'].map((path) => ({
+        ...['/', '/login', '/register', '/discover', '/library', '/lists', '/profile'].map((path) => ({
           path, component: { render: () => null },
         })),
       ] }))

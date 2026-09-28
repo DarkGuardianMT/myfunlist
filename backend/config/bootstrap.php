@@ -9,11 +9,13 @@ use MyFunList\Auth\ProfileService;
 use MyFunList\Http\Controllers\AuthController;
 use MyFunList\Http\Controllers\HealthController;
 use MyFunList\Http\Controllers\LibraryController;
+use MyFunList\Http\Controllers\ListController;
 use MyFunList\Http\Controllers\ProfileController;
 use MyFunList\Http\Middleware\AuthMiddleware;
 use MyFunList\Http\Router;
 use MyFunList\Library\LibraryService;
 use MyFunList\Library\LibraryImportService;
+use MyFunList\Lists\ListService;
 use MyFunList\Provider\CurlProviderHttpClient;
 use MyFunList\Provider\ProviderMediaResolver;
 use MyFunList\Infrastructure\Database;
@@ -39,6 +41,7 @@ $libraryService = new LibraryService(
     new ProviderMediaResolver(new CurlProviderHttpClient()),
 );
 $library = new LibraryController($libraryService, new LibraryImportService($libraryService));
+$lists = new ListController(new ListService($database));
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
 $router->add('GET', '/api/v1/auth/csrf', [$auth, 'csrf']);
@@ -67,6 +70,23 @@ $router->add('PATCH', '/api/v1/library/{entryId}', $middleware->requireUser(
 ));
 $router->add('DELETE', '/api/v1/library/{entryId}', $middleware->requireUser(
     $middleware->csrf([$library, 'delete']),
+));
+$router->add('GET', '/api/v1/lists', $middleware->requireUser([$lists, 'all']));
+$router->add('POST', '/api/v1/lists', $middleware->requireUser(
+    $middleware->csrf([$lists, 'create']),
+));
+$router->add('GET', '/api/v1/lists/{listId}', $middleware->requireUser([$lists, 'show']));
+$router->add('PATCH', '/api/v1/lists/{listId}', $middleware->requireUser(
+    $middleware->csrf([$lists, 'update']),
+));
+$router->add('DELETE', '/api/v1/lists/{listId}', $middleware->requireUser(
+    $middleware->csrf([$lists, 'delete']),
+));
+$router->add('POST', '/api/v1/lists/{listId}/items', $middleware->requireUser(
+    $middleware->csrf([$lists, 'addItem']),
+));
+$router->add('DELETE', '/api/v1/lists/{listId}/items/{entryId}', $middleware->requireUser(
+    $middleware->csrf([$lists, 'removeItem']),
 ));
 
 return new Application($router);

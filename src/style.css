@@ -180,6 +180,93 @@ a:focus-visible {
 .profile-error { color: #a0322c; }
 .profile-success { color: #176b62; }
 
+.lists-page,
+.list-detail-page {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.list-panel,
+.list-summary-card {
+  min-width: 0;
+  border: 1px solid #dfe5e1;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: clamp(1rem, 4vw, 1.5rem);
+}
+
+.list-panel h2 { margin: 0 0 1rem; color: #173f3d; }
+.list-form { display: grid; gap: 0.6rem; max-width: 38rem; }
+.list-form label,
+.list-add-form label { font-weight: 650; }
+.list-form input,
+.list-form textarea,
+.list-add-form select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #aabbb6;
+  border-radius: 0.55rem;
+  background: #fff;
+  padding: 0.75rem;
+  font: inherit;
+}
+.list-form textarea { resize: vertical; }
+.list-form button,
+.list-add-form button {
+  width: fit-content;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #176b62;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.7rem 1rem;
+}
+.list-form button:disabled,
+.list-add-form button:disabled,
+.list-delete:disabled { cursor: not-allowed; opacity: 0.6; }
+.list-error { color: #a0322c; overflow-wrap: anywhere; }
+.list-success { color: #176b62; overflow-wrap: anywhere; }
+.list-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.list-summary-card h3 { margin: 0 0 0.5rem; overflow-wrap: anywhere; }
+.list-summary-card h3 a { color: #164b45; }
+.list-summary-description {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  white-space: pre-wrap;
+}
+.list-meta { color: #60736f; font-size: 0.9rem; }
+.list-back-link { margin-left: 0; }
+.list-detail-header h1 {
+  margin: 0 0 0.75rem;
+  color: #173f3d;
+  font-size: clamp(2rem, 6vw, 3.5rem);
+  overflow-wrap: anywhere;
+}
+.list-detail-description { max-width: 48rem; overflow-wrap: anywhere; white-space: pre-wrap; }
+.list-actions { display: flex; flex-wrap: wrap; gap: 1rem; }
+.list-actions .list-delete { color: #a0322c; }
+.list-add-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.5rem 1rem;
+  max-width: 38rem;
+}
+.list-add-form label { grid-column: 1 / -1; }
+.list-item-status { color: #48615d; font-size: 0.9rem; }
+
 .auth-page [role='alert'],
 .import-offer [role='alert'] {
   color: #a0322c;
@@ -809,6 +896,7 @@ a:focus-visible {
 }
 
 @media (max-width: 640px) {
+  .list-add-form { grid-template-columns: 1fr; }
   .profile-details > div { grid-template-columns: 1fr; gap: 0.1rem; }
   .header-inner {
     align-items: flex-start;

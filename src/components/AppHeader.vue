@@ -33,6 +33,7 @@ async function handleLogout() {
         <RouterLink to="/">Home</RouterLink>
         <RouterLink to="/discover">Discover</RouterLink>
         <RouterLink to="/library">Library</RouterLink>
+        <RouterLink to="/lists">Lists</RouterLink>
         <RouterLink to="/profile">Profile</RouterLink>
         <template v-if="!isAuthLoading">
           <template v-if="currentUser">

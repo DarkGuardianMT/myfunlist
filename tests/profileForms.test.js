@@ -33,7 +33,7 @@ const user = { id: '1', email: 'one@example.test', displayName: null, createdAt:
 
 function router() {
   return createRouter({ history: createMemoryHistory(), routes: [
-    ...['/', '/login', '/register', '/discover', '/library', '/profile'].map((path) => ({
+    ...['/', '/login', '/register', '/discover', '/library', '/lists', '/profile'].map((path) => ({
       path, component: { render: () => null },
     })),
   ] })

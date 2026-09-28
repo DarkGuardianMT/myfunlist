@@ -3,6 +3,8 @@ import HomeView from '../views/HomeView.vue'
 import DiscoverView from '../views/DiscoverView.vue'
 import LibraryView from '../views/LibraryView.vue'
 import ProfileView from '../views/ProfileView.vue'
+import ListsView from '../views/ListsView.vue'
+import ListDetailView from '../views/ListDetailView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 
@@ -12,6 +14,8 @@ const router = createRouter({
     { path: '/', component: HomeView },
     { path: '/discover', component: DiscoverView },
     { path: '/library', component: LibraryView },
+    { path: '/lists', component: ListsView },
+    { path: '/lists/:id', component: ListDetailView },
     { path: '/profile', component: ProfileView },
     { path: '/login', component: LoginView },
     { path: '/register', component: RegisterView },

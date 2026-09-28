@@ -5,6 +5,7 @@ import {
   setSessionExpiredHandler,
 } from '../services/apiClient.js'
 import { resetLibrary, useLibrary } from './useLibrary.js'
+import { resetLists } from './useLists.js'
 import { checkLegacyImport, resetImportPrompt } from './useLegacyImport.js'
 
 const { loadLibrary } = useLibrary()
@@ -16,6 +17,7 @@ function setAccount(user) {
   advanceAuthEpoch()
   currentUser.value = user
   resetLibrary()
+  resetLists()
   resetImportPrompt()
 }
 

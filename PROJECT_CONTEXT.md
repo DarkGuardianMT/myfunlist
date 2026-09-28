@@ -29,15 +29,17 @@ The authenticated Library import endpoint accepts batches of normalized media id
 
 ## Current repository state
 
+Private Custom Lists now organize existing account Library entries. The `lists` table stores owner, title, optional description, and timestamps; `list_items` uses `(list_id, user_media_id)` as its composite primary key. A list may mix books, movies, TV, and games, and titles need not be unique. Membership reads the current `user_media` and shared `media` rows rather than duplicating media identity or personal status/rating. Database cascades delete memberships when their list or Library entry is removed, and delete lists when their owner is deleted. API ownership always comes from `AuthenticatedUser`; unowned list IDs return the same 404 as missing IDs. List items display newest membership first, breaking ties by `user_media_id`; explicit list item add/remove updates the list's `updatedAt`. Manual ordering, visibility, sharing, public list pages, and social/profile integration remain deferred.
+
 The first private Profile feature is implemented. `users.display_name` is nullable, Unicode-capable, non-unique, and limited to 80 characters; email remains the read-only account identity. Auth responses and `GET /api/v1/profile` expose only string ID, email, optional display name, and UTC creation date. `PATCH /api/v1/profile` changes the display name, and `POST /api/v1/account/password` verifies the current password and applies the registration password policy. Both mutations require CSRF. Successful password change keeps the current user signed in while rotating the PHP session ID and CSRF token; global session invalidation is deferred. Public usernames and profile URLs are deliberately deferred.
 
-The frontend was initialized directly in the repository root. It has an application shell with shared navigation and Home, Discover, Library, Profile, Login, and Register routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Authenticated users can add all four media types to their MySQL-backed account Library, change statuses and personal ratings, or remove items. Anonymous users see login/register prompts; old browser items are never displayed as account Library data.
+The frontend was initialized directly in the repository root. It has an application shell with shared navigation and Home, Discover, Library, Lists, Profile, Login, and Register routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Authenticated users can add all four media types to their MySQL-backed account Library, change statuses and personal ratings, or remove items. Anonymous users see login/register prompts; old browser items are never displayed as account Library data.
 
 ## Core product concepts
 
 - Media items represent the underlying works and their metadata.
 - User media entries represent a user's relationship with a media item, including status, rating, notes, timestamps, and list membership.
-- Personal libraries and lists organize a user's media. Their exact behavior is undecided.
+- The Library tracks a user's media; private Custom Lists organize entries from that Library. Public and sharing behavior remains undecided.
 - Private account profiles now show display name, email, and membership date. Public profiles and shared lists remain future product work.
 
 ## Media types
@@ -69,7 +71,7 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 
 ## Data model direction at a high level
 
-An external media item has a source, source ID (`sourceId`), media type, title, and normalized metadata. A separate user-specific record holds status, rating, and timestamps. Notes and list membership remain future features.
+An external media item has a source, source ID (`sourceId`), media type, title, and normalized metadata. A separate user-specific record holds status, rating, and timestamps. Custom List membership references that user-specific Library record. Notes remain a future feature.
 
 ## External API direction
 
@@ -86,7 +88,7 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The Vue frontend has account registration, login, logout, current-user bootstrap, private Profile editing and password change, server Library persistence, explicit browser-data import, and account-safe state reset. All four discovery media types remain available. Normal local development starts XAMPP MySQL manually and runs `npm run dev:full` to launch Vite and the XAMPP PHP built-in server together. Vite proxies `/api` to `127.0.0.1:8080` by default; `VITE_API_PROXY_TARGET` can target a configured Apache virtual host. Apache is not required for the normal local workflow.
+The Vue frontend has account registration, login, logout, current-user bootstrap, private Profile editing and password change, server Library persistence, private Custom Lists, explicit browser-data import, and account-safe state reset. All four discovery media types remain available. Normal local development starts XAMPP MySQL manually and runs `npm run dev:full` to launch Vite and the XAMPP PHP built-in server together. Vite proxies `/api` to `127.0.0.1:8080` by default; `VITE_API_PROXY_TARGET` can target a configured Apache virtual host. Apache is not required for the normal local workflow.
 
 ## Next milestone
 

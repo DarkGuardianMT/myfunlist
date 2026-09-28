@@ -59,9 +59,11 @@ verify($wrongTargetRejected, 'Migration runner must reject a mismatched database
 $existing = $connection->query(<<<'SQL'
 SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()
 SQL)->fetchAll(PDO::FETCH_COLUMN);
-verify(array_diff($existing, ['schema_migrations', 'users', 'media', 'user_media']) === [],
+verify(array_diff($existing, ['schema_migrations', 'users', 'media', 'user_media', 'lists', 'list_items']) === [],
     'The test database contains unexpected tables; refusing to reset it.');
 
+$connection->exec('DROP TABLE IF EXISTS list_items');
+$connection->exec('DROP TABLE IF EXISTS lists');
 $connection->exec('DROP TABLE IF EXISTS user_media');
 $connection->exec('DROP TABLE IF EXISTS media');
 $connection->exec('DROP TABLE IF EXISTS users');
@@ -72,13 +74,17 @@ $runner = new MigrationRunner(
     dirname(__DIR__) . '/database/migrations',
     $config['database'],
 );
-$versions = ['001_create_core_schema' => 'pending', '002_add_user_display_name' => 'pending'];
+$versions = [
+    '001_create_core_schema' => 'pending',
+    '002_add_user_display_name' => 'pending',
+    '003_create_custom_lists' => 'pending',
+];
 verify($runner->status() === $versions, 'Fresh migrations must be pending.');
 verify($runner->migrate() === array_fill_keys(array_keys($versions), 'applied'), 'Fresh migrations must apply once.');
 verify($runner->status() === array_fill_keys(array_keys($versions), 'applied'), 'Migration tracking must record both versions.');
 verify($runner->migrate() === array_fill_keys(array_keys($versions), 'already applied'), 'Rerunning must not reapply DDL.');
-verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === 2,
-    'Migration tracking must contain two versions.');
+verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === 3,
+    'Migration tracking must contain three versions.');
 
 $displayColumn = $connection->query(<<<'SQL'
 SELECT is_nullable, character_maximum_length FROM information_schema.columns
@@ -92,14 +98,15 @@ $tables = $connection->query(<<<'SQL'
 SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()
 SQL)->fetchAll(PDO::FETCH_COLUMN);
 sort($tables);
-verify($tables === ['media', 'schema_migrations', 'user_media', 'users'],
+verify($tables === ['list_items', 'lists', 'media', 'schema_migrations', 'user_media', 'users'],
     'The migration must create only the expected tables.');
 
 $indexes = $connection->query(<<<'SQL'
 SELECT index_name FROM information_schema.statistics WHERE table_schema = DATABASE()
 SQL)->fetchAll(PDO::FETCH_COLUMN);
 foreach (['uq_users_email', 'uq_media_external_identity', 'uq_user_media_user_media',
-    'idx_user_media_user_added', 'idx_user_media_media'] as $index) {
+    'idx_user_media_user_added', 'idx_user_media_media', 'PRIMARY',
+    'idx_lists_user_updated', 'idx_list_items_user_media'] as $index) {
     verify(in_array($index, $indexes, true), "Missing index {$index}.");
 }
 
@@ -109,6 +116,13 @@ WHERE constraint_schema = DATABASE() AND table_name = 'user_media'
 SQL)->fetchAll(PDO::FETCH_KEY_PAIR);
 verify(($deleteRules['fk_user_media_user'] ?? null) === 'CASCADE', 'User deletion must cascade.');
 verify(($deleteRules['fk_user_media_media'] ?? null) === 'RESTRICT', 'Referenced media deletion must be restricted.');
+$listRules = $connection->query(<<<'SQL'
+SELECT constraint_name, delete_rule FROM information_schema.referential_constraints
+WHERE constraint_schema = DATABASE() AND table_name IN ('lists', 'list_items')
+SQL)->fetchAll(PDO::FETCH_KEY_PAIR);
+foreach (['fk_lists_user', 'fk_list_items_list', 'fk_list_items_user_media'] as $constraint) {
+    verify(($listRules[$constraint] ?? null) === 'CASCADE', "Missing list cascade: {$constraint}.");
+}
 
 verify(MediaRules::supports('google-books', 'book'), 'Google Books books must be supported.');
 verify(MediaRules::supports('tmdb', 'movie') && MediaRules::supports('tmdb', 'tv'),
@@ -195,12 +209,39 @@ try {
     verify($timestamps['added_at'] !== null && $timestamps['updated_at'] !== null,
         'Database must populate UTC-oriented timestamps.');
 
+    $insertList = $connection->prepare('INSERT INTO lists (user_id, title, description) VALUES (?, ?, ?)');
+    $insertList->execute([$userOne, 'Favorites', null]);
+    $listOne = $connection->lastInsertId();
+    $insertList->execute([$userOne, 'Favorites', 'Another list with the same title']);
+    $listTwo = $connection->lastInsertId();
+    $insertList->execute([$userTwo, 'Favorites', null]);
+    $otherList = $connection->lastInsertId();
+    verify($connection->query('SELECT description FROM lists WHERE id = ' . (int) $listOne)->fetchColumn() === null,
+        'List description must be nullable and titles need not be unique.');
+    $entryIds = $connection->query('SELECT user_id, id FROM user_media')->fetchAll(PDO::FETCH_KEY_PAIR);
+    $insertListItem = $connection->prepare('INSERT INTO list_items (list_id, user_media_id) VALUES (?, ?)');
+    $insertListItem->execute([$listOne, $entryIds[$userOne]]);
+    $insertListItem->execute([$listTwo, $entryIds[$userOne]]);
+    $insertListItem->execute([$otherList, $entryIds[$userTwo]]);
+    expectConstraint(static fn () => $insertListItem->execute([$listOne, $entryIds[$userOne]]),
+        'List membership must be unique.');
+    $connection->prepare('DELETE FROM lists WHERE id = ?')->execute([$listTwo]);
+    verify((int) $connection->query('SELECT COUNT(*) FROM list_items')->fetchColumn() === 2,
+        'Deleting one list must remove only its memberships.');
+
     expectConstraint(static fn () => $connection->prepare('DELETE FROM media WHERE id = ?')->execute([$movie]),
         'Referenced media deletion must be restricted.');
     $connection->prepare('DELETE FROM users WHERE id = ?')->execute([$userTwo]);
     verify((int) $connection->query('SELECT COUNT(*) FROM user_media')->fetchColumn() === 1,
         'Deleting one user must remove only their relationship.');
+    verify((int) $connection->query('SELECT COUNT(*) FROM lists')->fetchColumn() === 1
+        && (int) $connection->query('SELECT COUNT(*) FROM list_items')->fetchColumn() === 1,
+        'Deleting a user must cascade their lists and memberships.');
     verify($media->findById($movie) !== null, 'Deleting a user must retain shared media.');
+    $connection->prepare('DELETE FROM user_media WHERE id = ?')->execute([$entryIds[$userOne]]);
+    verify((int) $connection->query('SELECT COUNT(*) FROM list_items')->fetchColumn() === 0
+        && (int) $connection->query('SELECT COUNT(*) FROM lists')->fetchColumn() === 1,
+        'Removing Library media must remove membership but retain the Custom List.');
 } finally {
     if ($connection->inTransaction()) {
         $connection->rollBack();

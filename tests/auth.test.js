@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { useAuth } from '../src/composables/useAuth.js'
 import { useLibrary } from '../src/composables/useLibrary.js'
+import { useLists } from '../src/composables/useLists.js'
 import { currentUser } from '../src/composables/authState.js'
 import { clearCsrfToken } from '../src/services/apiClient.js'
 
@@ -44,6 +45,7 @@ test('register/login errors stay on form; successful auth rotates CSRF and logou
       ? error('invalid_credentials', 401)
       : data({ user: { id: '2', email: 'two@example.com' } })
     if (path.endsWith('/library')) return data([])
+    if (path.endsWith('/lists')) return data([{ id: '10', title: 'Private list' }])
     if (path.endsWith('/logout')) return { status: 204, ok: true }
     throw new Error(path)
   }
@@ -52,10 +54,13 @@ test('register/login errors stay on form; successful auth rotates CSRF and logou
   registrationFailure = false
   await auth.register('two@example.com', 'long-password')
   assert.equal(auth.currentUser.value.id, '2')
+  await useLists().loadLists()
+  assert.equal(useLists().lists.value.length, 1)
   assert.ok(calls.filter((call) => call.path.endsWith('/csrf')).length >= 2)
   await auth.logout()
   assert.equal(auth.currentUser.value, null)
   assert.deepEqual(useLibrary().libraryItems.value, [])
+  assert.deepEqual(useLists().lists.value, [])
   await assert.rejects(auth.login('two@example.com', 'wrong'), { code: 'invalid_credentials' })
   assert.equal(auth.currentUser.value, null)
   loginFailure = false
