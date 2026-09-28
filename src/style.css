@@ -201,7 +201,8 @@ a:focus-visible {
 .list-add-form label { font-weight: 650; }
 .list-form input,
 .list-form textarea,
-.list-add-form select {
+.list-add-form select,
+.list-add-form input {
   width: 100%;
   min-width: 0;
   border: 1px solid #aabbb6;
@@ -265,6 +266,8 @@ a:focus-visible {
   max-width: 38rem;
 }
 .list-add-form label { grid-column: 1 / -1; }
+.list-add-form input,
+.list-filter-empty { grid-column: 1 / -1; }
 .list-item-status { color: #48615d; font-size: 0.9rem; }
 
 .auth-page [role='alert'],

@@ -119,6 +119,17 @@ SQL);
         $statement->execute([$userId, $listId]);
     }
 
+    public function touchForLibraryEntry(string $userId, string $entryId): void
+    {
+        $statement = $this->connection->prepare(<<<'SQL'
+UPDATE lists l
+JOIN list_items li ON li.list_id = l.id
+SET l.updated_at = CURRENT_TIMESTAMP(6)
+WHERE l.user_id = ? AND li.user_media_id = ?
+SQL);
+        $statement->execute([$userId, $entryId]);
+    }
+
     private static function listRow(array $row): array
     {
         return [

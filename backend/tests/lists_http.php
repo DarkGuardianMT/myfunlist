@@ -174,9 +174,12 @@ try {
         && $duplicateTitle['json']['data']['description'] === null,
         'Duplicate titles and nullable descriptions must be allowed.');
     $secondListId = $duplicateTitle['json']['data']['id'];
+    $unrelatedList = $a->request('POST', '/api/v1/lists', ['title' => 'Unrelated'], $aToken);
+    verifyLists($unrelatedList['status'] === 201, 'Unrelated list creation failed.');
+    $unrelatedListId = $unrelatedList['json']['data']['id'];
     $otherList = $b->request('POST', '/api/v1/lists', ['title' => 'Private B'], $bToken);
     $otherListId = $otherList['json']['data']['id'];
-    verifyLists(count($a->request('GET', '/api/v1/lists')['json']['data']) === 2
+    verifyLists(count($a->request('GET', '/api/v1/lists')['json']['data']) === 3
         && count($b->request('GET', '/api/v1/lists')['json']['data']) === 1,
         'Each user must see only their own list summaries.');
     foreach ([
@@ -247,14 +250,19 @@ try {
     verifyLists($a->request('POST', '/api/v1/lists/' . $secondListId . '/items',
         ['userMediaId' => $entryIds['book']], $aToken)['status'] === 201,
         'One Library entry may belong to multiple lists.');
+    $firstBeforeDuplicate = $a->request('GET', '/api/v1/lists/' . $listId)['json']['data']['list'];
     $duplicate = $a->request('POST', $itemsPath, ['userMediaId' => $entryIds['book']], $aToken);
     verifyLists($duplicate['status'] === 200 && $duplicate['json']['data']['added'] === false,
         'Duplicate add must be idempotent.');
+    $secondAfterAdd = $a->request('GET', '/api/v1/lists/' . $secondListId)['json']['data']['list'];
+    verifyLists($secondAfterAdd['updatedAt'] > $duplicateTitle['json']['data']['updatedAt'],
+        'Adding a membership must update its list timestamp.');
     $detail = $a->request('GET', '/api/v1/lists/' . $listId);
     $items = $detail['json']['data']['items'] ?? null;
     verifyLists($detail['status'] === 200 && count($items) === 4
         && $detail['json']['data']['list']['itemCount'] === 4
-        && $detail['json']['data']['list']['updatedAt'] > $list['updatedAt'],
+        && $detail['json']['data']['list']['updatedAt'] > $list['updatedAt']
+        && $detail['json']['data']['list']['updatedAt'] === $firstBeforeDuplicate['updatedAt'],
         'List detail must contain four items and accurate count.');
     $types = array_column(array_column($items, 'media'), 'mediaType');
     sort($types);
@@ -265,6 +273,7 @@ try {
             && !array_key_exists('password_hash', $item),
             'List items must reuse safe Library shape with list timestamp.');
     }
+    $itemsPathTimestamp = $detail['json']['data']['list']['updatedAt'];
 
     $updatedLibrary = $a->request('PATCH', '/api/v1/library/' . $entryIds['movie'],
         ['status' => 'want-to-watch', 'rating' => 6.5], $aToken);
@@ -273,7 +282,8 @@ try {
     $movies = array_values(array_filter($detail['items'],
         static fn (array $item): bool => $item['media']['mediaType'] === 'movie'));
     verifyLists($movies[0]['userMedia']['status'] === 'want-to-watch'
-        && $movies[0]['userMedia']['rating'] === 6.5,
+        && $movies[0]['userMedia']['rating'] === 6.5
+        && $detail['list']['updatedAt'] === $itemsPathTimestamp,
         'List detail must reflect live Library status and rating.');
 
     $bookPath = $itemsPath . '/' . $entryIds['book'];
@@ -281,16 +291,47 @@ try {
         'List item removal must require CSRF.');
     verifyLists($a->request('DELETE', $bookPath, null, $aToken)['status'] === 204,
         'Removing list membership must return 204.');
+    $afterDirectRemoval = $a->request('GET', '/api/v1/lists/' . $listId)['json']['data']['list'];
+    verifyLists($afterDirectRemoval['updatedAt'] > $itemsPathTimestamp
+        && $afterDirectRemoval['itemCount'] === 3,
+        'Direct membership removal must update only the list.');
     verifyLists($a->request('DELETE', $bookPath, null, $aToken)['status'] === 404,
         'Repeated list item removal must return 404.');
     verifyLists(count($a->request('GET', '/api/v1/library')['json']['data']) === 4,
         'Removing list membership must leave Library unchanged.');
-    verifyLists($a->request('DELETE', '/api/v1/library/' . $entryIds['game'], null, $aToken)['status'] === 204,
+    verifyLists($a->request('POST', $itemsPath, ['userMediaId' => $entryIds['book']], $aToken)['status'] === 201,
+        'Removed membership must be addable again.');
+    $beforeCascade = $a->request('GET', '/api/v1/lists/' . $listId)['json']['data']['list'];
+    $unrelatedA = $a->request('GET', '/api/v1/lists/' . $unrelatedListId)['json']['data']['list'];
+    $unrelatedBefore = $b->request('GET', '/api/v1/lists/' . $otherListId)['json']['data']['list'];
+    usleep(2000);
+    verifyLists($a->request('DELETE', '/api/v1/library/' . $entryIds['book'], null, $aToken)['status'] === 204,
         'Library removal must still work.');
     $afterLibraryRemoval = $a->request('GET', '/api/v1/lists/' . $listId)['json']['data'];
-    verifyLists($afterLibraryRemoval['list']['itemCount'] === 2
-        && count($afterLibraryRemoval['items']) === 2,
-        'Library removal must cascade only the relevant list membership.');
+    $secondAfterCascade = $a->request('GET', '/api/v1/lists/' . $secondListId)['json']['data'];
+    $unrelatedAAfter = $a->request('GET', '/api/v1/lists/' . $unrelatedListId)['json']['data']['list'];
+    $unrelatedAfter = $b->request('GET', '/api/v1/lists/' . $otherListId)['json']['data']['list'];
+    verifyLists($afterLibraryRemoval['list']['itemCount'] === 3
+        && count($afterLibraryRemoval['items']) === 3
+        && $afterLibraryRemoval['list']['updatedAt'] > $beforeCascade['updatedAt']
+        && $secondAfterCascade['list']['itemCount'] === 0
+        && $secondAfterCascade['items'] === []
+        && $secondAfterCascade['list']['updatedAt'] > $secondAfterAdd['updatedAt']
+        && $unrelatedAAfter['updatedAt'] === $unrelatedA['updatedAt']
+        && $unrelatedAfter['updatedAt'] === $unrelatedBefore['updatedAt'],
+        'Library deletion must touch every affected list and preserve unrelated lists and items.');
+    $countById = $database->prepare('SELECT COUNT(*) FROM user_media WHERE id = ?');
+    $countById->execute([$entryIds['book']]);
+    verifyLists((int) $countById->fetchColumn() === 0,
+        'Library deletion must remove user_media.');
+    $countById = $database->prepare('SELECT COUNT(*) FROM list_items WHERE user_media_id = ?');
+    $countById->execute([$entryIds['book']]);
+    verifyLists((int) $countById->fetchColumn() === 0,
+        'Library deletion must cascade all list memberships.');
+    $countById = $database->prepare('SELECT COUNT(*) FROM media WHERE id = ?');
+    $countById->execute([$mediaIds[0]]);
+    verifyLists((int) $countById->fetchColumn() === 1,
+        'Library deletion must retain shared media.');
 
     verifyLists($a->request('PATCH', '/api/v1/lists/' . $listId,
         ['title' => 'No token'])['status'] === 403, 'List edit must require CSRF.');
@@ -302,7 +343,8 @@ try {
     $edited = $a->request('PATCH', '/api/v1/lists/' . $listId,
         ['title' => '  Nieuw 李  ', 'description' => ''], $aToken);
     verifyLists($edited['status'] === 200 && $edited['json']['data']['title'] === 'Nieuw 李'
-        && $edited['json']['data']['description'] === null,
+        && $edited['json']['data']['description'] === null
+        && $edited['json']['data']['updatedAt'] > $afterLibraryRemoval['list']['updatedAt'],
         'List edit must trim Unicode title and normalize empty description.');
     verifyLists($a->request('DELETE', '/api/v1/lists/' . $listId)['status'] === 403,
         'List delete must require CSRF.');

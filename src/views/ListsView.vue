@@ -26,6 +26,7 @@ watch([() => currentUser.value?.id, isAuthLoading], async () => {
 }, { immediate: true })
 
 async function submitCreate() {
+  if (isCreating.value || !isListsLoaded.value) return
   isCreating.value = true
   formError.value = ''
   formSuccess.value = ''
@@ -64,9 +65,9 @@ async function submitCreate() {
         <h2 id="create-list-heading">Create a list</h2>
         <form class="list-form" @submit.prevent="submitCreate">
           <label for="list-title">Title</label>
-          <input id="list-title" v-model="title" type="text" required :disabled="isCreating || !isListsLoaded" />
+          <input id="list-title" v-model="title" type="text" required maxlength="120" :disabled="isCreating || !isListsLoaded" />
           <label for="list-description">Description (optional)</label>
-          <textarea id="list-description" v-model="description" rows="3" :disabled="isCreating || !isListsLoaded" />
+          <textarea id="list-description" v-model="description" rows="3" maxlength="1000" :disabled="isCreating || !isListsLoaded" />
           <p v-if="formError" class="list-error" role="alert">{{ formError }}</p>
           <p v-if="formSuccess" class="list-success" role="status">{{ formSuccess }}</p>
           <button type="submit" :disabled="isCreating || !isListsLoaded">{{ isCreating ? 'Creating…' : 'Create list' }}</button>

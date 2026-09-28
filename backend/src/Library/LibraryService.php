@@ -8,6 +8,7 @@ use MyFunList\Auth\AuthenticatedUser;
 use MyFunList\Domain\MediaRules;
 use MyFunList\Http\ApiException;
 use MyFunList\Infrastructure\Database;
+use MyFunList\Infrastructure\ListRepository;
 use MyFunList\Infrastructure\MediaRepository;
 use MyFunList\Infrastructure\UserMediaRepository;
 use MyFunList\Provider\MediaResolver;
@@ -23,6 +24,7 @@ final class LibraryService
     private ?PDO $connection = null;
     private ?MediaRepository $media = null;
     private ?UserMediaRepository $entries = null;
+    private ?ListRepository $lists = null;
 
     public function __construct(
         private readonly Database $database,
@@ -171,8 +173,23 @@ final class LibraryService
 
     public function delete(AuthenticatedUser $user, string $entryId): void
     {
-        if (!$this->entries()->delete($user->id, $entryId)) {
-            throw self::missingEntry();
+        $connection = $this->connection();
+        $connection->beginTransaction();
+        try {
+            if ($this->entries()->findById($user->id, $entryId, true) === null) {
+                throw self::missingEntry();
+            }
+            // Raak alle betrokken lijsten aan voordat de FK-cascade hun lidmaatschappen verwijdert.
+            $this->lists()->touchForLibraryEntry($user->id, $entryId);
+            if (!$this->entries()->delete($user->id, $entryId)) {
+                throw self::missingEntry();
+            }
+            $connection->commit();
+        } catch (Throwable $exception) {
+            if ($connection->inTransaction()) {
+                $connection->rollBack();
+            }
+            throw $exception;
         }
     }
 
@@ -256,5 +273,10 @@ final class LibraryService
     private function entries(): UserMediaRepository
     {
         return $this->entries ??= new UserMediaRepository($this->connection());
+    }
+
+    private function lists(): ListRepository
+    {
+        return $this->lists ??= new ListRepository($this->connection());
     }
 }

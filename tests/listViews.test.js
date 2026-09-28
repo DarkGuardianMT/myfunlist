@@ -157,6 +157,40 @@ test('Lists views show request errors instead of empty states and allow retry', 
   }
 })
 
+test('Create form ignores a second submit while its request is pending', async () => {
+  clearCsrfToken()
+  currentUser.value = { ...account }
+  isAuthLoading.value = false
+  resetLists()
+  let finishCreate
+  let creates = 0
+  globalThis.fetch = async (path, options) => {
+    if (path.endsWith('/csrf')) return ok({ csrfToken: 'csrf' })
+    if (path === '/api/v1/lists' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/lists' && options.method === 'POST') {
+      creates++
+      return new Promise((resolve) => { finishCreate = resolve })
+    }
+    throw new Error(path)
+  }
+  const view = mount(ListsView, { global: { plugins: [await router('/lists')] } })
+  try {
+    await flushPromises()
+    await view.get('#list-title').setValue('Favorites')
+    await view.get('form').trigger('submit')
+    await flushPromises()
+    await view.get('form').trigger('submit')
+    assert.equal(creates, 1)
+    assert.equal(view.get('button[type="submit"]').attributes('disabled') !== undefined, true)
+    finishCreate(ok(list('1', 'Favorites'), 201))
+    await flushPromises()
+    assert.equal(view.get('#list-title').element.value, '')
+    assert.match(view.html(), /href="\/lists\/1"/)
+  } finally {
+    view.unmount()
+  }
+})
+
 test('List detail renders mixed items, adds from Library, edits, removes, and confirms deletion', async () => {
   clearCsrfToken()
   currentUser.value = { ...account }
@@ -203,6 +237,13 @@ test('List detail renders mixed items, adds from Library, edits, removes, and co
     const options = view.findAll('#list-library-item option').map((option) => option.text())
     assert.ok(options.some((option) => option.includes('tv 3')))
     assert.ok(!options.some((option) => option.includes('book 1')))
+
+    await view.get('#list-library-filter').setValue('game')
+    assert.deepEqual(view.findAll('#list-library-item option').map((option) => option.text()),
+      ['Choose an item', 'game 4 (game)'])
+    await view.get('#list-library-filter').setValue('missing')
+    assert.match(view.text(), /No Library items match this filter/)
+    await view.get('#list-library-filter').setValue('')
 
     await view.get('#list-library-item').setValue('3')
     await view.get('.list-add-form').trigger('submit')

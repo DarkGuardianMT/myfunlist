@@ -26,6 +26,7 @@ const isDeleting = ref(false)
 const isAdding = ref(false)
 const busyItemId = ref(null)
 const selectedLibraryId = ref('')
+const libraryFilter = ref('')
 const feedback = ref('')
 const feedbackType = ref('status')
 const editError = ref('')
@@ -34,12 +35,18 @@ const availableItems = computed(() => {
   const included = new Set(selectedItems.value.map((item) => item.userMedia.id))
   return libraryItems.value.filter((item) => !included.has(item.userMedia.id))
 })
+const filteredItems = computed(() => {
+  const query = libraryFilter.value.trim().toLocaleLowerCase()
+  return query ? availableItems.value.filter((item) =>
+    `${item.media.title} ${item.media.mediaType}`.toLocaleLowerCase().includes(query)) : availableItems.value
+})
 const hasTmdbMedia = computed(() => selectedItems.value.some((item) => item.media.source === 'tmdb'))
 const hasGames = computed(() => selectedItems.value.some((item) => item.media.mediaType === 'game'))
 
 watch([() => currentUser.value?.id, isAuthLoading, listId], async () => {
   feedback.value = ''
   selectedLibraryId.value = ''
+  libraryFilter.value = ''
   editing.value = false
   if (currentUser.value && !isAuthLoading.value) {
     const accountId = currentUser.value.id
@@ -60,6 +67,7 @@ function showFeedback(message, type = 'status') {
 }
 
 async function saveEdit() {
+  if (isSaving.value || isDeleting.value) return
   isSaving.value = true
   editError.value = ''
   const accountId = currentUser.value?.id
@@ -82,7 +90,7 @@ async function saveEdit() {
 }
 
 async function removeList() {
-  if (!selectedList.value || !window.confirm(
+  if (isDeleting.value || isSaving.value || !selectedList.value || !window.confirm(
     `Delete “${selectedList.value.title}”? Its Library items will remain in your Library.`,
   )) return
   isDeleting.value = true
@@ -98,7 +106,7 @@ async function removeList() {
 }
 
 async function addSelected() {
-  if (!selectedLibraryId.value) return
+  if (isAdding.value || !filteredItems.value.some((item) => item.userMedia.id === selectedLibraryId.value)) return
   isAdding.value = true
   feedback.value = ''
   const accountId = currentUser.value?.id
@@ -115,6 +123,7 @@ async function addSelected() {
 }
 
 async function removeSelected(item) {
+  if (busyItemId.value !== null) return
   busyItemId.value = item.userMedia.id
   feedback.value = ''
   const accountId = currentUser.value?.id
@@ -158,9 +167,9 @@ async function removeSelected(item) {
         <h2 id="edit-list-heading">Edit list</h2>
         <form class="list-form" @submit.prevent="saveEdit">
           <label for="edit-list-title">Title</label>
-          <input id="edit-list-title" v-model="editTitle" type="text" required :disabled="isSaving" />
+          <input id="edit-list-title" v-model="editTitle" type="text" required maxlength="120" :disabled="isSaving" />
           <label for="edit-list-description">Description (optional)</label>
-          <textarea id="edit-list-description" v-model="editDescription" rows="3" :disabled="isSaving" />
+          <textarea id="edit-list-description" v-model="editDescription" rows="3" maxlength="1000" :disabled="isSaving" />
           <p v-if="editError" class="list-error" role="alert">{{ editError }}</p>
           <button type="submit" :disabled="isSaving">{{ isSaving ? 'Saving…' : 'Save changes' }}</button>
         </form>
@@ -181,14 +190,17 @@ async function removeSelected(item) {
         </div>
         <p v-else-if="!availableItems.length">Every item in your Library is already in this list.</p>
         <form v-else class="list-add-form" @submit.prevent="addSelected">
+          <label for="list-library-filter">Find a Library item</label>
+          <input id="list-library-filter" v-model="libraryFilter" type="search" placeholder="Filter by title or media type" />
           <label for="list-library-item">Library item</label>
           <select id="list-library-item" v-model="selectedLibraryId" required :disabled="isAdding">
             <option value="">Choose an item</option>
-            <option v-for="item in availableItems" :key="item.userMedia.id" :value="item.userMedia.id">
+            <option v-for="item in filteredItems" :key="item.userMedia.id" :value="item.userMedia.id">
               {{ item.media.title }} ({{ item.media.mediaType }})
             </option>
           </select>
-          <button type="submit" :disabled="isAdding || !selectedLibraryId">{{ isAdding ? 'Adding…' : 'Add to list' }}</button>
+          <p v-if="!filteredItems.length" class="list-filter-empty" role="status">No Library items match this filter.</p>
+          <button type="submit" :disabled="isAdding || !selectedLibraryId || !filteredItems.some((item) => item.userMedia.id === selectedLibraryId)">{{ isAdding ? 'Adding…' : 'Add to list' }}</button>
         </form>
       </section>
 
