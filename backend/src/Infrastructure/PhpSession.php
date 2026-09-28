@@ -89,6 +89,16 @@ final class PhpSession
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     }
 
+    public function renewAuthenticatedSession(): void
+    {
+        $this->start();
+        if ($this->userId() === null || !session_regenerate_id(true)) {
+            throw new RuntimeException('Session could not be renewed.');
+        }
+
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
     public function logout(): void
     {
         $this->start();

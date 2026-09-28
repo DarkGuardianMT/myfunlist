@@ -72,13 +72,21 @@ $runner = new MigrationRunner(
     dirname(__DIR__) . '/database/migrations',
     $config['database'],
 );
-$version = '001_create_core_schema';
-verify($runner->status() === [$version => 'pending'], 'Fresh migration must be pending.');
-verify($runner->migrate() === [$version => 'applied'], 'Fresh migration must apply once.');
-verify($runner->status() === [$version => 'applied'], 'Migration tracking must record the version.');
-verify($runner->migrate() === [$version => 'already applied'], 'Rerunning must not reapply DDL.');
-verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === 1,
-    'Migration tracking must contain one version.');
+$versions = ['001_create_core_schema' => 'pending', '002_add_user_display_name' => 'pending'];
+verify($runner->status() === $versions, 'Fresh migrations must be pending.');
+verify($runner->migrate() === array_fill_keys(array_keys($versions), 'applied'), 'Fresh migrations must apply once.');
+verify($runner->status() === array_fill_keys(array_keys($versions), 'applied'), 'Migration tracking must record both versions.');
+verify($runner->migrate() === array_fill_keys(array_keys($versions), 'already applied'), 'Rerunning must not reapply DDL.');
+verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === 2,
+    'Migration tracking must contain two versions.');
+
+$displayColumn = $connection->query(<<<'SQL'
+SELECT is_nullable, character_maximum_length FROM information_schema.columns
+WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'display_name'
+SQL)->fetch();
+verify($displayColumn !== false && $displayColumn['is_nullable'] === 'YES'
+    && (int) $displayColumn['character_maximum_length'] === 80,
+    'Display name must be nullable and limited to 80 characters.');
 
 $tables = $connection->query(<<<'SQL'
 SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()
@@ -138,6 +146,8 @@ try {
     $hash = password_hash('fixture-password', PASSWORD_DEFAULT);
     $insertUser->execute(['person@example.test', $hash]);
     $userOne = $connection->lastInsertId();
+    verify($connection->query('SELECT display_name FROM users WHERE id = ' . (int) $userOne)->fetchColumn() === null,
+        'Existing-style users must have a null display name.');
     $insertUser->execute(['other@example.test', $hash]);
     $userTwo = $connection->lastInsertId();
     expectConstraint(static fn () => $insertUser->execute(['PERSON@example.test', $hash]),

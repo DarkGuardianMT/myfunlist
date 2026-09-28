@@ -82,6 +82,24 @@ export function useAuth() {
     authError.value = ''
   }
 
+  async function updateDisplayName(displayName) {
+    const accountId = currentUser.value?.id
+    const version = accountVersion
+    const data = await request('/api/v1/profile', { method: 'PATCH', body: { displayName } })
+    if (accountVersion === version && currentUser.value?.id === accountId) currentUser.value = data.user
+    return data.user
+  }
+
+  async function changePassword(currentPassword, newPassword) {
+    const version = accountVersion
+    await request('/api/v1/account/password', {
+      method: 'POST', body: { currentPassword, newPassword },
+    })
+    if (accountVersion !== version) return
+    clearCsrfToken()
+    try { await refreshCsrfToken() } catch { clearCsrfToken() }
+  }
+
   return {
     currentUser: readonly(currentUser), isAuthenticated: computed(() => Boolean(currentUser.value)),
     isAuthLoading: readonly(isAuthLoading), authError: readonly(authError),
@@ -89,5 +107,6 @@ export function useAuth() {
     login: (email, password) => authenticate('/api/v1/auth/login', email, password),
     register: (email, password) => authenticate('/api/v1/auth/register', email, password),
     logout,
+    updateDisplayName, changePassword,
   }
 }

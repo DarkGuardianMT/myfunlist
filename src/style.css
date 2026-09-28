@@ -133,6 +133,53 @@ a:focus-visible {
   opacity: 0.6;
 }
 
+.profile-page { max-width: 42rem; }
+.profile-page > h1 { margin: 0 0 1.5rem; color: #173f3d; }
+.profile-card {
+  min-width: 0;
+  margin-bottom: 1.25rem;
+  border: 1px solid #dfe5e1;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: clamp(1rem, 4vw, 1.5rem);
+}
+.profile-card h2 { margin: 0 0 1rem; color: #173f3d; }
+.profile-details { margin: 0; }
+.profile-details > div {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr);
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+.profile-details dt { color: #48615d; font-weight: 650; }
+.profile-details dd { margin: 0; overflow-wrap: anywhere; }
+.profile-description { color: #48615d; line-height: 1.5; }
+.profile-card form { display: grid; gap: 0.5rem; }
+.profile-card label { font-weight: 650; }
+.profile-card input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #aabbb6;
+  border-radius: 0.55rem;
+  padding: 0.8rem;
+  font: inherit;
+}
+.profile-card .form-hint { margin: 0 0 0.5rem; }
+.profile-card button {
+  width: fit-content;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #176b62;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0.7rem 1rem;
+}
+.profile-card button:disabled { cursor: not-allowed; opacity: 0.6; }
+.profile-error { color: #a0322c; }
+.profile-success { color: #176b62; }
+
 .auth-page [role='alert'],
 .import-offer [role='alert'] {
   color: #a0322c;
@@ -762,6 +809,7 @@ a:focus-visible {
 }
 
 @media (max-width: 640px) {
+  .profile-details > div { grid-template-columns: 1fr; gap: 0.1rem; }
   .header-inner {
     align-items: flex-start;
     flex-direction: column;

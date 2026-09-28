@@ -29,6 +29,8 @@ The authenticated Library import endpoint accepts batches of normalized media id
 
 ## Current repository state
 
+The first private Profile feature is implemented. `users.display_name` is nullable, Unicode-capable, non-unique, and limited to 80 characters; email remains the read-only account identity. Auth responses and `GET /api/v1/profile` expose only string ID, email, optional display name, and UTC creation date. `PATCH /api/v1/profile` changes the display name, and `POST /api/v1/account/password` verifies the current password and applies the registration password policy. Both mutations require CSRF. Successful password change keeps the current user signed in while rotating the PHP session ID and CSRF token; global session invalidation is deferred. Public usernames and profile URLs are deliberately deferred.
+
 The frontend was initialized directly in the repository root. It has an application shell with shared navigation and Home, Discover, Library, Profile, Login, and Register routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Authenticated users can add all four media types to their MySQL-backed account Library, change statuses and personal ratings, or remove items. Anonymous users see login/register prompts; old browser items are never displayed as account Library data.
 
 ## Core product concepts
@@ -36,9 +38,11 @@ The frontend was initialized directly in the repository root. It has an applicat
 - Media items represent the underlying works and their metadata.
 - User media entries represent a user's relationship with a media item, including status, rating, notes, timestamps, and list membership.
 - Personal libraries and lists organize a user's media. Their exact behavior is undecided.
-- Profiles and shared lists are part of the product vision. Their behavior is undecided.
+- Private account profiles now show display name, email, and membership date. Public profiles and shared lists remain future product work.
 
 ## Media types
+
+Anime is a planned future media type. TV and Anime may later support season-level tracking through dedicated related data built on the current core `media` and `user_media` model. Episode-level tracking is deferred much further; TV-only season fields should not be added to `user_media`.
 
 The intended types are movies, TV shows, books, games, and anime. Support for other media types may be considered later.
 
@@ -82,7 +86,7 @@ Keep changes focused and maintainable, follow existing project conventions, veri
 
 ## Current status
 
-The Vue frontend has account registration, login, logout, current-user bootstrap, server Library persistence, explicit browser-data import, and account-safe state reset. All four discovery media types remain available. Normal local development starts XAMPP MySQL manually and runs `npm run dev:full` to launch Vite and the XAMPP PHP built-in server together. Vite proxies `/api` to `127.0.0.1:8080` by default; `VITE_API_PROXY_TARGET` can target a configured Apache virtual host. Apache is not required for the normal local workflow.
+The Vue frontend has account registration, login, logout, current-user bootstrap, private Profile editing and password change, server Library persistence, explicit browser-data import, and account-safe state reset. All four discovery media types remain available. Normal local development starts XAMPP MySQL manually and runs `npm run dev:full` to launch Vite and the XAMPP PHP built-in server together. Vite proxies `/api` to `127.0.0.1:8080` by default; `VITE_API_PROXY_TARGET` can target a configured Apache virtual host. Apache is not required for the normal local workflow.
 
 ## Next milestone
 

@@ -60,7 +60,7 @@ final class AuthService
             $this->users->updatePasswordHash($user['id'], $this->passwords->hash($password));
         }
 
-        return ['id' => $user['id'], 'email' => $user['email']];
+        return $this->users->findById($user['id']);
     }
 
     public function findById(AuthenticatedUser $identity): ?array

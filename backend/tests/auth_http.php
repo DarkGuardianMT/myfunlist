@@ -140,8 +140,10 @@ fclose($pipes[0]);
 $suffix = bin2hex(random_bytes(8));
 $email = 'auth-' . $suffix . '@example.test';
 $rehashEmail = 'rehash-' . $suffix . '@example.test';
+$otherEmail = 'other-' . $suffix . '@example.test';
 $password = bin2hex(random_bytes(16));
 $wrongPassword = bin2hex(random_bytes(16));
+$changedPassword = bin2hex(random_bytes(16));
 
 try {
     $ready = false;
@@ -211,8 +213,42 @@ try {
         'Logout must require CSRF.');
     $authenticatedToken = csrf($client);
     check($authenticatedToken !== $token, 'CSRF token did not rotate.');
-
     $other = new ApiClient($baseUrl);
+
+    check(array_key_exists('displayName', $user) && $user['displayName'] === null
+        && is_string($user['createdAt'] ?? null)
+        && str_ends_with($user['createdAt'], 'Z')
+        && !array_key_exists('password_hash', $user),
+        'Public user must expose nullable display name and UTC creation date without a hash.');
+    check($client->request('GET', '/api/v1/profile')['json']['data']['user'] === $user,
+        'Authenticated Profile GET must return the current user.');
+    check($other->request('GET', '/api/v1/profile')['status'] === 401,
+        'Anonymous Profile GET must return 401.');
+    check($client->request('PATCH', '/api/v1/profile', jsonBody(['displayName' => 'A']))['status'] === 403,
+        'Profile mutation must require CSRF.');
+    foreach (['   ', str_repeat('a', 81), "bad\nname"] as $invalidName) {
+        check($client->request('PATCH', '/api/v1/profile', jsonBody([
+            'displayName' => $invalidName,
+        ]), $authenticatedToken)['status'] === 422, 'Invalid display name must be rejected.');
+    }
+    $named = $client->request('PATCH', '/api/v1/profile', jsonBody([
+        'displayName' => '  José 李  ',
+    ]), $authenticatedToken);
+    check($named['status'] === 200 && $named['json']['data']['user']['displayName'] === 'José 李'
+        && $client->request('GET', '/api/v1/profile')['json']['data']['user']['displayName'] === 'José 李',
+        'Unicode display name must be trimmed and persist.');
+    check($client->request('PATCH', '/api/v1/profile', jsonBody([
+        'displayName' => 'Updated',
+    ]), $authenticatedToken)['json']['data']['user']['displayName'] === 'Updated',
+        'Display name must be updateable.');
+    check($client->request('PATCH', '/api/v1/profile', jsonBody([
+        'displayName' => 'Attack', 'userId' => '999999',
+    ]), $authenticatedToken)['status'] === 422, 'Client-provided user ID must be rejected.');
+    check($client->request('PATCH', '/api/v1/profile', jsonBody([
+        'displayName' => null,
+    ]), $authenticatedToken)['json']['data']['user'] === $user,
+        'Null must clear a display name.');
+
     $otherToken = csrf($other);
     check($other->request('POST', '/api/v1/auth/register', jsonBody([
         'email' => $rehashEmail, 'password' => $password,
@@ -223,6 +259,16 @@ try {
     ]), $otherToken);
     check($duplicate['status'] === 409 && $duplicate['json']['error']['code'] === 'email_in_use',
         'Duplicate normalized email must be rejected.');
+    $otherRegistration = $other->request('POST', '/api/v1/auth/register', jsonBody([
+        'email' => $otherEmail, 'password' => $password,
+    ]), $otherToken);
+    $otherId = $otherRegistration['json']['data']['user']['id'] ?? null;
+    check($otherRegistration['status'] === 201 && is_string($otherId), 'Second account must register.');
+    check($client->request('PATCH', '/api/v1/profile', jsonBody([
+        'displayName' => 'Intruder', 'userId' => $otherId,
+    ]), $authenticatedToken)['status'] === 422
+        && $other->request('GET', '/api/v1/profile')['json']['data']['user']['displayName'] === null,
+        'User A must not be able to edit User B.');
 
     $logout = $client->request('POST', '/api/v1/auth/logout', null, $authenticatedToken);
     check($logout['status'] === 204 && $logout['body'] === ''
@@ -253,6 +299,48 @@ try {
     check($client->request('GET', '/api/v1/auth/me')['status'] === 200,
         '/me must recognize the logged-in session.');
 
+    $passwordToken = csrf($client);
+    $changeBody = jsonBody(['currentPassword' => $password, 'newPassword' => $changedPassword]);
+    check($client->request('POST', '/api/v1/account/password', $changeBody)['status'] === 403,
+        'Password change must require CSRF.');
+    check($other->request('POST', '/api/v1/account/password', $changeBody, $passwordToken)['status'] === 403,
+        'Another session must not use this CSRF token.');
+    check($client->request('POST', '/api/v1/account/password', jsonBody([
+        'currentPassword' => $wrongPassword, 'newPassword' => $changedPassword,
+    ]), $passwordToken)['status'] === 422, 'Wrong current password must be rejected.');
+    check($client->request('POST', '/api/v1/account/password', jsonBody([
+        'currentPassword' => $password, 'newPassword' => 'short',
+    ]), $passwordToken)['status'] === 422, 'Short new password must be rejected.');
+    $beforeChangeSession = $client->cookie('myfunlist_session');
+    $change = $client->request('POST', '/api/v1/account/password', $changeBody, $passwordToken);
+    check($change['status'] === 204 && $change['body'] === ''
+        && $client->cookie('myfunlist_session') !== $beforeChangeSession,
+        'Password change must rotate session ID and return no secret.');
+    check($client->request('GET', '/api/v1/auth/me')['json']['data']['user'] === $user,
+        'Password change must keep current session authenticated.');
+    check($client->request('PATCH', '/api/v1/profile', jsonBody([
+        'displayName' => 'Nope',
+    ]), $passwordToken)['status'] === 403,
+        'Password change must rotate CSRF token.');
+    $newToken = csrf($client);
+    check($newToken !== $passwordToken, 'New CSRF token must differ.');
+    $stored->execute([$email]);
+    $changedHash = $stored->fetchColumn();
+    check(is_string($changedHash) && $changedHash !== $changedPassword
+        && password_verify($changedPassword, $changedHash) && !password_verify($password, $changedHash),
+        'New password must be hashed and replace old password.');
+    check($client->request('POST', '/api/v1/auth/logout', null, $newToken)['status'] === 204,
+        'Rotated session must still log out.');
+    check($client->request('POST', '/api/v1/account/password', $changeBody, csrf($client))['status'] === 401,
+        'Anonymous password change must return 401.');
+    $reloginToken = csrf($client);
+    check($client->request('POST', '/api/v1/auth/login', jsonBody([
+        'email' => $email, 'password' => $password,
+    ]), $reloginToken)['status'] === 401, 'Old password must no longer log in.');
+    check($client->request('POST', '/api/v1/auth/login', jsonBody([
+        'email' => $email, 'password' => $changedPassword,
+    ]), $reloginToken)['status'] === 200, 'New password must log in.');
+
     $legacyHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 4]);
     $insert = $database->prepare('INSERT INTO users (email, password_hash) VALUES (?, ?)');
     $insert->execute([$rehashEmail, $legacyHash]);
@@ -269,8 +357,8 @@ try {
 
     echo "Auth HTTP tests passed.\n";
 } finally {
-    $delete = $database->prepare('DELETE FROM users WHERE email IN (?, ?)');
-    $delete->execute([$email, $rehashEmail]);
+    $delete = $database->prepare('DELETE FROM users WHERE email IN (?, ?, ?)');
+    $delete->execute([$email, $rehashEmail, $otherEmail]);
     proc_terminate($process);
     proc_close($process);
     @unlink($serverLog);

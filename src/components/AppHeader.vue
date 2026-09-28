@@ -36,7 +36,7 @@ async function handleLogout() {
         <RouterLink to="/profile">Profile</RouterLink>
         <template v-if="!isAuthLoading">
           <template v-if="currentUser">
-            <span class="account-email">{{ currentUser.email }}</span>
+            <span class="account-email">{{ currentUser.displayName || currentUser.email }}</span>
             <button type="button" class="text-button" :disabled="isLoggingOut" @click="handleLogout">
               {{ isLoggingOut ? 'Logging out…' : 'Logout' }}
             </button>
