@@ -28,6 +28,12 @@ test('normalizes Google Books metadata without user state', () => {
     mediaType: 'book',
   })
   assert.equal(normalizeGoogleBook(null).title, 'Untitled book')
+  assert.equal(normalizeGoogleBook({ volumeInfo: {
+    imageLinks: { thumbnail: 'javascript:alert(1)' },
+  } }).coverImage, null)
+  assert.equal(normalizeGoogleBook({ volumeInfo: {
+    imageLinks: { thumbnail: 'data:image/svg+xml,<svg />' },
+  } }).coverImage, null)
 })
 
 test('book search suppresses empty queries and supports an optional API key', async () => {

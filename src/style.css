@@ -90,6 +90,19 @@ a:focus-visible {
   max-width: 28rem;
 }
 
+.home-intro { max-width: 48rem; }
+.home-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1.25rem; margin-top: 1.5rem; }
+.home-primary-link {
+  border-radius: 0.5rem;
+  background: #176b62;
+  color: #fff;
+  font-weight: 700;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+}
+.home-primary-link:hover { background: #125a52; }
+.home-primary-link:focus-visible { outline: 2px solid #173f3d; outline-offset: 3px; }
+
 .auth-page h1 {
   margin-top: 0;
   color: #173f3d;

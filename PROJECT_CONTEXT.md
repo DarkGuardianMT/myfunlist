@@ -92,7 +92,7 @@ The Vue frontend has account registration, login, logout, current-user bootstrap
 
 ## Next milestone
 
-Add production rate limiting before public launch. Move provider discovery requests that require private credentials behind PHP.
+Before public launch, add durable login/registration rate limits and bounded provider search traffic, and move TMDB and RAWG Discover requests behind PHP so their credentials stay out of browser bundles. A public Google Books key may remain browser-side only with appropriate site and API restrictions. Production also requires HTTPS, same-origin `/api/v1` routing, SPA fallback, a private session store, backups, and monitored server logs. Email verification, password reset, email change, and account deletion remain deferred for the first MVP, with account recovery requiring a support plan.
 
 ## Future ideas
 

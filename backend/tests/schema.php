@@ -32,6 +32,9 @@ function expectConstraint(callable $operation, string $message): void
     throw new RuntimeException($message);
 }
 
+$configuredEnvironment = $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV');
+verify(in_array($configuredEnvironment, ['development', 'testing'], true),
+    'Schema reset requires an explicitly non-production environment.');
 $_ENV['APP_ENV'] = 'testing';
 $_ENV['DB_DATABASE'] = 'myfunlist_test';
 $config = Config::database();

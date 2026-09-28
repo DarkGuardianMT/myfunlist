@@ -27,8 +27,13 @@ function getErrorCode(status) {
 function getCoverImage(imageLinks = {}) {
   const safeImageLinks = imageLinks && typeof imageLinks === 'object' ? imageLinks : {}
   const coverImage = safeImageLinks.thumbnail || safeImageLinks.smallThumbnail
-
-  return typeof coverImage === 'string' ? coverImage.replace(/^http:/, 'https:') : null
+  if (typeof coverImage !== 'string') return null
+  try {
+    const url = new URL(coverImage.replace(/^http:/i, 'https:'))
+    return url.protocol === 'https:' ? url.href : null
+  } catch {
+    return null
+  }
 }
 
 export function normalizeGoogleBook(item = {}) {

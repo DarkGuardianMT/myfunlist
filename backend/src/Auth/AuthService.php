@@ -17,6 +17,11 @@ final class AuthService
 
     public function register(array $input): array
     {
+        if (array_diff(array_keys($input), ['email', 'password']) !== []) {
+            throw new ApiException(422, 'validation_error', 'Check the supplied fields.', [
+                'account' => 'Supply only email and password.',
+            ]);
+        }
         $email = self::normalizeEmail($input['email'] ?? null);
         $password = $input['password'] ?? null;
         $fields = [];
@@ -44,6 +49,9 @@ final class AuthService
 
     public function login(array $input): array
     {
+        if (array_diff(array_keys($input), ['email', 'password']) !== []) {
+            throw new ApiException(401, 'invalid_credentials', 'Invalid email or password.');
+        }
         $email = self::normalizeEmail($input['email'] ?? null);
         $password = $input['password'] ?? null;
 

@@ -188,6 +188,9 @@ try {
     check($client->request('POST', '/api/v1/auth/register', jsonBody([
         'email' => $email, 'password' => 'short',
     ]), $token)['status'] === 422, 'Registration must validate password length.');
+    check($client->request('POST', '/api/v1/auth/register', jsonBody([
+        'email' => $email, 'password' => $password, 'userId' => '1',
+    ]), $token)['status'] === 422, 'Registration must reject unexpected fields.');
 
     $registered = $client->request('POST', '/api/v1/auth/register', $registerBody, $token);
     $user = $registered['json']['data']['user'] ?? null;
@@ -289,6 +292,11 @@ try {
         && $wrong['json'] === $unknown['json']
         && $wrong['json']['error']['code'] === 'invalid_credentials',
         'Unknown email and wrong password must have the same generic response.');
+    $extraLogin = $client->request('POST', '/api/v1/auth/login', jsonBody([
+        'email' => $email, 'password' => $password, 'userId' => '1',
+    ]), $loginToken);
+    check($extraLogin['status'] === 401 && $extraLogin['json'] === $wrong['json'],
+        'Login must reject unexpected fields without revealing account details.');
     $login = $client->request('POST', '/api/v1/auth/login', jsonBody([
         'email' => strtoupper($email), 'password' => $password,
     ]), $loginToken);
@@ -311,6 +319,9 @@ try {
     check($client->request('POST', '/api/v1/account/password', jsonBody([
         'currentPassword' => $password, 'newPassword' => 'short',
     ]), $passwordToken)['status'] === 422, 'Short new password must be rejected.');
+    check($client->request('POST', '/api/v1/account/password', jsonBody([
+        'currentPassword' => $password, 'newPassword' => $changedPassword, 'userId' => '1',
+    ]), $passwordToken)['status'] === 422, 'Password change must reject unexpected fields.');
     $beforeChangeSession = $client->cookie('myfunlist_session');
     $change = $client->request('POST', '/api/v1/account/password', $changeBody, $passwordToken);
     check($change['status'] === 204 && $change['body'] === ''

@@ -11,6 +11,7 @@ const errorMessage = ref('')
 const isSubmitting = ref(false)
 
 async function submit() {
+  if (isSubmitting.value) return
   isSubmitting.value = true
   errorMessage.value = ''
   try {

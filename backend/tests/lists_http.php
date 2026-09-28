@@ -138,14 +138,19 @@ try {
     $clients = [new ListsHttpClient($baseUrl), new ListsHttpClient($baseUrl)];
     $users = [];
     $tokens = [];
+    $passwords = [];
     foreach ($clients as $index => $client) {
         $initialToken = token($client);
+        $passwords[$index] = bin2hex(random_bytes(16));
         $registered = $client->request('POST', '/api/v1/auth/register', [
-            'email' => $emails[$index], 'password' => bin2hex(random_bytes(16)),
+            'email' => $emails[$index], 'password' => $passwords[$index],
         ], $initialToken);
         verifyLists($registered['status'] === 201, 'Test account registration failed.');
         $users[] = $registered['json']['data']['user']['id'];
         $tokens[] = token($client);
+        verifyLists($client->request('GET', '/api/v1/auth/me')['json']['data']['user']['id'] === $users[$index]
+            && $client->request('GET', '/api/v1/profile')['json']['data']['user']['id'] === $users[$index],
+            'Registered account must be available from /me and Profile.');
     }
     [$a, $b] = $clients;
     [$aToken, $bToken] = $tokens;
@@ -220,8 +225,10 @@ try {
         ['rawg', 'game', 'Game', ['platforms' => ['PC']], 'playing', 7.5],
     ];
     $entryIds = [];
+    $fixtureSourceIds = [];
     foreach ($fixtures as $index => [$source, $type, $title, $metadata, $status, $rating]) {
         $sourceId = $source === 'google-books' ? 'fixture-' . $suffix : (string) (100000000 + hexdec(substr($suffix, 0, 6)) + $index);
+        $fixtureSourceIds[$type] = $sourceId;
         $insertMedia->execute([$source, $type, $sourceId, $title,
             json_encode((object) $metadata, JSON_THROW_ON_ERROR)]);
         $mediaId = $database->lastInsertId();
@@ -353,6 +360,33 @@ try {
     verifyLists($a->request('GET', '/api/v1/lists/' . $listId)['status'] === 404
         && count($a->request('GET', '/api/v1/library')['json']['data']) === 3,
         'Deleting list must not delete Library entries.');
+
+    $cached = $b->request('POST', '/api/v1/library', ['media' => [
+        'source' => 'tmdb', 'mediaType' => 'movie', 'sourceId' => $fixtureSourceIds['movie'],
+    ]], $bToken);
+    $cachedEntryId = $cached['json']['data']['item']['userMedia']['id'] ?? null;
+    verifyLists($cached['status'] === 201 && is_string($cachedEntryId),
+        'A second account must add cached provider media through the API.');
+    $rated = $b->request('PATCH', '/api/v1/library/' . $cachedEntryId,
+        ['status' => 'watched', 'rating' => 8.5], $bToken);
+    verifyLists($rated['status'] === 200 && $rated['json']['data']['userMedia']['rating'] === 8.5,
+        'Full-stack Library status and rating update failed.');
+    verifyLists($b->request('POST', '/api/v1/lists/' . $otherListId . '/items',
+        ['userMediaId' => $cachedEntryId], $bToken)['status'] === 201
+        && $b->request('DELETE', '/api/v1/lists/' . $otherListId . '/items/' . $cachedEntryId,
+            null, $bToken)['status'] === 204,
+        'Full-stack membership add and removal failed.');
+    verifyLists($b->request('POST', '/api/v1/auth/logout', null, $bToken)['status'] === 204
+        && $b->request('GET', '/api/v1/library')['status'] === 401,
+        'Logout must remove private API access.');
+    $bToken = token($b);
+    verifyLists($b->request('POST', '/api/v1/auth/login', [
+        'email' => $emails[1], 'password' => $passwords[1],
+    ], $bToken)['status'] === 200, 'Second account login failed.');
+    verifyLists($b->request('GET', '/api/v1/lists/' . $otherListId)['json']['data']['list']['itemCount'] === 0
+        && count($b->request('GET', '/api/v1/library')['json']['data']) === 2
+        && $b->request('GET', '/api/v1/lists/' . $secondListId)['status'] === 404,
+        'Library persistence, membership removal, or account isolation failed after login.');
 
     echo "Custom Lists HTTP checks passed.\n";
 } finally {

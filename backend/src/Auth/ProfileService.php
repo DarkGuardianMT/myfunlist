@@ -51,6 +51,11 @@ final class ProfileService
 
     public function changePassword(AuthenticatedUser $identity, array $input): void
     {
+        if (array_diff(array_keys($input), ['currentPassword', 'newPassword']) !== []) {
+            throw new ApiException(422, 'validation_error', 'Check the supplied fields.', [
+                'password' => 'Supply only current and new passwords.',
+            ]);
+        }
         $current = $input['currentPassword'] ?? null;
         $new = $input['newPassword'] ?? null;
         $fields = [];
