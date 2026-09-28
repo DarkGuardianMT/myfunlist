@@ -1,3 +1,5 @@
+import { fetchProvider } from './providerFetch.js'
+
 const GOOGLE_BOOKS_API_URL = 'https://www.googleapis.com/books/v1/volumes'
 
 const ERROR_MESSAGES = {
@@ -87,7 +89,7 @@ export async function searchBooks(query, {
 
   let response
   try {
-    response = await fetchImpl(`${GOOGLE_BOOKS_API_URL}?${params}`)
+    response = await fetchProvider(`${GOOGLE_BOOKS_API_URL}?${params}`, {}, fetchImpl)
   } catch {
     throw new GoogleBooksError('network')
   }

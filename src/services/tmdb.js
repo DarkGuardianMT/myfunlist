@@ -1,3 +1,5 @@
+import { fetchProvider } from './providerFetch.js'
+
 const TMDB_API_URL = 'https://api.themoviedb.org/3'
 const TMDB_IMAGE_URL = 'https://image.tmdb.org/t/p'
 
@@ -116,7 +118,7 @@ async function requestTmdb(path, query) {
   let response
 
   try {
-    response = await fetch(`${TMDB_API_URL}${path}?${params}`, {
+    response = await fetchProvider(`${TMDB_API_URL}${path}?${params}`, {
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${apiToken}`,

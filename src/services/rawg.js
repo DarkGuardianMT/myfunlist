@@ -1,3 +1,5 @@
+import { fetchProvider } from './providerFetch.js'
+
 const RAWG_GAMES_URL = 'https://api.rawg.io/api/games'
 
 const ERROR_MESSAGES = {
@@ -91,9 +93,9 @@ export async function searchGames(query, {
 
   let response
   try {
-    response = await fetchImpl(`${RAWG_GAMES_URL}?${params}`, {
+    response = await fetchProvider(`${RAWG_GAMES_URL}?${params}`, {
       headers: { Accept: 'application/json' },
-    })
+    }, fetchImpl)
   } catch {
     throw new RawgError('network')
   }
