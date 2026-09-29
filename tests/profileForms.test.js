@@ -24,6 +24,8 @@ async function component(path) {
   code = code.replace(/from ['"]vue-router['"]/g, `from '${import.meta.resolve('vue-router')}'`)
   code = code.replace(/from ['"]\.\.\/composables\/useAuth\.js['"]/g,
     `from '${new URL('../src/composables/useAuth.js', import.meta.url).href}'`)
+  code = code.replace(/from ['"]\.\.\/composables\/useTheme\.js['"]/g,
+    `from '${new URL('../src/composables/useTheme.js', import.meta.url).href}'`)
   return (await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)).default
 }
 

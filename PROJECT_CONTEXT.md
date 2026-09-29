@@ -35,6 +35,8 @@ The first private Profile feature is implemented. `users.display_name` is nullab
 
 The frontend was initialized directly in the repository root. It has an application shell with shared navigation and Home, Discover, Library, Lists, Profile, Login, and Register routes. Discover supports Google Books, TMDB movie, TMDB TV show, and RAWG game search. Authenticated users can add all four media types to their MySQL-backed account Library, change statuses and personal ratings, or remove items. Anonymous users see login/register prompts; old browser items are never displayed as account Library data.
 
+The frontend visual system now uses CSS color tokens for Light and Dark themes. Light is the default; a header control switches themes and stores the preference under `myfunlist_theme` in device-local browser storage. The restrained blue/violet brand palette applies to app chrome, while media artwork remains unfiltered. Theme preference is UI state and is not part of account persistence.
+
 ## Core product concepts
 
 - Media items represent the underlying works and their metadata.

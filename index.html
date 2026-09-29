@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      try {
+        if (localStorage.getItem('myfunlist_theme') === 'dark') document.documentElement.dataset.theme = 'dark'
+      } catch { /* De pagina gebruikt het lichte thema als opslag niet beschikbaar is. */ }
+    </script>
     <title>MyFunList</title>
   </head>
   <body>

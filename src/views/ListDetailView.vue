@@ -177,7 +177,7 @@ async function removeSelected(item) {
 
       <p v-if="feedback" :class="feedbackType === 'alert' ? 'list-error' : 'list-success'" :role="feedbackType">{{ feedback }}</p>
 
-      <section class="list-panel" aria-labelledby="add-list-item-heading">
+      <section class="list-panel list-add-panel" aria-labelledby="add-list-item-heading">
         <h2 id="add-list-item-heading">Add from Library</h2>
         <div v-if="libraryError" role="alert">
           <p class="list-error">Your Library could not be loaded. {{ libraryError }}</p>

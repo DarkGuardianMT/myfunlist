@@ -20,7 +20,7 @@ function cardProps(item) {
 
 <template>
   <component :is="cards[item.media.mediaType]" v-bind="cardProps(item)">
-    <p class="library-media-badge">{{ typeLabels[item.media.mediaType] }}</p>
+    <p class="library-media-badge" :data-media-type="item.media.mediaType">{{ typeLabels[item.media.mediaType] }}</p>
     <p class="personal-rating">Personal rating: <strong>{{ item.userMedia.rating === null ? 'Unrated' : `${item.userMedia.rating} / 10` }}</strong></p>
     <p class="list-item-status">Library status: {{ item.userMedia.status.replaceAll('-', ' ') }}</p>
     <button
