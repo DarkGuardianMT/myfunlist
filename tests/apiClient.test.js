@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { clearCsrfToken, request } from '../src/services/apiClient.js'
+import { clearCsrfToken, request, setSessionExpiredHandler } from '../src/services/apiClient.js'
 
 const response = (payload, status = 200) => ({
   status, ok: status >= 200 && status < 300, json: async () => payload,
@@ -32,4 +32,17 @@ test('preserves structured errors and handles network and malformed responses', 
   await assert.rejects(request('/api/v1/test'), { code: 'network_error' })
   globalThis.fetch = async () => ({ status: 502, ok: false, json: async () => { throw new Error('html') } })
   await assert.rejects(request('/api/v1/test'), { code: 'invalid_response' })
+})
+
+test('bounded discovery requests time out without changing authentication state', async () => {
+  let expired = 0
+  setSessionExpiredHandler(() => { expired++ })
+  globalThis.fetch = async (_path, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+  })
+  await assert.rejects(request('/api/v1/discover/movie?q=matrix', {
+    handleUnauthorized: false, timeoutMs: 5,
+  }), { code: 'request_timeout', status: 0 })
+  assert.equal(expired, 0)
+  setSessionExpiredHandler(null)
 })

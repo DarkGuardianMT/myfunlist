@@ -1,45 +1,44 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { normalizeTmdbMovie, normalizeTmdbTvShow } from '../src/services/tmdb.js'
+import { ApiError } from '../src/services/apiClient.js'
+import { getTmdbErrorMessage, searchMovies, searchTvShows } from '../src/services/mediaDiscovery.js'
 
-test('movie and TV metadata stay type-specific and exclude public ratings', () => {
-  const movie = normalizeTmdbMovie({
-    id: 42,
-    title: 'Example Movie',
-    release_date: '2024-02-03',
-    poster_path: '/movie.jpg',
-    overview: 'Movie description',
-    vote_average: 9.2,
-  })
-  const show = normalizeTmdbTvShow({
-    id: 42,
-    name: 'Example Show',
-    first_air_date: '2023-01-02',
-    poster_path: '/show.jpg',
-    vote_average: 8.8,
-  })
+const movie = { source: 'tmdb', sourceId: '42', mediaType: 'movie', title: 'The Matrix',
+  releaseYear: '1999', posterImage: null, description: null }
+const show = { source: 'tmdb', sourceId: '52', mediaType: 'tv', title: 'Breaking Bad',
+  firstAirYear: '2008', posterImage: null, description: null }
 
-  assert.equal(movie.sourceId, '42')
-  assert.equal(show.sourceId, '42')
-  assert.equal(movie.mediaType, 'movie')
-  assert.equal(show.mediaType, 'tv')
-  assert.equal(movie.releaseYear, '2024')
-  assert.equal(show.firstAirYear, '2023')
-  assert.ok(movie.posterImage.endsWith('/movie.jpg'))
-  assert.ok(show.posterImage.endsWith('/show.jpg'))
-  assert.equal(movie.description, 'Movie description')
-  assert.equal('rating' in movie, false)
-  assert.equal('rating' in show, false)
-  assert.equal('vote_average' in movie, false)
+test('movie and TV discovery use bounded same-origin MyFunList requests', async () => {
+  const calls = []
+  const requestImpl = async (path, options) => {
+    calls.push({ path, options })
+    return path.includes('/movie?') ? [movie] : [show]
+  }
+  assert.deepEqual(await searchMovies('  The Matrix  ', { requestImpl }), [movie])
+  assert.deepEqual(await searchTvShows(' Breaking Bad ', { requestImpl }), [show])
+  assert.deepEqual(calls.map(({ path }) => path), [
+    '/api/v1/discover/movie?q=The%20Matrix',
+    '/api/v1/discover/tv?q=Breaking%20Bad',
+  ])
+  assert.ok(calls.every(({ options }) => options.timeoutMs > 0 && options.handleUnauthorized === false))
 })
 
-test('incomplete TMDB results normalize without crashing', () => {
-  const movie = normalizeTmdbMovie(null)
-  const show = normalizeTmdbTvShow({ poster_path: 'bad-path' })
-  assert.equal(movie.title, 'Untitled movie')
-  assert.equal(movie.releaseYear, null)
-  assert.equal(movie.posterImage, null)
-  assert.equal(show.title, 'Untitled TV show')
-  assert.equal(show.firstAirYear, null)
-  assert.equal(show.posterImage, null)
+test('movie and TV empty queries and empty API results stay empty', async () => {
+  let calls = 0
+  const requestImpl = async () => { calls++; return [] }
+  assert.deepEqual(await searchMovies(' ', { requestImpl }), [])
+  assert.deepEqual(await searchTvShows('', { requestImpl }), [])
+  assert.equal(calls, 0)
+  assert.deepEqual(await searchMovies('unknown', { requestImpl }), [])
+  assert.equal(calls, 1)
+})
+
+test('movie and TV discovery reject malformed API data and show safe errors', async () => {
+  await assert.rejects(searchMovies('matrix', { requestImpl: async () => [{ ...movie, mediaType: 'tv' }] }),
+    { code: 'invalid_response' })
+  await assert.rejects(searchTvShows('breaking', { requestImpl: async () => ({ results: [show] }) }),
+    { code: 'invalid_response' })
+  assert.match(getTmdbErrorMessage(new ApiError('secret', 503, 'provider_unavailable')), /temporarily unavailable/)
+  assert.match(getTmdbErrorMessage(new ApiError('secret', 502, 'provider_error')), /unexpected response/)
+  assert.doesNotMatch(getTmdbErrorMessage(new ApiError('secret', 502, 'provider_error')), /secret/)
 })

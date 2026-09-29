@@ -96,9 +96,9 @@ function csrf(ApiClient $client): string
     return $token;
 }
 
-$_ENV['APP_ENV'] = 'testing';
-$_ENV['DB_DATABASE'] = 'myfunlist_test';
+require __DIR__ . '/support/database.php';
 $config = Config::database();
+assertSafeTestDatabase($config, $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV'));
 check($config['database'] === 'myfunlist_test'
     && in_array($config['host'], ['127.0.0.1', 'localhost'], true),
     'Auth tests may use only the local myfunlist_test database.');

@@ -160,9 +160,9 @@ final class LibraryHttpClient
     }
 }
 
-$_ENV['APP_ENV'] = 'testing';
-$_ENV['DB_DATABASE'] = 'myfunlist_test';
+require __DIR__ . '/support/database.php';
 $config = Config::database();
+assertSafeTestDatabase($config, $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV'));
 verifyLibrary($config['database'] === 'myfunlist_test'
     && in_array($config['host'], ['localhost', '127.0.0.1'], true),
     'Library tests may use only the local myfunlist_test database.');

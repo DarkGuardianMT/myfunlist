@@ -37,6 +37,8 @@ The frontend was initialized directly in the repository root. It has an applicat
 
 The frontend visual system now uses CSS color tokens for Light and Dark themes. Light is the default; a header control switches themes and stores the preference under `myfunlist_theme` in device-local browser storage. The restrained blue/violet brand palette applies to app chrome, while media artwork remains unfiltered. Theme preference is UI state and is not part of account persistence.
 
+TMDB movie/TV and RAWG game discovery now use public read-only `GET /api/v1/discover/{mediaType}?q=...` routes. PHP calls the providers with backend-only credentials and returns bounded, normalized MyFunList media. Search does not write media rows. Google Books discovery remains browser-side; any production browser key must be restricted by site and API. Adding a discovery result to the Library still sends identity only and independently resolves authoritative metadata on the backend.
+
 ## Core product concepts
 
 - Media items represent the underlying works and their metadata.
@@ -57,9 +59,8 @@ The intended types are movies, TV shows, books, games, and anime. Support for ot
 - Treat movies and TV shows as separate media types even though they share some discovery presentation.
 - Treat games as mediaType `game`. Normalize RAWG responses into the external media model before rendering, with source `rawg` and string source IDs.
 - Show a RAWG attribution backlink wherever RAWG data or images are used, as required by RAWG's API terms.
-- Use `VITE_RAWG_API_KEY` for frontend RAWG requests temporarily.
-- Use a Vite environment variable containing a TMDB API Read Access Token for application-level Bearer authentication. TMDB response fields and image paths are normalized in the TMDB service before reaching Vue components.
-- Vite client environment values, including the RAWG key, TMDB token, and any configured Google Books key, are visible in the browser bundle. Move provider requests that need private credentials behind PHP during the later provider integration phase.
+- TMDB and RAWG credentials stay in backend configuration; provider search and detail resolution run in PHP. The frontend receives normalized media through relative same-origin API paths.
+- A configured `VITE_GOOGLE_BOOKS_API_KEY` remains visible in the browser bundle because Books discovery still runs directly in the browser. Restrict a production key to the site and Books API.
 - Do not treat TMDB public vote data as a MyFunList personal rating.
 - Show TMDB's approved logo and required notice in a credits section where TMDB data or images are displayed.
 - Keep user-specific Library state separate from external media metadata. Components use a domain-oriented Library abstraction and do not access persistence directly.
@@ -94,7 +95,9 @@ The Vue frontend has account registration, login, logout, current-user bootstrap
 
 ## Next milestone
 
-Before public launch, add durable login/registration rate limits and bounded provider search traffic, and move TMDB and RAWG Discover requests behind PHP so their credentials stay out of browser bundles. A public Google Books key may remain browser-side only with appropriate site and API restrictions. Production also requires HTTPS, same-origin `/api/v1` routing, SPA fallback, a private session store, backups, and monitored server logs. Email verification, password reset, email change, and account deletion remain deferred for the first MVP, with account recovery requiring a support plan.
+Database tests that modify data now require explicit `APP_ENV=testing`, exact `DB_DATABASE=myfunlist_test`, and a loopback host before connecting; they no longer replace a development or production environment themselves. The September 29 local audit found evidence of a prior XAMPP data-directory replacement and logical restore. The original cause is unconfirmed; preserve the old data directories and recovery exports outside Git. The restored development schema and data passed read-only checks and matched fresh migrations. Both databases passed checks after a clean MariaDB restart with recovery disabled; full backend tests and live TMDB/RAWG searches passed. A fresh logical backup and verified stopped-datadir copy are retained outside the repository under XAMPP's recovery directory.
+
+Before public launch, add durable login/registration rate limits and rate-limit provider-backed search traffic. A public Google Books key may remain browser-side only with appropriate site and API restrictions. Production also requires HTTPS, same-origin `/api/v1` routing, SPA fallback, a private session store, backups, and monitored server logs. Email verification, password reset, email change, and account deletion remain deferred for the first MVP, with account recovery requiring a support plan.
 
 ## Future ideas
 

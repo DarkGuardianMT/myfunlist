@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MyFunList\Provider;
 
-final class ProviderMediaResolver implements MediaResolver
+final class ProviderMediaResolver implements MediaResolver, MediaSearcher
 {
     public function __construct(private readonly ProviderHttpClient $http)
     {
@@ -39,6 +39,60 @@ final class ProviderMediaResolver implements MediaResolver
         }
 
         throw new ProviderException(502, 'provider_error', 'Media provider could not resolve this item.');
+    }
+
+    public function search(string $mediaType, string $query): array
+    {
+        if ($mediaType === 'movie' || $mediaType === 'tv') {
+            $token = self::credential('TMDB_API_TOKEN');
+            if ($token === '') {
+                throw new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.');
+            }
+            $parameters = http_build_query([
+                'query' => $query, 'include_adult' => 'false', 'language' => 'en-US', 'page' => '1',
+            ], '', '&', PHP_QUERY_RFC3986);
+            $url = 'https://api.themoviedb.org/3/search/' . $mediaType . '?' . $parameters;
+            $data = $this->http->get($url, ['Authorization: Bearer ' . $token]);
+        } elseif ($mediaType === 'game') {
+            $key = self::credential('RAWG_API_KEY');
+            if ($key === '') {
+                throw new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.');
+            }
+            $parameters = http_build_query([
+                'key' => $key, 'search' => $query, 'page_size' => '20', 'page' => '1',
+            ], '', '&', PHP_QUERY_RFC3986);
+            $data = $this->http->get('https://api.rawg.io/api/games?' . $parameters);
+        } else {
+            throw new ProviderException(502, 'provider_error', 'Media provider is unavailable.');
+        }
+
+        $results = $data['results'] ?? null;
+        if (!is_array($results) || !array_is_list($results)) {
+            throw self::invalid();
+        }
+
+        $normalized = [];
+        foreach (array_slice($results, 0, 20) as $item) {
+            $id = is_array($item) ? ($item['id'] ?? null) : null;
+            if ((!is_int($id) && !is_string($id))
+                || preg_match('/^[1-9][0-9]{0,19}$/D', (string) $id) !== 1) {
+                continue;
+            }
+
+            try {
+                $normalized[] = $mediaType === 'game'
+                    ? $this->game($item, (string) $id)
+                    : $this->tmdb($item, $mediaType, (string) $id);
+            } catch (ProviderException) {
+                // Een onvolledig zoekresultaat mag andere geldige resultaten niet verbergen.
+            }
+        }
+
+        if ($results !== [] && $normalized === []) {
+            throw self::invalid();
+        }
+
+        return $normalized;
     }
 
     private function book(array $data, string $sourceId): array

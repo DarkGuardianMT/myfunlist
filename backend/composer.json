@@ -17,6 +17,8 @@
   },
   "scripts": {
     "test": [
+      "@php tests/database_safety.php",
+      "@php tests/discovery.php",
       "@php tests/foundation.php",
       "@php tests/schema.php",
       "@php tests/auth_http.php",

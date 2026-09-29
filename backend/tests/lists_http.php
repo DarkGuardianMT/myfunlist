@@ -80,9 +80,9 @@ function token(ListsHttpClient $client): string
     return $token;
 }
 
-$_ENV['APP_ENV'] = 'testing';
-$_ENV['DB_DATABASE'] = 'myfunlist_test';
+require __DIR__ . '/support/database.php';
 $config = Config::database();
+assertSafeTestDatabase($config, $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV'));
 verifyLists($config['database'] === 'myfunlist_test'
     && in_array($config['host'], ['127.0.0.1', 'localhost'], true),
     'Lists tests may use only the local test database.');
@@ -371,6 +371,10 @@ try {
         ['status' => 'watched', 'rating' => 8.5], $bToken);
     verifyLists($rated['status'] === 200 && $rated['json']['data']['userMedia']['rating'] === 8.5,
         'Full-stack Library status and rating update failed.');
+    verifyLists($b->request('PATCH', '/api/v1/profile', ['displayName' => 'Private B'], $bToken)['status'] === 200
+        && $a->request('GET', '/api/v1/profile')['json']['data']['user']['displayName'] === null
+        && $b->request('GET', '/api/v1/profile/' . $users[0])['status'] === 404,
+        'Profile changes and reads must remain scoped to the authenticated user.');
     verifyLists($b->request('POST', '/api/v1/lists/' . $otherListId . '/items',
         ['userMediaId' => $cachedEntryId], $bToken)['status'] === 201
         && $b->request('DELETE', '/api/v1/lists/' . $otherListId . '/items/' . $cachedEntryId,
@@ -387,6 +391,12 @@ try {
         && count($b->request('GET', '/api/v1/library')['json']['data']) === 2
         && $b->request('GET', '/api/v1/lists/' . $secondListId)['status'] === 404,
         'Library persistence, membership removal, or account isolation failed after login.');
+    $persisted = array_values(array_filter($b->request('GET', '/api/v1/library')['json']['data'],
+        static fn (array $item): bool => $item['userMedia']['id'] === $cachedEntryId));
+    verifyLists(count($persisted) === 1 && $persisted[0]['userMedia']['status'] === 'watched'
+        && $persisted[0]['userMedia']['rating'] === 8.5
+        && $b->request('GET', '/api/v1/profile')['json']['data']['user']['displayName'] === 'Private B',
+        'Profile, Library status, and rating must persist across logout and login.');
 
     echo "Custom Lists HTTP checks passed.\n";
 } finally {

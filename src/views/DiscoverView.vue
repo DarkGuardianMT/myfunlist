@@ -10,12 +10,13 @@ import TvCard from '../components/TvCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useAuth } from '../composables/useAuth.js'
 import { getGoogleBooksErrorMessage, searchBooks } from '../services/googleBooks.js'
-import { getRawgErrorMessage, searchGames } from '../services/rawg.js'
 import {
+  getRawgErrorMessage,
   getTmdbErrorMessage,
+  searchGames,
   searchMovies,
   searchTvShows,
-} from '../services/tmdb.js'
+} from '../services/mediaDiscovery.js'
 
 const discoveryTypes = [
   {

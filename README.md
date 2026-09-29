@@ -6,7 +6,7 @@ The planned public domain is `myfunlist.app`. Its deployment status is not confi
 
 ## Local development
 
-Run `npm install`, copy `.env.example` to `.env`, and set the discovery keys. A Google Books API key is optional for local book search. Movie and TV search requires `VITE_TMDB_API_TOKEN`; game search requires `VITE_RAWG_API_KEY`.
+Run `npm install` and optionally copy `.env.example` to `.env` for a Google Books browser key. Google Books also works locally without a key. Set `TMDB_API_TOKEN` and `RAWG_API_KEY` only in the ignored `backend/.env` for movie, TV, and game search. A production Google Books browser key must be restricted to the site and Books API.
 
 Configure `backend/.env`, then run `composer install`, `composer migrate:status`, and `composer migrate` from `backend/` when needed. For normal development, open XAMPP, start **MySQL**, then run `npm run dev:full` from the project root. Open the Vite URL printed in the terminal. Vite proxies `/api` to the PHP server at `http://127.0.0.1:8080`, keeping browser requests on one origin. Press Ctrl+C to stop both development processes.
 
@@ -16,9 +16,17 @@ Run `node --test tests/*.test.js` and `npm run build` to verify the frontend. Ac
 
 ## Backend and database
 
-The PHP API provides `GET /api/v1/health`, session authentication under `/api/v1/auth`, an authenticated Library API under `/api/v1/library`, and private Custom Lists under `/api/v1/lists`. Use PHP 8.2+, Composer, `pdo_mysql`, `curl`, and MariaDB 10.4 or MySQL 8.0.16+. Create empty `myfunlist` and `myfunlist_test` databases if needed, then copy `backend/.env.example` to the ignored `backend/.env` and set local database credentials. Set backend `TMDB_API_TOKEN` and `RAWG_API_KEY` to resolve new movies, TV shows, and games; `GOOGLE_BOOKS_API_KEY` is optional. The web server document root must be `backend/public`.
+The PHP API provides `GET /api/v1/health`, public read-only `GET /api/v1/discover/{movie|tv|game}?q=...`, session authentication under `/api/v1/auth`, an authenticated Library API under `/api/v1/library`, and private Custom Lists under `/api/v1/lists`. Discovery returns normalized media without storing search results. Use PHP 8.2+, Composer, `pdo_mysql`, `curl`, and MariaDB 10.4 or MySQL 8.0.16+. Create empty `myfunlist` and `myfunlist_test` databases if needed, then copy `backend/.env.example` to the ignored `backend/.env` and set local database credentials. Set backend `TMDB_API_TOKEN` and `RAWG_API_KEY` for discovery and authoritative Library resolution; `GOOGLE_BOOKS_API_KEY` is optional for Library resolution. The web server document root must be `backend/public`.
 
-From `backend/`, run `composer install`, `composer migrate:status`, and `composer migrate`. Rerunning migrations skips applied versions. DDL cannot be reliably rolled back: if a migration fails, inspect the configured database before retrying. Run `composer test` to check the API foundation, reset and migrate **only** the local `myfunlist_test` tables, and exercise auth, Library, and import behavior over HTTP with fake provider details. The development database is not reset by tests.
+From `backend/`, run `composer install`, `composer migrate:status`, and `composer migrate`. Rerunning migrations skips applied versions. DDL cannot be reliably rolled back: if a migration fails, inspect the configured database before retrying. Run `composer test` with explicit `APP_ENV=testing` and `DB_DATABASE=myfunlist_test` to check the API foundation, reset and migrate **only** the local `myfunlist_test` tables, and exercise auth, Library, import, and lists over HTTP with fake provider details. Every test that modifies database data refuses other environments, database names, and non-loopback hosts before connecting. The development database is not reset by tests.
+
+For PowerShell, use a separate test terminal, then close it before starting development servers:
+
+```powershell
+$env:APP_ENV = 'testing'
+$env:DB_DATABASE = 'myfunlist_test'
+composer test
+```
 
 The API can also be started from `backend/` with `C:\xampp\php\php.exe -S 127.0.0.1:8080 -t public public/index.php`. A configured database returns `{"data":{"status":"ok"}}` at `/api/v1/health`. Composer needs PHP's ZIP extension or an archive extractor; XAMPP includes `php_zip` but it may need enabling for CLI use.
 
@@ -38,6 +46,6 @@ Serve the Vue production build at `https://myfunlist.app` and route `/api/v1/*` 
 
 Use HTTPS, PHP 8.2+ with `curl`, `pdo_mysql`, and Composer dependencies, plus a MySQL-compatible database (MySQL 8.0.16+ for enforced `CHECK` constraints, or a compatible MariaDB release). Configure `APP_ENV=production`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `TMDB_API_TOKEN`, `RAWG_API_KEY`, and optionally `GOOGLE_BOOKS_API_KEY` in the server environment. Configure a private writable PHP session store with `SESSION_SAVE_PATH` where needed. Use a database account with only the application's data privileges; run migrations with a separately authorized account when possible. Keep PHP errors in private server logs and monitor generic API failure and provider availability events. Never log passwords, hashes, CSRF tokens, session IDs, or provider credentials. Add suitable HTTPS security headers, including a tested CSP, at the web server.
 
-**Before public launch:** move TMDB and RAWG Discover searches behind a bounded server-side endpoint so their credentials are not bundled into browser assets. The current `VITE_TMDB_API_TOKEN` and `VITE_RAWG_API_KEY` are local development settings only. A Google Books browser key, if used, must be restricted to the production site and Books API. Add durable rate limits at the edge or in shared server storage for login and registration; also limit provider-backed search, Library import, and account creation volume. Do not rely on per-process PHP memory counters. Confirm provider quota, attribution, and license terms for the intended use.
+**Before public launch:** a Google Books browser key, if used, must be restricted to the production site and Books API. Add durable rate limits at the edge or in shared server storage for login and registration; also limit provider-backed search, Library import, and account creation volume. Do not rely on per-process PHP memory counters. Confirm provider quota, attribution, and license terms for the intended use.
 
 Before deploying or applying future migrations, back up the production database, inspect `composer migrate:status`, then run `composer migrate` from `backend/` with production configuration. Migrations use MySQL DDL and may need manual inspection after a partial failure. Never run `composer test` or the test schema reset against production. Verify the production build, same-origin API health, SPA fallback, secure cookies, rate limits, and server logs before opening registration.

@@ -32,16 +32,13 @@ function expectConstraint(callable $operation, string $message): void
     throw new RuntimeException($message);
 }
 
-$configuredEnvironment = $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV');
-verify(in_array($configuredEnvironment, ['development', 'testing'], true),
-    'Schema reset requires an explicitly non-production environment.');
-$_ENV['APP_ENV'] = 'testing';
-$_ENV['DB_DATABASE'] = 'myfunlist_test';
+require __DIR__ . '/support/database.php';
 $config = Config::database();
+assertSafeTestDatabase($config, $_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV'));
 verify(
     $config['database'] === 'myfunlist_test'
         && in_array($config['host'], ['127.0.0.1', 'localhost'], true)
-        && $_ENV['APP_ENV'] === 'testing',
+        && ($_ENV['APP_ENV'] ?? $_SERVER['APP_ENV'] ?? getenv('APP_ENV')) === 'testing',
     'Schema tests may reset only the local myfunlist_test database.',
 );
 

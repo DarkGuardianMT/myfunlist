@@ -46,7 +46,7 @@ export async function refreshCsrfToken() {
 }
 
 export async function request(path, options = {}) {
-  const { method = 'GET', body, handleUnauthorized = true } = options
+  const { method = 'GET', body, handleUnauthorized = true, timeoutMs = 0 } = options
   const requestEpoch = authEpoch
   const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
@@ -57,43 +57,53 @@ export async function request(path, options = {}) {
     throw new ApiError('Account changed during request.', 0, 'stale_request')
   }
 
-  let response
+  const controller = timeoutMs > 0 ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null
+  const timeoutError = () => new ApiError('The request timed out. Please try again.', 0, 'request_timeout')
   try {
-    response = await fetch(path, {
-      method,
-      headers,
-      credentials: 'same-origin',
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    })
-  } catch {
-    throw new ApiError('Could not connect to the server. Please try again.', 0, 'network_error')
-  }
+    let response
+    try {
+      response = await fetch(path, {
+        method,
+        headers,
+        credentials: 'same-origin',
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(controller ? { signal: controller.signal } : {}),
+      })
+    } catch {
+      if (controller?.signal.aborted) throw timeoutError()
+      throw new ApiError('Could not connect to the server. Please try again.', 0, 'network_error')
+    }
 
-  if (response.status === 204) return null
-  let payload
-  try {
-    payload = await response.json()
-  } catch {
-    if (response.status === 401 && handleUnauthorized && requestEpoch === authEpoch) {
-      sessionExpired?.()
+    if (response.status === 204) return null
+    let payload
+    try {
+      payload = await response.json()
+    } catch {
+      if (controller?.signal.aborted) throw timeoutError()
+      if (response.status === 401 && handleUnauthorized && requestEpoch === authEpoch) {
+        sessionExpired?.()
+      }
+      throw new ApiError('The server returned an unreadable response.', response.status, 'invalid_response')
     }
-    throw new ApiError('The server returned an unreadable response.', response.status, 'invalid_response')
-  }
-  if (!response.ok) {
-    const error = payload?.error
-    const apiError = new ApiError(
-      typeof error?.message === 'string' ? error.message : 'The request failed.',
-      response.status,
-      typeof error?.code === 'string' ? error.code : 'request_failed',
-      error?.fields ?? null,
-    )
-    if (response.status === 401 && handleUnauthorized && requestEpoch === authEpoch) {
-      sessionExpired?.()
+    if (!response.ok) {
+      const error = payload?.error
+      const apiError = new ApiError(
+        typeof error?.message === 'string' ? error.message : 'The request failed.',
+        response.status,
+        typeof error?.code === 'string' ? error.code : 'request_failed',
+        error?.fields ?? null,
+      )
+      if (response.status === 401 && handleUnauthorized && requestEpoch === authEpoch) {
+        sessionExpired?.()
+      }
+      throw apiError
     }
-    throw apiError
+    if (!payload || !Object.hasOwn(payload, 'data')) {
+      throw new ApiError('The server returned an invalid response.', response.status, 'invalid_response')
+    }
+    return payload.data
+  } finally {
+    if (timer !== null) clearTimeout(timer)
   }
-  if (!payload || !Object.hasOwn(payload, 'data')) {
-    throw new ApiError('The server returned an invalid response.', response.status, 'invalid_response')
-  }
-  return payload.data
 }

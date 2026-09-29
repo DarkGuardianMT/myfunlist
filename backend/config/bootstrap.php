@@ -7,10 +7,12 @@ use MyFunList\Auth\AuthService;
 use MyFunList\Auth\PasswordHasher;
 use MyFunList\Auth\ProfileService;
 use MyFunList\Http\Controllers\AuthController;
+use MyFunList\Http\Controllers\DiscoverController;
 use MyFunList\Http\Controllers\HealthController;
 use MyFunList\Http\Controllers\LibraryController;
 use MyFunList\Http\Controllers\ListController;
 use MyFunList\Http\Controllers\ProfileController;
+use MyFunList\Http\JsonResponse;
 use MyFunList\Http\Middleware\AuthMiddleware;
 use MyFunList\Http\Router;
 use MyFunList\Library\LibraryService;
@@ -36,14 +38,17 @@ $auth = new AuthController(
 );
 $profile = new ProfileController(new ProfileService($users, $passwords), $session);
 $middleware = new AuthMiddleware($session, new SessionCurrentUserProvider($session));
-$libraryService = new LibraryService(
-    $database,
-    new ProviderMediaResolver(new CurlProviderHttpClient()),
-);
+$providers = new ProviderMediaResolver(new CurlProviderHttpClient());
+$libraryService = new LibraryService($database, $providers);
 $library = new LibraryController($libraryService, new LibraryImportService($libraryService));
 $lists = new ListController(new ListService($database));
+$discover = new DiscoverController($providers);
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
+foreach (['movie', 'tv', 'game'] as $mediaType) {
+    $router->add('GET', '/api/v1/discover/' . $mediaType,
+        static fn (): JsonResponse => $discover->search($mediaType, $_GET));
+}
 $router->add('GET', '/api/v1/auth/csrf', [$auth, 'csrf']);
 $router->add('POST', '/api/v1/auth/register', $middleware->csrf([$auth, 'register']));
 $router->add('POST', '/api/v1/auth/login', $middleware->csrf([$auth, 'login']));
