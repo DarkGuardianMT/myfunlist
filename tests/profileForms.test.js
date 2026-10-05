@@ -148,3 +148,28 @@ test('Anonymous Profile makes no request and account switch clears form state', 
     view.unmount()
   }
 })
+
+test('Profile offers an authenticated mobile Logout action', async () => {
+  clearCsrfToken()
+  currentUser.value = { ...user }
+  isAuthLoading.value = false
+  const activeRouter = router()
+  await activeRouter.push('/profile')
+  await activeRouter.isReady()
+  globalThis.fetch = async (path) => {
+    if (path.endsWith('/csrf')) return data({ csrfToken: 'mobile-logout-csrf' })
+    if (path.endsWith('/logout')) return { ok: true, status: 204 }
+    throw new Error(path)
+  }
+  const view = mount(ProfileView, { global: { plugins: [activeRouter] } })
+  try {
+    assert.equal(view.get('.mobile-profile-logout').text(), 'Logout')
+    await view.get('.mobile-profile-logout').trigger('click')
+    await flushPromises()
+    assert.equal(currentUser.value, null)
+    assert.equal(activeRouter.currentRoute.value.path, '/')
+    assert.equal(view.find('.mobile-profile-logout').exists(), false)
+  } finally {
+    view.unmount()
+  }
+})

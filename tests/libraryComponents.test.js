@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createSSRApp, h } from 'vue'
 import { renderToString } from 'vue/server-renderer'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import { createServer } from 'vite'
 
 test('game Library card and discovery controls render with shared components', async () => {
@@ -68,7 +69,15 @@ test('game Library card and discovery controls render with shared components', a
 
     for (const view of [HomeView, ProfileView]) {
       const app = createSSRApp({ render: () => h(view) })
-      app.component('RouterLink', { render: () => null })
+      app.use(createRouter({ history: createMemoryHistory(), routes: [
+        { path: '/', component: HomeView },
+        { path: '/discover', component: DiscoverView },
+        { path: '/library', component: LibraryView },
+        { path: '/lists', component: HomeView },
+        { path: '/profile', component: ProfileView },
+        { path: '/login', component: ProfileView },
+        { path: '/register', component: ProfileView },
+      ] }))
       assert.ok((await renderToString(app)).length > 0)
     }
 

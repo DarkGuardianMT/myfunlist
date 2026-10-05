@@ -37,6 +37,8 @@ The frontend was initialized directly in the repository root. It has an applicat
 
 The frontend visual system now uses CSS color tokens for Light and Dark themes. Light is the default; a header control switches themes and stores the preference under `myfunlist_theme` in device-local browser storage. The restrained blue/violet brand palette applies to app chrome, while media artwork remains unfiltered. Theme preference is UI state and is not part of account persistence.
 
+Desktop and tablet widths retain the top header navigation. At 640px and below, a compact brand and theme header sits above a fixed five-item bottom navigation. The final item is Profile for authenticated users and Login for anonymous users; authenticated mobile users can log out from Profile.
+
 TMDB movie/TV and RAWG game discovery now use public read-only `GET /api/v1/discover/{mediaType}?q=...` routes. PHP calls the providers with backend-only credentials and returns bounded, normalized MyFunList media. Search does not write media rows. Google Books discovery remains browser-side; any production browser key must be restricted by site and API. Adding a discovery result to the Library still sends identity only and independently resolves authoritative metadata on the backend.
 
 ## Core product concepts

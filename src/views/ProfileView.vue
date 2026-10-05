@@ -1,8 +1,10 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 
-const { currentUser, isAuthLoading, updateDisplayName, changePassword } = useAuth()
+const router = useRouter()
+const { currentUser, isAuthLoading, logout, updateDisplayName, changePassword } = useAuth()
 const displayName = ref('')
 const currentPassword = ref('')
 const newPassword = ref('')
@@ -13,6 +15,8 @@ const nameError = ref('')
 const nameSuccess = ref('')
 const passwordError = ref('')
 const passwordSuccess = ref('')
+const logoutError = ref('')
+const isLoggingOut = ref(false)
 
 watch(() => currentUser.value?.id, () => {
   displayName.value = currentUser.value?.displayName ?? ''
@@ -23,7 +27,21 @@ watch(() => currentUser.value?.id, () => {
   nameSuccess.value = ''
   passwordError.value = ''
   passwordSuccess.value = ''
+  logoutError.value = ''
 }, { immediate: true })
+
+async function handleLogout() {
+  isLoggingOut.value = true
+  logoutError.value = ''
+  try {
+    await logout()
+    await router.push('/')
+  } catch (error) {
+    logoutError.value = error.message
+  } finally {
+    isLoggingOut.value = false
+  }
+}
 
 const memberSince = computed(() => {
   const date = new Date(currentUser.value?.createdAt ?? '')
@@ -91,6 +109,10 @@ async function savePassword() {
           <div><dt>Member since</dt><dd>{{ memberSince }}</dd></div>
         </dl>
         <p class="form-hint">Your email is your account identity and cannot be changed here.</p>
+        <button type="button" class="mobile-profile-logout" :disabled="isLoggingOut" @click="handleLogout">
+          {{ isLoggingOut ? 'Logging out…' : 'Logout' }}
+        </button>
+        <p v-if="logoutError" class="profile-error" role="alert">{{ logoutError }}</p>
       </section>
 
       <section class="profile-card" aria-labelledby="name-heading">
