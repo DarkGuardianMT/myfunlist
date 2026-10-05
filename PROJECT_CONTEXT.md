@@ -103,6 +103,8 @@ Database tests that modify data now require explicit `APP_ENV=testing`, exact `D
 
 Before public launch, verify limiter and real client IP behavior in staging. A public Google Books key may remain browser-side only with appropriate site and API restrictions. Production also requires HTTPS, same-origin `/api/v1` routing, SPA fallback, a private session store, backups, and monitored server logs. Email verification, password reset, email change, and account deletion remain deferred for the first MVP, with account recovery requiring a support plan.
 
+Deployment follows one HTTPS origin: the Vue build serves frontend routes with an SPA fallback, while `/api/v1/*` reaches only `backend/public/index.php`. Private staging must pass before public registration opens. Back up the target production database before migrations, verify the target and migration status, then run and recheck CLI migrations; restore drills use an isolated database. The durable procedure and checklists live in `docs/DEPLOYMENT.md`.
+
 ## Future ideas
 
 Additional media types and social features may be explored later. Their scope and priority are undecided.

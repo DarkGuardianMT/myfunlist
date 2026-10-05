@@ -71,6 +71,10 @@ final class LibraryService
             try {
                 $resolved = $this->resolver->resolve($source, $mediaType, $sourceId);
             } catch (ProviderException $exception) {
+                // Vermijd provider-URL's en gebruikersinvoer in operationele logs.
+                if ($exception->status >= 500) {
+                    error_log('Provider media resolution failed: ' . $source . ' HTTP ' . $exception->status);
+                }
                 throw new ApiException($exception->status, $exception->errorCode, $exception->getMessage());
             }
             if (($resolved['source'] ?? null) !== $source

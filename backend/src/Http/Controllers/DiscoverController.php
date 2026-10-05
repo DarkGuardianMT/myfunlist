@@ -33,6 +33,8 @@ final class DiscoverController
         try {
             $results = $this->searcher->search($mediaType, $query);
         } catch (ProviderException $exception) {
+            // Log alleen bron en foutcategorie; de provider-URL kan een sleutel bevatten.
+            error_log('Provider discovery failed: ' . $mediaType . ' HTTP ' . $exception->status);
             if ($exception->status === 503) {
                 throw new ApiException(503, 'provider_unavailable', 'Media provider is unavailable.');
             }
