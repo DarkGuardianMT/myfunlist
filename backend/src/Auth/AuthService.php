@@ -76,7 +76,7 @@ final class AuthService
         return $this->users->findById($identity->id);
     }
 
-    private static function normalizeEmail(mixed $value): ?string
+    public static function normalizeEmail(mixed $value): ?string
     {
         if (!is_string($value)) {
             return null;

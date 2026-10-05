@@ -10,6 +10,7 @@ use MyFunList\Library\LibraryImportService;
 use MyFunList\Library\LibraryService;
 use MyFunList\Provider\MediaResolver;
 use MyFunList\Provider\ProviderException;
+use MyFunList\RateLimit\RateLimiter;
 
 require dirname(__DIR__) . '/config/environment.php';
 
@@ -426,7 +427,32 @@ SQL);
         && $retried['summary']['existing'] === 3,
         'Retry after provider recovery must add only the failed item once.');
 
-    echo "Library import service and HTTP tests passed.\n";
+    $connection->exec('DELETE FROM rate_limit_counters');
+    $lookupUser = $connection->prepare('SELECT id FROM users WHERE email = ?');
+    $lookupUser->execute([$emailC]);
+    $freshUserId = (string) $lookupUser->fetchColumn();
+    $limiter = new RateLimiter(new Database(), require dirname(__DIR__) . '/config/rate_limits.php');
+    for ($attempt = 0; $attempt < 120; $attempt++) {
+        $limiter->check('import_user', $freshUserId);
+    }
+    $beforeBlocked = (int) $connection->query('SELECT COUNT(*) FROM user_media')->fetchColumn();
+    $blockedImport = $freshClient->request('POST', '/api/v1/library/import',
+        ['items' => $freshBatch], $freshCsrf);
+    verifyImport($blockedImport['status'] === 429
+        && $blockedImport['json']['error']['code'] === 'rate_limited'
+        && (int) $connection->query('SELECT COUNT(*) FROM user_media')->fetchColumn() === $beforeBlocked,
+        'Blocked import must execute no item work.');
+    verifyImport($client->request('POST', '/api/v1/library/import',
+        ['items' => [$freshBatch[0]]], $csrf)['status'] === 200,
+        'Another authenticated user must have an independent import allowance.');
+    $connection->exec('DELETE FROM rate_limit_counters');
+    $retryAfterWindow = $freshClient->request('POST', '/api/v1/library/import',
+        ['items' => $freshBatch], $freshCsrf);
+    verifyImport($retryAfterWindow['status'] === 200
+        && $retryAfterWindow['json']['data']['summary']['existing'] === 1,
+        'Import must remain safely retryable after the limit resets.');
+
+    echo "Library import service, HTTP, and rate-limit tests passed.\n";
 } finally {
     if (is_resource($socket)) {
         fclose($socket);

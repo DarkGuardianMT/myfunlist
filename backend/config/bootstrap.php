@@ -14,6 +14,7 @@ use MyFunList\Http\Controllers\ListController;
 use MyFunList\Http\Controllers\ProfileController;
 use MyFunList\Http\JsonResponse;
 use MyFunList\Http\Middleware\AuthMiddleware;
+use MyFunList\Http\Middleware\RateLimitMiddleware;
 use MyFunList\Http\Router;
 use MyFunList\Library\LibraryService;
 use MyFunList\Library\LibraryImportService;
@@ -24,6 +25,7 @@ use MyFunList\Infrastructure\Database;
 use MyFunList\Infrastructure\PhpSession;
 use MyFunList\Infrastructure\SessionCurrentUserProvider;
 use MyFunList\Infrastructure\UserRepository;
+use MyFunList\RateLimit\RateLimiter;
 
 require __DIR__ . '/environment.php';
 
@@ -38,6 +40,7 @@ $auth = new AuthController(
 );
 $profile = new ProfileController(new ProfileService($users, $passwords), $session);
 $middleware = new AuthMiddleware($session, new SessionCurrentUserProvider($session));
+$limits = new RateLimitMiddleware(new RateLimiter($database, require __DIR__ . '/rate_limits.php'));
 $providers = new ProviderMediaResolver(new CurlProviderHttpClient());
 $libraryService = new LibraryService($database, $providers);
 $library = new LibraryController($libraryService, new LibraryImportService($libraryService));
@@ -47,11 +50,13 @@ $discover = new DiscoverController($providers);
 $router->add('GET', '/api/v1/health', new HealthController($database));
 foreach (['movie', 'tv', 'game'] as $mediaType) {
     $router->add('GET', '/api/v1/discover/' . $mediaType,
-        static fn (): JsonResponse => $discover->search($mediaType, $_GET));
+        $limits->ip('discover_ip', static fn (): JsonResponse => $discover->search($mediaType, $_GET)));
 }
 $router->add('GET', '/api/v1/auth/csrf', [$auth, 'csrf']);
-$router->add('POST', '/api/v1/auth/register', $middleware->csrf([$auth, 'register']));
-$router->add('POST', '/api/v1/auth/login', $middleware->csrf([$auth, 'login']));
+$router->add('POST', '/api/v1/auth/register', $middleware->csrf(
+    $limits->ip('register_ip', [$auth, 'register']),
+));
+$router->add('POST', '/api/v1/auth/login', $middleware->csrf($limits->login([$auth, 'login'])));
 $router->add('POST', '/api/v1/auth/logout', $middleware->requireUser(
     $middleware->csrf([$auth, 'logout']),
 ));
@@ -61,14 +66,14 @@ $router->add('PATCH', '/api/v1/profile', $middleware->requireUser(
     $middleware->csrf([$profile, 'update']),
 ));
 $router->add('POST', '/api/v1/account/password', $middleware->requireUser(
-    $middleware->csrf([$profile, 'changePassword']),
+    $middleware->csrf($limits->user('password_user', [$profile, 'changePassword'])),
 ));
 $router->add('GET', '/api/v1/library', $middleware->requireUser([$library, 'list']));
 $router->add('POST', '/api/v1/library', $middleware->requireUser(
     $middleware->csrf([$library, 'add']),
 ));
 $router->add('POST', '/api/v1/library/import', $middleware->requireUser(
-    $middleware->csrf([$library, 'import']),
+    $middleware->csrf($limits->user('import_user', [$library, 'import'])),
 ));
 $router->add('PATCH', '/api/v1/library/{entryId}', $middleware->requireUser(
     $middleware->csrf([$library, 'update']),

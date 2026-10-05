@@ -5,6 +5,7 @@ declare(strict_types=1);
 use MyFunList\Config;
 use MyFunList\Infrastructure\Database;
 use MyFunList\Infrastructure\SessionSettings;
+use MyFunList\RateLimit\RateLimiter;
 
 require dirname(__DIR__) . '/config/environment.php';
 
@@ -366,7 +367,55 @@ try {
     check(is_string($newHash) && $newHash !== $legacyHash
         && password_verify($password, $newHash), 'Login must rehash outdated hashes.');
 
-    echo "Auth HTTP tests passed.\n";
+    $database->exec('DELETE FROM rate_limit_counters');
+    $limiter = new RateLimiter(new Database(), require dirname(__DIR__) . '/config/rate_limits.php');
+    $missingEmail = 'limited-missing-' . $suffix . '@example.test';
+    for ($attempt = 0; $attempt < 10; $attempt++) {
+        $limiter->check('login_account', $email);
+        $limiter->check('login_account', $missingEmail);
+    }
+    $loginCsrf = csrf($client);
+    $limitedExisting = $client->request('POST', '/api/v1/auth/login', jsonBody([
+        'email' => strtoupper($email), 'password' => $wrongPassword,
+    ]), $loginCsrf);
+    $limitedMissing = $client->request('POST', '/api/v1/auth/login', jsonBody([
+        'email' => $missingEmail, 'password' => $wrongPassword,
+    ]), $loginCsrf);
+    check($limitedExisting['status'] === 429 && $limitedExisting['json'] === $limitedMissing['json']
+        && $limitedExisting['json']['error']['code'] === 'rate_limited'
+        && preg_match('/^Retry-After: [1-9][0-9]*$/mi', implode("\n", $limitedExisting['headers'])) === 1,
+        'Existing and missing accounts must receive the same 429 with Retry-After.');
+    $rows = json_encode($database->query('SELECT * FROM rate_limit_counters')->fetchAll(), JSON_THROW_ON_ERROR);
+    check(!str_contains($rows, $email) && !str_contains($rows, $missingEmail)
+        && !str_contains($rows, '127.0.0.1'), 'Limiter rows must not contain raw email or IP.');
+    check($client->request('POST', '/api/v1/auth/login', jsonBody([
+        'email' => 'unlimited-' . $suffix . '@example.test', 'password' => $wrongPassword,
+    ]), $loginCsrf)['status'] === 401, 'Separate account subjects must remain independent.');
+
+    $database->exec('DELETE FROM rate_limit_counters');
+    for ($attempt = 0; $attempt < 20; $attempt++) {
+        $limiter->check('login_ip', '127.0.0.1');
+    }
+    check($client->request('POST', '/api/v1/auth/login', jsonBody([
+        'email' => 'fresh-' . $suffix . '@example.test', 'password' => $wrongPassword,
+    ]), $loginCsrf)['status'] === 429, 'Login IP policy must block independently of account policy.');
+
+    $database->exec('DELETE FROM rate_limit_counters');
+    for ($attempt = 0; $attempt < 10; $attempt++) {
+        $limiter->check('register_ip', '127.0.0.1');
+        $limiter->check('password_user', $user['id']);
+    }
+    check($client->request('POST', '/api/v1/auth/register', $registerBody, $loginCsrf)['status'] === 429,
+        'Registration traffic must be bounded by the observed IP.');
+    check($client->request('POST', '/api/v1/account/password', jsonBody([
+        'currentPassword' => $changedPassword, 'newPassword' => $password,
+    ]), $loginCsrf)['status'] === 429, 'Password guessing must be bounded per authenticated user.');
+    check($other->request('POST', '/api/v1/account/password', jsonBody([
+        'currentPassword' => $wrongPassword, 'newPassword' => $password,
+    ]), csrf($other))['status'] === 422, 'Another user must not share the password limit.');
+    $database->exec('DELETE FROM rate_limit_counters');
+
+    echo "Auth HTTP and rate-limit tests passed.\n";
 } finally {
     $delete = $database->prepare('DELETE FROM users WHERE email IN (?, ?, ?)');
     $delete->execute([$email, $rehashEmail, $otherEmail]);

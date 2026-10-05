@@ -61,7 +61,9 @@ export function useLegacyImport() {
     }
     if (version !== importVersion || currentUser.value?.id !== userId) return
     importSummary.value = result.summary
-    if (result.error) importError.value = 'Import paused. Your browser copy is safe; try again later.'
+    if (result.error) importError.value = result.error.code === 'rate_limited'
+      ? 'Too many import requests. Your browser copy is safe; try again later.'
+      : 'Import paused. Your browser copy is safe; try again later.'
     else if (result.summary.failed) importError.value = 'Some items could not be imported. Your browser copy is safe.'
     else {
       try { markImportCompleted(userId, candidate) } catch { /* Opslag kan uitgeschakeld zijn. */ }

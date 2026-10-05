@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MyFunList\Http;
 
 use MyFunList\Infrastructure\DatabaseUnavailable;
+use MyFunList\RateLimit\RateLimitUnavailable;
 use Throwable;
 
 final class Application
@@ -26,6 +27,9 @@ final class Application
             );
         } catch (DatabaseUnavailable) {
             error_log('API database check failed');
+            return JsonResponse::error(503, 'service_unavailable', 'Service unavailable.');
+        } catch (RateLimitUnavailable) {
+            error_log('API rate limit storage failed');
             return JsonResponse::error(503, 'service_unavailable', 'Service unavailable.');
         } catch (Throwable $exception) {
             error_log('Unhandled API error: ' . get_class($exception));

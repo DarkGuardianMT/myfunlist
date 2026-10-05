@@ -167,6 +167,29 @@ test('partial import failure stays retryable and does not set completion flag', 
   resetLibrary()
 })
 
+test('rate-limited import pauses with retry feedback and keeps browser data', async () => {
+  clearCsrfToken()
+  currentUser.value = { id: 'limited-user', email: 'limited@example.test' }
+  resetLibrary()
+  const values = storage([['myfunlist_library', JSON.stringify({ version: 2, items: [localItem()] })]])
+  globalThis.fetch = async (path) => {
+    if (path.endsWith('/csrf')) return { ok: true, status: 200,
+      json: async () => ({ data: { csrfToken: 'csrf' } }) }
+    if (path.endsWith('/import')) return { ok: false, status: 429,
+      json: async () => ({ error: { code: 'rate_limited', message: 'Too many requests. Please try again later.' } }) }
+    return { ok: true, status: 200, json: async () => ({ data: [] }) }
+  }
+  checkLegacyImport()
+  const offer = useLegacyImport()
+  await offer.startImport()
+  assert.match(offer.importError.value, /Too many import requests/)
+  assert.equal(offer.importSummary.value.pending, 1)
+  assert.equal(isImportCompleted('limited-user', legacyCandidate()), false)
+  assert.ok(values.has('myfunlist_library'))
+  currentUser.value = null
+  resetLibrary()
+})
+
 test('late import result from another account cannot show a prompt or mark completion', async () => {
   clearCsrfToken()
   currentUser.value = { id: 'old-user', email: 'old@example.test' }

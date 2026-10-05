@@ -21,6 +21,7 @@
       "@php tests/discovery.php",
       "@php tests/foundation.php",
       "@php tests/schema.php",
+      "@php tests/rate_limit.php",
       "@php tests/auth_http.php",
       "@php tests/library_http.php",
       "@php tests/import_http.php",

@@ -28,6 +28,8 @@ test('game discovery preserves empty searches and validates normalized results',
 })
 
 test('game search maps safe backend and timeout errors to user feedback', () => {
+  assert.equal(getRawgErrorMessage(new ApiError('Too many requests. Please try again later.', 429,
+    'rate_limited')), 'Too many requests. Please try again later.')
   assert.match(getRawgErrorMessage(new ApiError('secret', 503, 'provider_unavailable')), /temporarily unavailable/)
   assert.match(getRawgErrorMessage(new ApiError('secret', 0, 'request_timeout')), /timed out/)
   assert.match(getRawgErrorMessage(new ApiError('secret', 0, 'network_error')), /could not reach MyFunList/)

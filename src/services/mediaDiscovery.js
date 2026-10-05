@@ -35,6 +35,9 @@ export function searchGames(query, options = {}) {
 
 function errorMessage(error, provider, noun) {
   if (error instanceof ApiError) {
+    if (error.code === 'rate_limited') {
+      return error.message
+    }
     if (error.code === 'provider_unavailable') {
       return `${provider} is temporarily unavailable. Please try again in a moment.`
     }

@@ -59,9 +59,11 @@ verify($wrongTargetRejected, 'Migration runner must reject a mismatched database
 $existing = $connection->query(<<<'SQL'
 SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()
 SQL)->fetchAll(PDO::FETCH_COLUMN);
-verify(array_diff($existing, ['schema_migrations', 'users', 'media', 'user_media', 'lists', 'list_items']) === [],
+verify(array_diff($existing, ['schema_migrations', 'users', 'media', 'user_media', 'lists', 'list_items',
+    'rate_limit_counters']) === [],
     'The test database contains unexpected tables; refusing to reset it.');
 
+$connection->exec('DROP TABLE IF EXISTS rate_limit_counters');
 $connection->exec('DROP TABLE IF EXISTS list_items');
 $connection->exec('DROP TABLE IF EXISTS lists');
 $connection->exec('DROP TABLE IF EXISTS user_media');
@@ -78,13 +80,14 @@ $versions = [
     '001_create_core_schema' => 'pending',
     '002_add_user_display_name' => 'pending',
     '003_create_custom_lists' => 'pending',
+    '004_create_rate_limit_counters' => 'pending',
 ];
 verify($runner->status() === $versions, 'Fresh migrations must be pending.');
 verify($runner->migrate() === array_fill_keys(array_keys($versions), 'applied'), 'Fresh migrations must apply once.');
 verify($runner->status() === array_fill_keys(array_keys($versions), 'applied'), 'Migration tracking must record both versions.');
 verify($runner->migrate() === array_fill_keys(array_keys($versions), 'already applied'), 'Rerunning must not reapply DDL.');
-verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === 3,
-    'Migration tracking must contain three versions.');
+verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === 4,
+    'Migration tracking must contain four versions.');
 
 $displayColumn = $connection->query(<<<'SQL'
 SELECT is_nullable, character_maximum_length FROM information_schema.columns
@@ -98,7 +101,8 @@ $tables = $connection->query(<<<'SQL'
 SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()
 SQL)->fetchAll(PDO::FETCH_COLUMN);
 sort($tables);
-verify($tables === ['list_items', 'lists', 'media', 'schema_migrations', 'user_media', 'users'],
+verify($tables === ['list_items', 'lists', 'media', 'rate_limit_counters', 'schema_migrations',
+    'user_media', 'users'],
     'The migration must create only the expected tables.');
 
 $indexes = $connection->query(<<<'SQL'
@@ -106,7 +110,7 @@ SELECT index_name FROM information_schema.statistics WHERE table_schema = DATABA
 SQL)->fetchAll(PDO::FETCH_COLUMN);
 foreach (['uq_users_email', 'uq_media_external_identity', 'uq_user_media_user_media',
     'idx_user_media_user_added', 'idx_user_media_media', 'PRIMARY',
-    'idx_lists_user_updated', 'idx_list_items_user_media'] as $index) {
+    'idx_lists_user_updated', 'idx_list_items_user_media', 'idx_rate_limit_expires'] as $index) {
     verify(in_array($index, $indexes, true), "Missing index {$index}.");
 }
 
