@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "predev:backend": "node scripts/checkBackendPort.js",
-    "dev:backend": "C:\\xampp\\php\\php.exe -S 127.0.0.1:8080 -t backend/public backend/public/index.php",
+    "dev:backend": "php -S 127.0.0.1:8080 -t backend/public backend/public/index.php",
     "dev:full": "concurrently --kill-others --names frontend,backend --prefix-colors cyan,magenta \"npm run dev\" \"npm run dev:backend\"",
+    "test": "node --test tests/*.test.js",
     "build": "vite build",
     "preview": "vite preview"
   },

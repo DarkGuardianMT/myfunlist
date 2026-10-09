@@ -17,6 +17,22 @@ dist-ssr
 /backend/vendor/
 /backend/var/
 
+# Lokale databasekopieën, gebruikersbestanden en privésleutels horen niet in Git.
+*.sql
+*.sql.*
+*.dump
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.pem
+*.key
+*.p12
+*.pfx
+/backups/
+/backend/backups/
+/backend/uploads/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
