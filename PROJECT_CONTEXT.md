@@ -109,6 +109,8 @@ Before public launch, verify limiter and real client IP behavior in staging. A p
 
 Deployment follows one HTTPS origin: the Vue build serves frontend routes with an SPA fallback, while `/api/v1/*` reaches only `backend/public/index.php`. Private staging must pass before public registration opens. Back up the target production database before migrations, verify the target and migration status, then run and recheck CLI migrations; restore drills use an isolated database. The durable procedure and checklists live in `docs/DEPLOYMENT.md`.
 
+Pushes to `main` now trigger `.github/workflows/deploy-staging.yml`: Node.js 24.15.0 installs dependencies, tests, and builds before SSH deployment to `/home/u403470553/myfunlist-stage` and the staging frontend at `https://lightcyan-snake-955164.hostingersite.com`. The workflow requires the four `STAGING_*` repository secrets, resets tracked server files to `origin/main` only when it matches the tested commit, preserves private untracked configuration, and syncs the frontend while protecting the existing `.htaccess` and `api/`. Frontend permissions and the database-backed JSON health response are checked during deployment. Migrations and backend dependency installation remain manual; a passing local check does not establish that a real staging deployment succeeded.
+
 ## Future ideas
 
 Additional media types and social features may be explored later. Their scope and priority are undecided.

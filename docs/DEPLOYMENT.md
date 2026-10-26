@@ -1,6 +1,16 @@
 # MyFunList deployment guide
 
-This is the single deployment reference for the private staging run and later public release. No hosting or domain has been configured by this repository. Complete the staging checklist before opening registration publicly.
+This is the single deployment reference for the private staging run and later public release. The staging workflow targets `https://lightcyan-snake-955164.hostingersite.com`; actual hosting readiness still requires the staging checks below. Complete the staging checklist before opening registration publicly.
+
+## Automated staging deployment
+
+`.github/workflows/deploy-staging.yml` runs on pushes to `main`. It uses Node.js 24.15.0 and runs `npm ci`, `npm test`, and `npm run build` before connecting to staging. Configure repository secrets `STAGING_HOST`, `STAGING_PORT`, `STAGING_USER`, and `STAGING_SSH_KEY`. The runner discovers the SSH host key with `ssh-keyscan` and requires that key for subsequent connections; this trusts the initial network connection.
+
+The server must already have the repository cloned at `/home/u403470553/myfunlist-stage`, permission to fetch its `origin`, installed backend dependencies, private environment/session configuration, and working same-origin API routing. SSH, Bash, Git, rsync, find, and chmod must be available on the server. Each deployment fetches `origin/main`, verifies that it matches the tested workflow commit, and resets tracked checkout files to that revision. Untracked private configuration and ignored dependencies remain in place. If `main` has advanced, the older deployment stops before changing the checkout or frontend. Deployments run serially without cancelling an upload in progress.
+
+The workflow syncs `dist/` into `/home/u403470553/domains/lightcyan-snake-955164.hostingersite.com/public_html/`, deleting obsolete frontend files while excluding the existing root `.htaccess` and `api/` directory from upload and deletion. It then sets frontend directories to 755 and files to 644, leaving `.htaccess` and `api/` permissions alone. Finally, curl checks `/api/v1/health` over HTTPS and the workflow requires the JSON `data.status` value to be `ok`.
+
+Database migrations and Composer dependency installation remain manual. Apply required migrations and install changed backend dependencies deliberately before deploying code that needs them. The workflow does not provide atomic releases or automatic rollback; a failed health check requires inspection and, if needed, a deliberate redeployment.
 
 ## Layout and prerequisites
 

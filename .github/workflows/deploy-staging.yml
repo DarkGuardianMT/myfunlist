@@ -1,0 +1,128 @@
+name: Deploy staging
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.15.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Configure SSH
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_PORT: ${{ secrets.STAGING_PORT }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$STAGING_HOST"
+          test -n "$STAGING_PORT"
+          test -n "$STAGING_USER"
+          test -n "$STAGING_SSH_KEY"
+          umask 077
+          ssh_dir="$RUNNER_TEMP/staging-ssh"
+          mkdir -p "$ssh_dir"
+          printf '%s\n' "$STAGING_SSH_KEY" | tr -d '\r' > "$ssh_dir/key"
+          ssh-keyscan -p "$STAGING_PORT" -H "$STAGING_HOST" > "$ssh_dir/known_hosts" 2>/dev/null
+          test -s "$ssh_dir/known_hosts"
+          printf '%s\n' \
+            'Host staging' \
+            "  HostName $STAGING_HOST" \
+            "  Port $STAGING_PORT" \
+            "  User $STAGING_USER" \
+            "  IdentityFile $ssh_dir/key" \
+            "  UserKnownHostsFile $ssh_dir/known_hosts" \
+            '  IdentitiesOnly yes' \
+            '  BatchMode yes' \
+            '  StrictHostKeyChecking yes' \
+            '  ConnectTimeout 15' > "$ssh_dir/config"
+
+      - name: Update staging checkout
+        run: |
+          ssh -F "$RUNNER_TEMP/staging-ssh/config" staging bash -s -- "$GITHUB_SHA" <<'REMOTE'
+          set -euo pipefail
+          cd /home/u403470553/myfunlist-stage
+          git fetch --quiet origin +refs/heads/main:refs/remotes/origin/main
+          # Voorkom dat een oudere build naast een nieuwere backend wordt geplaatst.
+          if [ "$(git rev-parse origin/main)" != "$1" ]; then
+            echo 'Staging deployment skipped: main has advanced beyond this build.' >&2
+            exit 1
+          fi
+          git reset --hard origin/main
+          REMOTE
+
+      - name: Upload frontend
+        run: |
+          rsync -rltz --delete \
+            --exclude='/.htaccess' \
+            --exclude='/api/' \
+            -e "ssh -F $RUNNER_TEMP/staging-ssh/config" \
+            dist/ \
+            staging:/home/u403470553/domains/lightcyan-snake-955164.hostingersite.com/public_html/
+
+      - name: Fix frontend permissions
+        run: |
+          ssh -F "$RUNNER_TEMP/staging-ssh/config" staging bash -s <<'REMOTE'
+          set -euo pipefail
+          cd /home/u403470553/domains/lightcyan-snake-955164.hostingersite.com/public_html
+          # Laat de API en bestaande Apache-configuratie onaangeroerd.
+          find . \( -path './api' -o -name '.htaccess' \) -prune -o \
+            -type d -exec chmod 755 {} + -o \
+            -type f -exec chmod 644 {} +
+          REMOTE
+
+      - name: Verify API health
+        run: |
+          curl --fail --silent --show-error \
+            --retry 5 --retry-delay 3 --retry-all-errors \
+            --connect-timeout 10 --max-time 30 \
+            --output "$RUNNER_TEMP/staging-health.json" \
+            https://lightcyan-snake-955164.hostingersite.com/api/v1/health
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+
+          try {
+            const health = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/staging-health.json`, 'utf8'))
+            if (health.data?.status !== 'ok') throw new Error()
+          } catch {
+            console.error('Staging API did not return a healthy JSON response.')
+            process.exit(1)
+          }
+          NODE
+
+      - name: Remove SSH credentials
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/staging-ssh"
