@@ -46,7 +46,7 @@ export async function refreshCsrfToken() {
 }
 
 export async function request(path, options = {}) {
-  const { method = 'GET', body, handleUnauthorized = true, timeoutMs = 0 } = options
+  const { method = 'GET', body, handleUnauthorized = true, timeoutMs = 0, isCurrent } = options
   const requestEpoch = authEpoch
   const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
@@ -55,6 +55,9 @@ export async function request(path, options = {}) {
   }
   if (requestEpoch !== authEpoch) {
     throw new ApiError('Account changed during request.', 0, 'stale_request')
+  }
+  if (isCurrent && !isCurrent()) {
+    throw new ApiError('Request context changed.', 0, 'stale_request')
   }
 
   const controller = timeoutMs > 0 ? new AbortController() : null

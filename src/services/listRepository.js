@@ -27,8 +27,8 @@ export function deleteList(id) {
   return request(listPath(id), { method: 'DELETE' })
 }
 
-export function addListItem(id, userMediaId) {
-  return request(`${listPath(id)}/items`, { method: 'POST', body: { userMediaId } })
+export function addListItem(id, userMediaId, { isCurrent } = {}) {
+  return request(`${listPath(id)}/items`, { method: 'POST', body: { userMediaId }, isCurrent })
 }
 
 export function removeListItem(id, userMediaId) {

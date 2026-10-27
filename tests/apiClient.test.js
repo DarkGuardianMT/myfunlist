@@ -46,3 +46,22 @@ test('bounded discovery requests time out without changing authentication state'
   assert.equal(expired, 0)
   setSessionExpiredHandler(null)
 })
+
+test('a mutation whose context changes while awaiting CSRF is never sent', async () => {
+  clearCsrfToken()
+  let current = true
+  let finish
+  const calls = []
+  globalThis.fetch = async (path) => {
+    calls.push(path)
+    return new Promise((resolve) => { finish = resolve })
+  }
+  const pending = request('/api/v1/lists/1/items', {
+    method: 'POST', body: { userMediaId: '100' }, isCurrent: () => current,
+  })
+  current = false
+  finish(response({ data: { csrfToken: 'fixture-csrf' } }))
+  await assert.rejects(pending, { code: 'stale_request' })
+  assert.deepEqual(calls, ['/api/v1/auth/csrf'])
+  clearCsrfToken()
+})

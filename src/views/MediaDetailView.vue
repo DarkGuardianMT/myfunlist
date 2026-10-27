@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import MediaDetailHero from '../components/MediaDetailHero.vue'
 import MediaDetailMetadata from '../components/MediaDetailMetadata.vue'
 import MediaDetailLibrary from '../components/MediaDetailLibrary.vue'
+import MediaDetailLists from '../components/MediaDetailLists.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useMediaDetails } from '../composables/useMediaDetails.js'
@@ -32,6 +33,7 @@ const feedback = computed(() => {
     <template v-else-if="status === 'success' && detail">
       <MediaDetailHero :media="detail">
         <MediaDetailLibrary :key="getMediaKey(detail)" :media="detail" />
+        <MediaDetailLists :key="`lists:${getMediaKey(detail)}`" :media="detail" />
       </MediaDetailHero>
       <MediaDetailMetadata :media="detail" />
       <TmdbAttribution v-if="detail.source === 'tmdb'" />

@@ -98,7 +98,7 @@ const libraryCalls = (state, method = 'GET') => state.calls.filter((call) => cal
 function assertPublic(view, type = 'movie') {
   assert.equal(view.get('h1').text(), `Fixture ${type}`)
   assert.equal(view.get('.media-detail-hero__description').text(), 'A public description.')
-  assert.doesNotMatch(view.text(), /Add to (Custom )?List/)
+  assert.equal(view.find('.media-detail-lists__panel').exists(), false)
 }
 
 beforeEach(() => {

@@ -39,6 +39,23 @@ export function invalidateListMemberships() {
   resetLists()
 }
 
+function invalidateListCache(id) {
+  // Titels blijven bruikbaar in een open selector; aantallen en tijdstempels worden bij de volgende laadactie vernieuwd.
+  listsRequest++
+  isListsLoaded.value = false
+  isListsLoading.value = false
+  listsError.value = ''
+  if (loadedId === id) {
+    detailRequest++
+    loadedId = null
+    selectedList.value = null
+    selectedItems.value = []
+    isDetailLoaded.value = false
+    isDetailLoading.value = false
+    detailError.value = ''
+  }
+}
+
 function guardAccount() {
   if (!currentUser.value) throw new Error('Please log in to use Custom Lists.')
   return generation
@@ -132,11 +149,21 @@ export function useLists() {
     }
   }
 
-  async function addToList(id, userMediaId) {
+  async function addToList(id, userMediaId, { refreshDetail = true, isCurrent = () => true } = {}) {
     const requestGeneration = guardAccount()
-    const result = await addListItem(id, userMediaId)
-    if (generation === requestGeneration) await loadList(id, true)
-    return result
+    try {
+      const result = await addListItem(id, userMediaId, {
+        isCurrent: () => generation === requestGeneration && isCurrent(),
+      })
+      if (generation === requestGeneration) {
+        if (refreshDetail) await loadList(id, true)
+        else invalidateListCache(id)
+      }
+      return result
+    } catch (error) {
+      if (!refreshDetail && generation === requestGeneration && error.code === 'list_not_found') invalidateListCache(id)
+      throw error
+    }
   }
 
   async function removeFromList(id, userMediaId) {
