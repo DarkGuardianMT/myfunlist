@@ -47,7 +47,7 @@ final class CurlProviderHttpClient implements ProviderHttpClient
         if ($status === 404) {
             throw new ProviderException(404, 'media_not_found', 'Media was not found.');
         }
-        if ($status === 429 || $status >= 500) {
+        if (in_array($status, [401, 403, 429], true) || $status >= 500) {
             throw new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.');
         }
         if ($status !== 200) {

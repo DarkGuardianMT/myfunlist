@@ -24,6 +24,17 @@ final class MediaRules
         return in_array($mediaType, self::SOURCE_TYPES[$source] ?? [], true);
     }
 
+    public static function isValidSourceId(string $source, string $sourceId): bool
+    {
+        $pattern = match ($source) {
+            'google-books' => '/^[A-Za-z0-9_-]{1,191}$/D',
+            'tmdb', 'rawg' => '/^[1-9][0-9]{0,19}$/D',
+            default => null,
+        };
+
+        return $pattern !== null && preg_match($pattern, $sourceId) === 1;
+    }
+
     public static function defaultStatus(string $mediaType): ?string
     {
         return self::STATUSES[$mediaType][0] ?? null;

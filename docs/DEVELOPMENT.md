@@ -78,12 +78,22 @@ From the repository root:
 npm test
 npm run build
 php backend/tests/database_safety.php
-php backend/tests/discovery.php
-php backend/tests/media_details.php
+composer --working-dir=backend run test:providers
+composer --working-dir=backend run test:api
 ```
 
-These PHP commands do not modify databases; discovery and media detail tests use fake provider responses. From `backend/`, `composer run test:providers` runs both provider suites without live requests or database connections. Media detail resolution currently exists only as a provider interface; no public detail endpoint or frontend detail route is exposed yet.
+These commands do not modify databases or contact live providers. Provider tests cover HTTP error mapping/protections, discovery, and detail normalization. API tests cover routing, public detail responses, and the real bootstrap/middleware/limiter pipeline with provider and counter-storage doubles; the latter accepts only counter SQL and rejects application-table access. The separate guarded MySQL rate-limit suite remains necessary to verify actual database persistence and concurrent workers.
 Run `composer validate --strict` from `backend/` to check the backend package configuration.
+
+### Public media detail API
+
+`GET /api/v1/media/{mediaType}/{source}/{sourceId}` returns `{ "data": <normalized detail> }` for `book/google-books`, `movie/tmdb`, `tv/tmdb`, and `game/rawg`. It works without authentication or CSRF and exposes only public provider metadata, never account membership, personal status/rating, sessions, or Custom Lists. Successful responses use `Cache-Control: no-store`. Opening details does not insert/update media, Library or List rows; only the existing durable limiter counters may be written. No frontend detail route is implemented yet.
+
+Google Books IDs allow 1–191 ASCII letters, digits, underscores, or hyphens. TMDb/RAWG IDs remain positive decimal strings of at most 20 digits, without leading zeroes. Fixed route prefixes and route-specific parameter validators reject unsupported identities, encoded separators, and traversal before provider access. Existing Library/List route IDs keep their numeric constraints. `MediaRules::isValidSourceId()` is shared with Library body validation, whose trimming and 422 error behavior remain unchanged.
+
+The independent `media_detail_ip` policy allows **30 requests per 60-second fixed window per observed IP**, shared across all four detail types. It uses `REMOTE_ADDR`, ignores untrusted forwarded headers, and returns 429 `rate_limited` with `Retry-After` once exhausted. Existing limiter storage and `RATE_LIMIT_SECRET` are required outside testing; failures return safe 503 `service_unavailable`. Discover keeps its separate 60-per-minute policy. Verify real client-IP handling on staging.
+
+Invalid client identities return 404 `not_found`; provider-confirmed missing items return 404 `media_not_found`. Provider timeouts, authentication/authorization failures (401/403), quota responses (429), upstream 5xx, or missing required provider credentials return 503 `provider_unavailable`. Malformed/mismatched payloads return 502 `provider_error`. Error bodies/logs never include raw upstream responses, provider request URLs, or credentials. Google Books continues to use optional backend `GOOGLE_BOOKS_API_KEY`, never the frontend browser key; TMDb/RAWG require their existing backend credentials.
 
 ### Database and HTTP tests
 

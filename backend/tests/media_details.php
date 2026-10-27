@@ -350,7 +350,8 @@ try {
 
     foreach ([404 => [404, 'media_not_found'], 429 => [503, 'provider_unavailable'],
         500 => [503, 'provider_unavailable'], 502 => [502, 'provider_error'],
-        503 => [503, 'provider_unavailable'], 401 => [502, 'provider_error']] as $upstream => [$status, $code]) {
+        503 => [503, 'provider_unavailable'], 401 => [503, 'provider_unavailable'],
+        403 => [503, 'provider_unavailable']] as $upstream => [$status, $code]) {
         $http->failure = new ProviderException($upstream, 'unsafe', 'https://provider.test/?key=fixture-secret');
         expectDetailError(static fn () => $resolver->resolveDetail(...$identities['movie']), $status, $code);
     }

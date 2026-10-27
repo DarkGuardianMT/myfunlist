@@ -6,11 +6,13 @@ use MyFunList\Http\Application;
 use MyFunList\Auth\AuthService;
 use MyFunList\Auth\PasswordHasher;
 use MyFunList\Auth\ProfileService;
+use MyFunList\Domain\MediaRules;
 use MyFunList\Http\Controllers\AuthController;
 use MyFunList\Http\Controllers\DiscoverController;
 use MyFunList\Http\Controllers\HealthController;
 use MyFunList\Http\Controllers\LibraryController;
 use MyFunList\Http\Controllers\ListController;
+use MyFunList\Http\Controllers\MediaController;
 use MyFunList\Http\Controllers\ProfileController;
 use MyFunList\Http\JsonResponse;
 use MyFunList\Http\Middleware\AuthMiddleware;
@@ -46,11 +48,17 @@ $libraryService = new LibraryService($database, $providers);
 $library = new LibraryController($libraryService, new LibraryImportService($libraryService));
 $lists = new ListController(new ListService($database));
 $discover = new DiscoverController($providers);
+$media = new MediaController($providers);
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
 foreach (['movie', 'tv', 'game'] as $mediaType) {
     $router->add('GET', '/api/v1/discover/' . $mediaType,
         $limits->ip('discover_ip', static fn (): JsonResponse => $discover->search($mediaType, $_GET)));
+}
+foreach (['book' => 'google-books', 'movie' => 'tmdb', 'tv' => 'tmdb', 'game' => 'rawg'] as $mediaType => $source) {
+    $router->add('GET', '/api/v1/media/' . $mediaType . '/' . $source . '/{sourceId}',
+        $limits->ip('media_detail_ip', static fn (string $sourceId): JsonResponse => $media->show($mediaType, $source, $sourceId)),
+        ['sourceId' => static fn (string $sourceId): bool => MediaRules::isValidSourceId($source, $sourceId)]);
 }
 $router->add('GET', '/api/v1/auth/csrf', [$auth, 'csrf']);
 $router->add('POST', '/api/v1/auth/register', $middleware->csrf(

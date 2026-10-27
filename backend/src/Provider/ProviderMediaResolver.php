@@ -25,8 +25,7 @@ final class ProviderMediaResolver implements MediaResolver, MediaSearcher, Media
 
     public function resolveDetail(string $source, string $mediaType, string $sourceId): array
     {
-        $idPattern = $source === 'google-books' ? '/^[A-Za-z0-9_-]{1,191}$/D' : '/^[1-9][0-9]{0,19}$/D';
-        if (!MediaRules::supports($source, $mediaType) || preg_match($idPattern, $sourceId) !== 1) {
+        if (!MediaRules::supports($source, $mediaType) || !MediaRules::isValidSourceId($source, $sourceId)) {
             throw self::invalid();
         }
 
@@ -36,7 +35,7 @@ final class ProviderMediaResolver implements MediaResolver, MediaSearcher, Media
             // Neem nooit foutteksten over die een provider-URL of sleutel kunnen bevatten.
             throw match ($exception->status) {
                 404 => new ProviderException(404, 'media_not_found', 'Media was not found.'),
-                429, 503 => new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.'),
+                401, 403, 429, 503 => new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.'),
                 default => $exception->status >= 500 && $exception->status !== 502
                     ? new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.')
                     : self::invalid(),

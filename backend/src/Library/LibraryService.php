@@ -210,11 +210,7 @@ final class LibraryService
         $id = $values['sourceId'] ?? null;
         $id = is_string($id) ? trim($id) : null;
 
-        $validId = is_string($source) && is_string($type) && is_string($id)
-            && ((($source === 'tmdb' || $source === 'rawg')
-                    && preg_match('/^[1-9][0-9]{0,19}$/D', $id) === 1)
-                || ($source === 'google-books'
-                    && preg_match('/^[A-Za-z0-9_-]{1,191}$/D', $id) === 1));
+        $validId = is_string($source) && is_string($id) && MediaRules::isValidSourceId($source, $id);
         if (!is_string($source) || !is_string($type)
             || !MediaRules::supports($source, $type)
             || !$validId || array_diff(array_keys($values), ['source', 'mediaType', 'sourceId']) !== []) {
