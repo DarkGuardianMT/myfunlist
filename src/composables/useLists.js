@@ -34,6 +34,11 @@ export function resetLists() {
   loadedId = null
 }
 
+export function invalidateListMemberships() {
+  // Library-verwijdering wijzigt aantallen en lidmaatschappen; oude requests mogen die cache niet herstellen.
+  resetLists()
+}
+
 function guardAccount() {
   if (!currentUser.value) throw new Error('Please log in to use Custom Lists.')
   return generation

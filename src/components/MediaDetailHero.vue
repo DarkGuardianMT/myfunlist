@@ -35,6 +35,7 @@ watch(() => props.media.backdropImage, () => { backdropFailed.value = false })
           <li v-for="genre in media.genres" :key="genre">{{ genre }}</li>
         </ul>
         <p v-if="media.description" class="media-detail-hero__description">{{ media.description }}</p>
+        <slot />
       </div>
     </div>
   </header>

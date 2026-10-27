@@ -1,5 +1,6 @@
 import { readonly, ref } from 'vue'
 import { currentUser } from './authState.js'
+import { invalidateListMemberships } from './useLists.js'
 import {
   addItem, clearLibraryRepository, getLibrary, getMediaKey, removeItem,
   updateRating, updateStatus,
@@ -101,6 +102,7 @@ export function useLibrary() {
     const removed = await removeItem(mediaKey)
     if (requestGeneration === generation && removed) {
       libraryItems.value = libraryItems.value.filter((item) => item.userMedia.mediaKey !== mediaKey)
+      invalidateListMemberships()
     }
     return removed
   }

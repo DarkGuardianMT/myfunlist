@@ -3,9 +3,11 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import MediaDetailHero from '../components/MediaDetailHero.vue'
 import MediaDetailMetadata from '../components/MediaDetailMetadata.vue'
+import MediaDetailLibrary from '../components/MediaDetailLibrary.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useMediaDetails } from '../composables/useMediaDetails.js'
+import { getMediaKey } from '../domain/mediaIdentity.js'
 
 const route = useRoute()
 const identity = computed(() => ({ mediaType: route.params.mediaType, source: route.params.source, sourceId: route.params.sourceId }))
@@ -28,7 +30,9 @@ const feedback = computed(() => {
       <p>Getting the details for this item.</p>
     </div>
     <template v-else-if="status === 'success' && detail">
-      <MediaDetailHero :media="detail" />
+      <MediaDetailHero :media="detail">
+        <MediaDetailLibrary :key="getMediaKey(detail)" :media="detail" />
+      </MediaDetailHero>
       <MediaDetailMetadata :media="detail" />
       <TmdbAttribution v-if="detail.source === 'tmdb'" />
       <RawgAttribution v-else-if="detail.source === 'rawg'" />

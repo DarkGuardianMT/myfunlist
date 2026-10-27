@@ -1,8 +1,7 @@
 import test, { after, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { JSDOM } from 'jsdom'
-import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc'
+import { loadVueComponent } from './support/vueComponent.js'
 import { identities, ok } from './support/mediaDetails.js'
 import { getMediaDetailRoute, getMediaDetailPath } from '../src/domain/mediaIdentity.js'
 
@@ -17,26 +16,8 @@ const { currentUser, isAuthLoading } = await import('../src/composables/authStat
 const { resetLibrary } = await import('../src/composables/useLibrary.js')
 const { clearCsrfToken } = await import('../src/services/apiClient.js')
 
-const compiled = new Map()
-async function componentModule(url) {
-  if (compiled.has(url.href)) return compiled.get(url.href)
-  const { descriptor } = parse(readFileSync(url, 'utf8'))
-  let code = descriptor.script || descriptor.scriptSetup
-    ? compileScript(descriptor, { id: url.pathname, inlineTemplate: true }).content
-    : compileTemplate({ source: descriptor.template.content, filename: url.pathname, id: url.pathname }).code
-      .replace('export function render', 'function render') + '\nexport default { render }'
-  code = code.replace(/from ['"](vue|vue-router)['"]/g, (_, name) => `from '${import.meta.resolve(name)}'`)
-  code = code.replace(/from ['"](\.[^'"]+\.js)['"]/g, (_, relative) => `from '${new URL(relative, url).href}'`)
-  code = code.replace(/import (\w+) from ['"][^'"]+\.svg['"]/g, (_, name) => `const ${name} = '/fixture-logo.svg'`)
-  for (const match of [...code.matchAll(/import (\w+) from ['"](\.[^'"]+\.vue)['"]/g)]) {
-    code = code.replace(match[0], `import ${match[1]} from '${await componentModule(new URL(match[2], url))}'`)
-  }
-  const result = `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`
-  compiled.set(url.href, result)
-  return result
-}
 async function loadComponent(name) {
-  return (await import(await componentModule(new URL(`../src/${name}.vue`, import.meta.url)))).default
+  return loadVueComponent(new URL(`../src/${name}.vue`, import.meta.url))
 }
 const DiscoverView = await loadComponent('views/DiscoverView')
 const LibraryItemCard = await loadComponent('components/LibraryItemCard')

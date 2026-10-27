@@ -1,0 +1,66 @@
+<script setup>
+import { getStatusOptions, PERSONAL_RATINGS } from '../domain/libraryMedia.js'
+
+defineProps({
+  item: { type: Object, required: true },
+  busy: { type: Boolean, required: true },
+})
+
+defineEmits(['status-change', 'rating-change', 'remove'])
+
+const statusLabels = {
+  book: 'Reading status',
+  movie: 'Watch status',
+  tv: 'Watching status',
+  game: 'Play status',
+}
+</script>
+
+<template>
+  <div class="library-item-controls">
+    <label :for="`status-${item.userMedia.mediaKey}`">
+      {{ statusLabels[item.media.mediaType] }}
+    </label>
+    <select
+      :id="`status-${item.userMedia.mediaKey}`"
+      :value="item.userMedia.status"
+      :disabled="busy"
+      :aria-label="`${statusLabels[item.media.mediaType]} for ${item.media.title}`"
+      @change="$emit('status-change', item, $event)"
+    >
+      <option
+        v-for="option in getStatusOptions(item.media.mediaType)"
+        :key="option.value"
+        :value="option.value"
+      >
+        {{ option.label }}
+      </option>
+    </select>
+    <p class="personal-rating">
+      Personal rating:
+      <strong>{{ item.userMedia.rating === null ? 'Unrated' : `${item.userMedia.rating} / 10` }}</strong>
+    </p>
+    <label :for="`rating-${item.userMedia.mediaKey}`">Personal rating</label>
+    <select
+      :id="`rating-${item.userMedia.mediaKey}`"
+      :value="item.userMedia.rating ?? ''"
+      :disabled="busy"
+      :aria-label="`Personal rating for ${item.media.title}`"
+      @change="$emit('rating-change', item, $event)"
+    >
+      <option value="">Not rated</option>
+      <option v-for="rating in PERSONAL_RATINGS" :key="rating" :value="rating">
+        {{ rating }} / 10
+      </option>
+    </select>
+    <button
+      class="remove-button"
+      type="button"
+      :disabled="busy"
+      :aria-label="`Remove ${item.media.title} from Library`"
+      @click="$emit('remove', item)"
+    >
+      Remove from Library
+    </button>
+  </div>
+</template>
