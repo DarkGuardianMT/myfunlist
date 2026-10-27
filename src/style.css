@@ -725,6 +725,22 @@ a:focus-visible {
   gap: 1.25rem;
 }
 
+.media-card-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.media-card-title-link:hover,
+.media-card-title-link:focus-visible {
+  text-decoration: underline;
+}
+
+.book-card__cover:focus-visible,
+.media-card__poster:focus-visible,
+.game-card__image:focus-visible {
+  outline-offset: -3px;
+}
+
 .game-card {
   overflow: hidden;
   min-width: 0;
@@ -735,6 +751,7 @@ a:focus-visible {
 }
 
 .game-card__image {
+  display: block;
   aspect-ratio: 16 / 9;
   background: var(--color-surface-soft);
 }
@@ -816,6 +833,7 @@ a:focus-visible {
 }
 
 .media-card__poster {
+  display: block;
   overflow: hidden;
   width: 6rem;
   aspect-ratio: 2 / 3;
@@ -941,6 +959,7 @@ a:focus-visible {
 }
 
 .book-card__cover {
+  display: block;
   overflow: hidden;
   width: 5.5rem;
   aspect-ratio: 2 / 3;

@@ -5,8 +5,15 @@ import { renderToString } from 'vue/server-renderer'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createServer } from 'vite'
 
+function cardApp(component, props, slots) {
+  return createSSRApp({ render: () => h(component, props, slots) }).use(createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/media/:mediaType/:source/:sourceId', name: 'media-detail', component: {} }],
+  }))
+}
+
 test('game Library card and discovery controls render with shared components', async () => {
-  const server = await createServer({ server: { middlewareMode: true }, appType: 'custom' })
+  const server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' })
   try {
     const { default: LibraryItemCard } = await server.ssrLoadModule('/src/components/LibraryItemCard.vue')
     const { default: GameCard } = await server.ssrLoadModule('/src/components/GameCard.vue')
@@ -26,16 +33,16 @@ test('game Library card and discovery controls render with shared components', a
       media: game,
       userMedia: { mediaKey: 'rawg:game:654', status: 'playing', rating: 8, addedAt: '2026-01-01' },
     }
-    const libraryHtml = await renderToString(createSSRApp({ render: () => h(LibraryItemCard, { item, busy: false }) }))
+    const libraryHtml = await renderToString(cardApp(LibraryItemCard, { item, busy: false }))
     for (const expected of ['Stardew Valley', '2016', 'PC, Switch', 'Play status', 'Want to Play', 'Playing', 'Completed', 'Dropped', '8 / 10', 'Remove from Library']) {
       assert.ok(libraryHtml.includes(expected), `Missing Library content: ${expected}`)
     }
 
-    const discoverCardHtml = await renderToString(createSSRApp({ render: () => h(GameCard, { game }, {
+    const discoverCardHtml = await renderToString(cardApp(GameCard, { game }, {
       default: () => h(LibraryAddButton, {
         media: game, isLibraryLoaded: true, isAdded: true, isAdding: false, hasIdentity: true,
       }),
-    }) }))
+    }))
     assert.ok(discoverCardHtml.includes('No artwork'))
     assert.ok(discoverCardHtml.includes('In Library'))
 
@@ -51,9 +58,9 @@ test('game Library card and discovery controls render with shared components', a
     assert.ok(anonymousButtonHtml.includes('Log in to add'))
     assert.ok(!anonymousButtonHtml.includes('disabled'))
 
-    const missingMetadataHtml = await renderToString(createSSRApp({ render: () => h(GameCard, {
+    const missingMetadataHtml = await renderToString(cardApp(GameCard, {
       game: { ...game, releaseYear: null, platforms: [] },
-    }) }))
+    }))
     assert.ok(missingMetadataHtml.includes('Release year unknown'))
     assert.ok(missingMetadataHtml.includes('Platforms unknown'))
 
@@ -104,8 +111,7 @@ test('game Library card and discovery controls render with shared components', a
       })),
     }) })
     await useLibrary().loadLibrary()
-    const libraryApp = createSSRApp({ render: () => h(LibraryView) })
-    libraryApp.component('RouterLink', { render: () => null })
+    const libraryApp = cardApp(LibraryView)
     const libraryViewHtml = await renderToString(libraryApp)
     assert.ok(libraryViewHtml.includes('value="game"'))
     for (const title of ['Example Book', 'Example Movie', 'Example Show', 'Stardew Valley']) {

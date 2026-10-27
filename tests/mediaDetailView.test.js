@@ -83,6 +83,14 @@ test('named detail route resolves canonical identities on direct entry without a
   assert.doesNotMatch(view.text(), /Add to Library|Add to list|Personal rating/)
 })
 
+test('router starts new pages at the top and restores the browser history scroll position', () => {
+  const scroll = configuredRouter.options.scrollBehavior
+  assert.deepEqual(scroll({ name: 'media-detail' }, { path: '/discover' }, null), { left: 0, top: 0 })
+  assert.deepEqual(scroll({ name: 'media-detail' }, { name: 'media-detail' }, null), { left: 0, top: 0 })
+  const savedPosition = { left: 0, top: 640 }
+  assert.equal(scroll({ path: '/library' }, { name: 'media-detail' }, savedPosition), savedPosition)
+})
+
 test('Book/Movie/TV/Game pages render their own metadata and provider attribution', async () => {
   for (const [type, identity] of Object.entries(identities)) {
     globalThis.fetch = async () => ok(mediaDetail(type))

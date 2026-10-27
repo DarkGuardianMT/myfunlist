@@ -11,6 +11,7 @@ defineProps({
 
 <template>
   <MediaCard
+    :media="show"
     :title="show.title"
     :image="show.posterImage"
     :image-alt="`Poster for ${show.title}`"

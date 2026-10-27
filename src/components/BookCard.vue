@@ -1,5 +1,7 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { getMediaDetailRoute } from '../domain/mediaIdentity.js'
 
 const props = defineProps({
   book: {
@@ -9,6 +11,8 @@ const props = defineProps({
 })
 
 const coverImageFailed = ref(false)
+const detailRoute = computed(() => getMediaDetailRoute(props.book))
+const artworkRoute = computed(() => props.book.coverImage && !coverImageFailed.value ? detailRoute.value : null)
 
 watch(
   () => props.book.coverImage,
@@ -20,7 +24,12 @@ watch(
 
 <template>
   <article class="book-card">
-    <div class="book-card__cover">
+    <component
+      :is="artworkRoute ? RouterLink : 'div'"
+      class="book-card__cover"
+      :to="artworkRoute || undefined"
+      :aria-label="artworkRoute ? `View details for ${book.title}` : undefined"
+    >
       <img
         v-if="book.coverImage && !coverImageFailed"
         :src="book.coverImage"
@@ -31,10 +40,13 @@ watch(
       <div v-else class="book-card__cover-fallback" aria-hidden="true">
         <span>No cover</span>
       </div>
-    </div>
+    </component>
 
     <div class="book-card__details">
-      <h3>{{ book.title }}</h3>
+      <h3>
+        <RouterLink v-if="detailRoute" class="media-card-title-link" :to="detailRoute">{{ book.title }}</RouterLink>
+        <template v-else>{{ book.title }}</template>
+      </h3>
       <p class="book-card__authors">
         {{ book.authors.length ? book.authors.join(', ') : 'Unknown author' }}
       </p>

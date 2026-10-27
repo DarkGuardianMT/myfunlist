@@ -11,6 +11,9 @@ import MediaDetailView from '../views/MediaDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
+  scrollBehavior(_to, _from, savedPosition) {
+    return savedPosition || { left: 0, top: 0 }
+  },
   routes: [
     { path: '/', component: HomeView },
     { path: '/discover', component: DiscoverView },

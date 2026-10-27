@@ -1,7 +1,13 @@
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { RouterLink } from 'vue-router'
+import { getMediaDetailRoute } from '../domain/mediaIdentity.js'
 
 const props = defineProps({
+  media: {
+    type: Object,
+    default: null,
+  },
   title: {
     type: String,
     required: true,
@@ -25,6 +31,8 @@ const props = defineProps({
 })
 
 const imageFailed = ref(false)
+const detailRoute = computed(() => getMediaDetailRoute(props.media))
+const artworkRoute = computed(() => props.image && !imageFailed.value ? detailRoute.value : null)
 
 watch(
   () => props.image,
@@ -36,7 +44,12 @@ watch(
 
 <template>
   <article class="media-card">
-    <div class="media-card__poster">
+    <component
+      :is="artworkRoute ? RouterLink : 'div'"
+      class="media-card__poster"
+      :to="artworkRoute || undefined"
+      :aria-label="artworkRoute ? `View details for ${title}` : undefined"
+    >
       <img
         v-if="image && !imageFailed"
         :src="image"
@@ -47,10 +60,13 @@ watch(
       <div v-else class="media-card__poster-fallback" aria-hidden="true">
         <span>No poster</span>
       </div>
-    </div>
+    </component>
 
     <div class="media-card__details">
-      <h3>{{ title }}</h3>
+      <h3>
+        <RouterLink v-if="detailRoute" class="media-card-title-link" :to="detailRoute">{{ title }}</RouterLink>
+        <template v-else>{{ title }}</template>
+      </h3>
       <p class="media-card__year">{{ year || 'Year unknown' }}</p>
       <p class="media-card__description">{{ description || 'No description available.' }}</p>
     </div>
