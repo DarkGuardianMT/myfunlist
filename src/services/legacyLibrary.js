@@ -1,9 +1,11 @@
 import {
   getDefaultStatus,
   isValidStatus,
-  MEDIA_TYPES,
   PERSONAL_RATINGS,
 } from '../domain/libraryMedia.js'
+import { getMediaKey } from '../domain/mediaIdentity.js'
+
+export { getMediaKey }
 
 const STORAGE_KEY = 'myfunlist_library'
 const LEGACY_STORAGE_KEY = 'trackora_library'
@@ -15,16 +17,6 @@ function getStorage() {
   } catch {
     return null
   }
-}
-
-export function getMediaKey(media) {
-  const source = typeof media?.source === 'string' ? media.source.trim() : ''
-  const sourceId = typeof media?.sourceId === 'string' ? media.sourceId.trim() : ''
-  const mediaType = media?.mediaType
-
-  return source && sourceId && MEDIA_TYPES.includes(mediaType)
-    ? `${source}:${mediaType}:${sourceId}`
-    : null
 }
 
 function optionalText(value) {

@@ -7,12 +7,14 @@ import ListsView from '../views/ListsView.vue'
 import ListDetailView from '../views/ListDetailView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
+import MediaDetailView from '../views/MediaDetailView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', component: HomeView },
     { path: '/discover', component: DiscoverView },
+    { path: '/media/:mediaType/:source/:sourceId', name: 'media-detail', component: MediaDetailView },
     { path: '/library', component: LibraryView },
     { path: '/lists', component: ListsView },
     { path: '/lists/:id', component: ListDetailView },
