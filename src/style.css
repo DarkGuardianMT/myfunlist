@@ -515,6 +515,11 @@ a:focus-visible {
 }
 
 .discover-type-switcher__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 0;
   border: 0;
   border-radius: 0.45rem;
   background: transparent;
@@ -535,9 +540,15 @@ a:focus-visible {
   box-shadow: inset 0 -3px 0 var(--color-primary);
 }
 
-.discover-type-switcher__button--active::before {
+.discover-type-switcher__button::before {
+  flex: 0 0 1em;
   margin-right: 0.35rem;
   content: '✓';
+  visibility: hidden;
+}
+
+.discover-type-switcher__button--active::before {
+  visibility: visible;
 }
 
 .discover-type-switcher__button:focus-visible {
@@ -1122,6 +1133,8 @@ a:focus-visible {
 }
 
 @media (max-width: 640px) {
+  .discover-type-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 24rem); }
+  .discover-type-switcher__button { padding-inline: 0.65rem; }
   .home-highlights { grid-template-columns: 1fr; }
   .list-add-form { grid-template-columns: 1fr; }
   .profile-details > div { grid-template-columns: 1fr; gap: 0.1rem; }

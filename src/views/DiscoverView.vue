@@ -138,7 +138,8 @@ function isAdding(media) {
 }
 
 function cardProps(media) {
-  return { [activeResultPresentation.value.prop]: media }
+  return { [activeResultPresentation.value.prop]: media,
+    ...(activeMediaType.value === 'book' ? { compactMetadata: true } : {}) }
 }
 </script>
 

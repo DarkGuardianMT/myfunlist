@@ -20,7 +20,7 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
     let code = compileScript(descriptor, { id: 'discover-test', inlineTemplate: true }).content
     code = code.replace(/from ['"]vue['"]/g, `from '${import.meta.resolve('vue')}'`)
     code = code.replace(/import (\w+) from ['"]\.\.\/components\/[^'"]+\.vue['"]/g,
-      "const $1 = { props: ['book', 'movie', 'show', 'game'], render() { return this.book?.title || this.movie?.title || this.show?.title || this.game?.title || null } }")
+      "const $1 = { props: ['book', 'movie', 'show', 'game', 'compactMetadata'], render() { return this.book?.title || this.movie?.title || this.show?.title || this.game?.title || null } }")
     code = code.replace(/from ['"](\.\.\/(?:composables|services)\/[^'"]+\.js)['"]/g,
       (_match, path) => `from '${new URL(path, componentUrl).href}'`)
     const { default: DiscoverView } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
