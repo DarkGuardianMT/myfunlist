@@ -68,7 +68,7 @@ test('game Library card and discovery controls render with shared components', a
     assert.ok(attributionHtml.includes('href="https://rawg.io/"'))
 
     const discoverApp = createSSRApp({ render: () => h(DiscoverView) })
-    discoverApp.component('RouterLink', { render: () => null })
+    discoverApp.use(createRouter({ history: createMemoryHistory(), routes: [] }))
     const discoverHtml = await renderToString(discoverApp)
     for (const expected of ['Books', 'Movies', 'TV Shows', 'Games']) {
       assert.ok(discoverHtml.includes(expected), `Missing discovery selector: ${expected}`)

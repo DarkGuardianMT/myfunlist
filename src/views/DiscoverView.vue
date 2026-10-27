@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import BookCard from '../components/BookCard.vue'
 import GameCard from '../components/GameCard.vue'
 import LibraryAddButton from '../components/LibraryAddButton.vue'
@@ -9,14 +9,7 @@ import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useAuth } from '../composables/useAuth.js'
-import { getGoogleBooksErrorMessage, searchBooks } from '../services/googleBooks.js'
-import {
-  getRawgErrorMessage,
-  getTmdbErrorMessage,
-  searchGames,
-  searchMovies,
-  searchTvShows,
-} from '../services/mediaDiscovery.js'
+import { useDiscoverSearch } from '../composables/useDiscoverSearch.js'
 
 const discoveryTypes = [
   {
@@ -73,35 +66,7 @@ const discoveryTypes = [
   },
 ]
 
-function createSearchState() {
-  return reactive({
-    query: '',
-    results: [],
-    status: 'idle',
-    searchedQuery: '',
-    errorMessage: '',
-  })
-}
-
-const activeMediaType = ref('book')
-const searchStates = {
-  book: createSearchState(),
-  movie: createSearchState(),
-  tv: createSearchState(),
-  game: createSearchState(),
-}
-const searchFunctions = {
-  book: searchBooks,
-  movie: searchMovies,
-  tv: searchTvShows,
-  game: searchGames,
-}
-const searchErrorMessages = {
-  book: getGoogleBooksErrorMessage,
-  movie: getTmdbErrorMessage,
-  tv: getTmdbErrorMessage,
-  game: getRawgErrorMessage,
-}
+const { activeMediaType, activeSearch, activeQuery, selectMediaType, handleSearch } = useDiscoverSearch()
 const resultPresentation = {
   book: { component: BookCard, prop: 'book', grid: 'book-grid', label: 'Book search results' },
   movie: { component: MovieCard, prop: 'movie', grid: 'media-grid', label: 'Movie search results' },
@@ -111,14 +76,7 @@ const resultPresentation = {
 const activeType = computed(
   () => discoveryTypes.find((type) => type.id === activeMediaType.value) || discoveryTypes[0],
 )
-const activeSearch = computed(() => searchStates[activeMediaType.value])
 const activeResultPresentation = computed(() => resultPresentation[activeMediaType.value])
-const activeQuery = computed({
-  get: () => activeSearch.value.query,
-  set: (value) => {
-    activeSearch.value.query = value
-  },
-})
 const addingMediaKeys = ref(new Set())
 const libraryFeedback = ref('')
 const libraryFeedbackType = ref('status')
@@ -139,35 +97,7 @@ watch([currentUser, isAuthLoading], async () => {
   try { await loadLibrary() } catch { /* De gedeelde foutstatus toont de oorzaak. */ }
 }, { immediate: true })
 
-function selectMediaType(mediaType) {
-  activeMediaType.value = mediaType
-  libraryFeedback.value = ''
-}
-
-async function handleSearch() {
-  const mediaType = activeMediaType.value
-  const searchState = searchStates[mediaType]
-  const trimmedQuery = searchState.query.trim()
-
-  if (!trimmedQuery || searchState.status === 'loading') {
-    return
-  }
-
-  libraryFeedback.value = ''
-
-  searchState.status = 'loading'
-  searchState.searchedQuery = trimmedQuery
-  searchState.errorMessage = ''
-
-  try {
-    searchState.results = await searchFunctions[mediaType](trimmedQuery)
-    searchState.status = searchState.results.length ? 'success' : 'empty'
-  } catch (error) {
-    searchState.results = []
-    searchState.status = 'error'
-    searchState.errorMessage = searchErrorMessages[mediaType](error)
-  }
-}
+watch([activeMediaType, activeSearch], () => { libraryFeedback.value = '' })
 
 async function handleAddToLibrary(media) {
   if (!currentUser.value) {

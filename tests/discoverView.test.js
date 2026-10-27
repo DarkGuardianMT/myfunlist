@@ -61,6 +61,7 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
         path, component: { render: () => null },
       })),
     })
+    await router.push('/discover')
     view = mount(DiscoverView, { global: { plugins: [router] } })
 
     await view.get('#book-query').setValue('The Hobbit')
@@ -70,14 +71,17 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
     assert.ok(calls.some((path) => path.startsWith('https://www.googleapis.com/books/')))
 
     await view.findAll('.discover-type-switcher__button')[1].trigger('click')
+    await flushPromises()
     await view.get('#movie-query').setValue('The Matrix')
     await view.get('form').trigger('submit')
+    await flushPromises()
     assert.match(view.text(), /Searching TMDB/)
     assert.notEqual(view.get('button[type="submit"]').attributes('disabled'), undefined)
     await view.get('form').trigger('submit')
     assert.equal(calls.filter((path) => path.startsWith('/api/v1/discover/movie?')).length, 1)
 
     await view.findAll('.discover-type-switcher__button')[3].trigger('click')
+    await flushPromises()
     await view.get('#game-query').setValue('Portal')
     await view.get('form').trigger('submit')
     await flushPromises()
@@ -91,15 +95,18 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
     assert.match(view.text(), /Portal/)
     assert.doesNotMatch(view.text(), /The Matrix/)
     await view.findAll('.discover-type-switcher__button')[1].trigger('click')
+    await flushPromises()
     assert.match(view.text(), /The Matrix/)
 
     await view.findAll('.discover-type-switcher__button')[2].trigger('click')
+    await flushPromises()
     await view.get('#tv-query').setValue('unknown')
     await view.get('form').trigger('submit')
     await flushPromises()
     assert.match(view.text(), /No TV shows found/)
 
     await view.findAll('.discover-type-switcher__button')[3].trigger('click')
+    await flushPromises()
     await view.get('#game-query').setValue('fail')
     await view.get('form').trigger('submit')
     await flushPromises()

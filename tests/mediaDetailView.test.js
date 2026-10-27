@@ -21,6 +21,7 @@ const MediaDetailView = await loadVueComponent(new URL('../src/views/MediaDetail
 let routerCode = readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8')
 routerCode = routerCode.replace(/import (\w+) from ['"][^'"]+\.vue['"]/g, (_, name) => `const ${name} = { render: () => null }`)
 routerCode = routerCode.replace("from 'vue-router'", `from '${import.meta.resolve('vue-router')}'`)
+routerCode = routerCode.replace("from './browsingContext.js'", `from '${new URL('../src/router/browsingContext.js', import.meta.url).href}'`)
 routerCode = routerCode.replace('createWebHistory(import.meta.env.BASE_URL)', 'testHistory()')
 routerCode = `import { createMemoryHistory as testHistory } from '${import.meta.resolve('vue-router')}'\n${routerCode}`
 const { default: configuredRouter } = await import(`data:text/javascript;base64,${Buffer.from(routerCode).toString('base64')}`)
@@ -65,12 +66,12 @@ test('named detail route resolves canonical identities on direct entry without a
   assert.doesNotMatch(view.text(), /Add to Library|Add to list|Personal rating/)
 })
 
-test('router starts new pages at the top and restores the browser history scroll position', () => {
+test('router starts new pages at the top and restores the browser history scroll position', async () => {
   const scroll = configuredRouter.options.scrollBehavior
   assert.deepEqual(scroll({ name: 'media-detail' }, { path: '/discover' }, null), { left: 0, top: 0 })
   assert.deepEqual(scroll({ name: 'media-detail' }, { name: 'media-detail' }, null), { left: 0, top: 0 })
   const savedPosition = { left: 0, top: 640 }
-  assert.equal(scroll({ path: '/library' }, { name: 'media-detail' }, savedPosition), savedPosition)
+  assert.equal(await scroll({ path: '/library' }, { name: 'media-detail' }, savedPosition), savedPosition)
 })
 
 test('Book/Movie/TV/Game pages render their own metadata and provider attribution', async () => {

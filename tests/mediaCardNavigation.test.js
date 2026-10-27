@@ -15,6 +15,7 @@ const { createRouter, createMemoryHistory, RouterLink } = await import('vue-rout
 const { currentUser, isAuthLoading } = await import('../src/composables/authState.js')
 const { resetLibrary } = await import('../src/composables/useLibrary.js')
 const { clearCsrfToken } = await import('../src/services/apiClient.js')
+const { clearDiscoverCache } = await import('../src/composables/useDiscoverSearch.js')
 
 async function loadComponent(name) {
   return loadVueComponent(new URL(`../src/${name}.vue`, import.meta.url))
@@ -83,6 +84,7 @@ afterEach(() => {
   isAuthLoading.value = false
   resetLibrary()
   clearCsrfToken()
+  clearDiscoverCache()
   globalThis.fetch = originalFetch
 })
 after(() => dom.window.close())
@@ -107,6 +109,7 @@ for (const [index, type] of ['book', 'movie', 'tv', 'game'].entries()) {
     }
     const { view, router } = await render(DiscoverView)
     await view.findAll('.discover-type-switcher__button')[index].trigger('click')
+    await flushPromises()
     await view.get(`#${type}-query`).setValue('Fixture')
     await view.get('form').trigger('submit')
     await flushPromises()

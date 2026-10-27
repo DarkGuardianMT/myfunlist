@@ -5,15 +5,15 @@ import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useAuth } from '../composables/useAuth.js'
+import { useLibraryBrowsing } from '../composables/useLibraryBrowsing.js'
+import { useBrowsingReady } from '../router/browsingContext.js'
 import { getStatusOptions } from '../domain/libraryMedia.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
 
 const busyMediaKeys = ref(new Set())
 const feedback = ref('')
 const feedbackType = ref('status')
-const mediaTypeFilter = ref('all')
-const statusFilter = ref('all')
-const sortOrder = ref('recent')
+const { mediaTypeFilter, statusFilter, sortOrder } = useLibraryBrowsing()
 const { currentUser, isAuthLoading, authError } = useAuth()
 const {
   libraryItems,
@@ -41,9 +41,9 @@ const hasVisibleTmdbMedia = computed(() =>
   visibleLibraryItems.value.some((item) => item.media.source === 'tmdb'),
 )
 
-watch(mediaTypeFilter, () => {
-  statusFilter.value = 'all'
-})
+useBrowsingReady('/library', computed(() => !isAuthLoading.value && (
+  !currentUser.value || isLibraryLoaded.value || Boolean(libraryError.value)
+)))
 
 watch([currentUser, isAuthLoading], async () => {
   feedback.value = ''
