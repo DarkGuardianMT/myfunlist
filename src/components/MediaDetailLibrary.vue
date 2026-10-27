@@ -98,8 +98,8 @@ function remove(item) {
   <section class="media-detail-library" aria-labelledby="media-library-title" :aria-busy="busy || isAuthLoading || isLibraryLoading">
     <h2 id="media-library-title">Library</h2>
     <p v-if="isAuthLoading" role="status">Checking your session…</p>
-    <div v-else-if="!currentUser">
-      <RouterLink class="inline-link" to="/login">Log in to add to Library</RouterLink>
+    <div v-else-if="!currentUser" class="media-detail-library__auth">
+      <RouterLink class="inline-link media-detail-library__login" to="/login">Log in to add to Library</RouterLink>
       <RouterLink class="inline-link" to="/register">Register</RouterLink>
     </div>
     <p v-else-if="isLibraryLoading || (!isLibraryLoaded && !libraryError)" role="status">Loading your Library…</p>
@@ -131,6 +131,17 @@ function remove(item) {
 </template>
 
 <style scoped>
-.media-detail-library { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--color-border); }
+.media-detail-library { min-width: 0; overflow-wrap: anywhere; }
 .media-detail-library h2 { margin: 0 0 0.75rem; font-size: 1.1rem; }
+.media-detail-library :deep(button), .media-detail-library :deep(select), .media-detail-library a { min-height: 44px; min-width: 44px; max-width: 100%; }
+.media-detail-library :deep(select) { font-size: 1rem; }
+.media-detail-library :deep(.remove-button) { justify-self: start; width: fit-content; border-color: transparent; background: transparent; font-weight: 600; text-decoration: underline; text-underline-offset: 0.2em; }
+.media-detail-library :deep(.remove-button:hover:not(:disabled)) { background: var(--color-danger-soft); }
+.media-detail-library .text-button { padding: 0.65rem 0.85rem; border: 1px solid var(--color-control-border); border-radius: 0.5rem; text-decoration: none; }
+.media-detail-library__auth { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.media-detail-library__auth a { display: inline-flex; align-items: center; justify-content: center; margin: 0; padding: 0.65rem 0.85rem; border: 1px solid var(--color-control-border); border-radius: 0.5rem; text-decoration: none; }
+.media-detail-library__auth .media-detail-library__login { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-on-primary); }
+.media-detail-library__auth a:hover { background: var(--color-primary-soft); color: var(--color-primary-ink); }
+.media-detail-library__auth .media-detail-library__login:hover { background: var(--color-primary-hover); color: var(--color-on-primary-hover); }
+.media-detail-library .library-feedback { margin: 0.75rem 0 0; }
 </style>

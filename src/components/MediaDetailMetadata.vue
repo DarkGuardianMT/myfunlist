@@ -23,14 +23,18 @@ const rows = computed(() => fields[props.media.mediaType].flatMap(([key, label])
 </script>
 
 <template>
-  <section v-if="rows.length" class="media-detail-metadata" aria-labelledby="media-metadata-title">
+  <section v-if="rows.length || (media.mediaType === 'book' && media.genres?.length)" class="media-detail-metadata" aria-labelledby="media-metadata-title">
     <h2 id="media-metadata-title">Details</h2>
-    <dl>
+    <dl v-if="rows.length">
       <div v-for="row in rows" :key="row.key" class="media-detail-metadata__row" :data-field="row.key">
         <dt>{{ row.label }}</dt>
         <dd>{{ row.text }}</dd>
       </div>
     </dl>
+    <details v-if="media.mediaType === 'book' && media.genres?.length" class="media-detail-metadata__classifications">
+      <summary>Full classifications ({{ media.genres.length }})</summary>
+      <ul><li v-for="(classification, index) in media.genres" :key="index">{{ classification }}</li></ul>
+    </details>
   </section>
 </template>
 
@@ -41,6 +45,11 @@ dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25r
 .media-detail-metadata__row { min-width: 0; overflow-wrap: anywhere; }
 dt { margin-bottom: 0.35rem; color: var(--color-text-muted); font-size: 0.85rem; }
 dd { margin: 0; line-height: 1.6; }
+.media-detail-metadata__classifications { margin-top: 1rem; overflow-wrap: anywhere; }
+.media-detail-metadata__classifications summary { display: list-item; width: fit-content; max-width: 100%; min-height: 44px; padding: 0.75rem 0.25rem; color: var(--color-primary-ink); font-weight: 650; cursor: pointer; }
+.media-detail-metadata__classifications summary:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; border-radius: 0.25rem; }
+.media-detail-metadata__classifications ul { margin: 0.5rem 0 0; padding-left: 1.25rem; line-height: 1.6; }
+.media-detail-metadata__classifications li + li { margin-top: 0.5rem; }
 @media (max-width: 640px) {
   .media-detail-metadata { padding: 1.25rem; }
   dl { grid-template-columns: minmax(0, 1fr); }

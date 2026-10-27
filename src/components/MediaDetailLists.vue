@@ -127,9 +127,19 @@ async function refreshLibrary() {
 </template>
 
 <style scoped>
-.media-detail-lists { margin-top: 1rem; }
-.media-detail-lists p { line-height: 1.5; }
+.media-detail-lists { min-width: 0; padding-top: 1rem; border-top: 1px solid var(--color-border); overflow-wrap: anywhere; }
+.media-detail-lists p { margin: 0.75rem 0 0; line-height: 1.5; }
 .media-detail-lists__panel { margin-top: 0.75rem; }
-.media-detail-lists form { display: grid; gap: 0.5rem; }
-.media-detail-lists select { min-width: 0; width: 100%; padding: 0.55rem; border: 1px solid var(--color-control-border); border-radius: 0.45rem; font: inherit; }
+.media-detail-lists form { display: grid; gap: 0.65rem; }
+.media-detail-lists label { font-size: 0.9rem; font-weight: 650; }
+.media-detail-lists select { min-width: 0; min-height: 44px; width: 100%; padding: 0.65rem; border: 1px solid var(--color-control-border); border-radius: 0.45rem; font: inherit; }
+.media-detail-lists .text-button, .media-detail-lists .inline-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; max-width: 100%; padding: 0.65rem 0.85rem; border: 1px solid var(--color-control-border); border-radius: 0.5rem; background: var(--color-surface); text-decoration: none; }
+.media-detail-lists button[aria-controls] { border-color: var(--color-primary); background: var(--color-primary-soft); }
+.media-detail-lists button[type='submit'] { justify-self: start; border-color: var(--color-primary); background: var(--color-primary); color: var(--color-on-primary); }
+.media-detail-lists button:hover:not(:disabled), .media-detail-lists .inline-link:hover { background: var(--color-primary-soft); }
+.media-detail-lists button[type='submit']:hover:not(:disabled) { background: var(--color-primary-hover); color: var(--color-on-primary-hover); }
+.media-detail-lists button:disabled { cursor: not-allowed; opacity: 0.6; }
+@media (min-width: 900px) {
+  .media-detail-lists { padding-top: 0; padding-left: 1rem; border-top: 0; border-left: 1px solid var(--color-border); }
+}
 </style>
