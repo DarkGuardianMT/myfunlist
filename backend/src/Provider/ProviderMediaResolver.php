@@ -4,13 +4,53 @@ declare(strict_types=1);
 
 namespace MyFunList\Provider;
 
-final class ProviderMediaResolver implements MediaResolver, MediaSearcher
+use MyFunList\Domain\MediaRules;
+
+final class ProviderMediaResolver implements MediaResolver, MediaSearcher, MediaDetailResolver
 {
     public function __construct(private readonly ProviderHttpClient $http)
     {
     }
 
     public function resolve(string $source, string $mediaType, string $sourceId): array
+    {
+        $data = $this->fetchMedia($source, $mediaType, $sourceId);
+
+        return match ($mediaType) {
+            'book' => $this->book($data, $sourceId),
+            'movie', 'tv' => $this->tmdb($data, $mediaType, $sourceId),
+            'game' => $this->game($data, $sourceId),
+        };
+    }
+
+    public function resolveDetail(string $source, string $mediaType, string $sourceId): array
+    {
+        $idPattern = $source === 'google-books' ? '/^[A-Za-z0-9_-]{1,191}$/D' : '/^[1-9][0-9]{0,19}$/D';
+        if (!MediaRules::supports($source, $mediaType) || preg_match($idPattern, $sourceId) !== 1) {
+            throw self::invalid();
+        }
+
+        try {
+            $data = $this->fetchMedia($source, $mediaType, $sourceId, $mediaType === 'movie');
+        } catch (ProviderException $exception) {
+            // Neem nooit foutteksten over die een provider-URL of sleutel kunnen bevatten.
+            throw match ($exception->status) {
+                404 => new ProviderException(404, 'media_not_found', 'Media was not found.'),
+                429, 503 => new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.'),
+                default => $exception->status >= 500 && $exception->status !== 502
+                    ? new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.')
+                    : self::invalid(),
+            };
+        }
+
+        return match ($mediaType) {
+            'book' => $this->bookDetail($data, $sourceId),
+            'movie', 'tv' => $this->tmdbDetail($data, $mediaType, $sourceId),
+            'game' => $this->gameDetail($data, $sourceId),
+        };
+    }
+
+    private function fetchMedia(string $source, string $mediaType, string $sourceId, bool $credits = false): array
     {
         $encodedId = rawurlencode($sourceId);
         if ($source === 'google-books' && $mediaType === 'book') {
@@ -19,7 +59,7 @@ final class ProviderMediaResolver implements MediaResolver, MediaSearcher
             if ($key !== '') {
                 $url .= '?key=' . rawurlencode($key);
             }
-            return $this->book($this->http->get($url), $sourceId);
+            return $this->http->get($url);
         }
         if ($source === 'tmdb' && in_array($mediaType, ['movie', 'tv'], true)) {
             $token = self::credential('TMDB_API_TOKEN');
@@ -27,7 +67,10 @@ final class ProviderMediaResolver implements MediaResolver, MediaSearcher
                 throw new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.');
             }
             $url = 'https://api.themoviedb.org/3/' . $mediaType . '/' . $encodedId . '?language=en-US';
-            return $this->tmdb($this->http->get($url, ['Authorization: Bearer ' . $token]), $mediaType, $sourceId);
+            if ($credits && $mediaType === 'movie') {
+                $url .= '&append_to_response=credits';
+            }
+            return $this->http->get($url, ['Authorization: Bearer ' . $token]);
         }
         if ($source === 'rawg' && $mediaType === 'game') {
             $key = self::credential('RAWG_API_KEY');
@@ -35,7 +78,7 @@ final class ProviderMediaResolver implements MediaResolver, MediaSearcher
                 throw new ProviderException(503, 'provider_unavailable', 'Media provider is unavailable.');
             }
             $url = 'https://api.rawg.io/api/games/' . $encodedId . '?key=' . rawurlencode($key);
-            return $this->game($this->http->get($url), $sourceId);
+            return $this->http->get($url);
         }
 
         throw new ProviderException(502, 'provider_error', 'Media provider could not resolve this item.');
@@ -164,6 +207,187 @@ final class ProviderMediaResolver implements MediaResolver, MediaSearcher
             'coverImage' => self::httpsImage($data['background_image'] ?? null),
             'platforms' => $platforms,
         ];
+    }
+
+    private function bookDetail(array $data, string $sourceId): array
+    {
+        $summary = $this->book($data, $sourceId);
+        $volume = $data['volumeInfo'];
+        $artwork = null;
+        $links = is_array($volume['imageLinks'] ?? null) ? $volume['imageLinks'] : [];
+        foreach (['extraLarge', 'large', 'medium', 'small', 'thumbnail', 'smallThumbnail'] as $size) {
+            $artwork = self::httpsImage($links[$size] ?? null, true);
+            if ($artwork !== null) {
+                break;
+            }
+        }
+
+        $identifiers = [];
+        foreach (self::listValues($volume['industryIdentifiers'] ?? null) as $entry) {
+            if (!is_array($entry) || !is_string($entry['identifier'] ?? null)) {
+                continue;
+            }
+            $isbn = strtoupper(str_replace(['-', ' '], '', trim($entry['identifier'])));
+            if (($entry['type'] ?? null) === 'ISBN_10' && preg_match('/^[0-9]{9}[0-9X]$/D', $isbn) === 1) {
+                $identifiers['isbn10'] ??= $isbn;
+            } elseif (($entry['type'] ?? null) === 'ISBN_13' && preg_match('/^[0-9]{13}$/D', $isbn) === 1) {
+                $identifiers['isbn13'] ??= $isbn;
+            }
+        }
+
+        return self::detail($summary, [
+            'artworkImage' => $artwork,
+            'description' => self::plainText($volume['description'] ?? null),
+            'genres' => self::names($volume['categories'] ?? null),
+        ], [
+            'authors' => self::names($volume['authors'] ?? null),
+            'publisher' => self::text($volume['publisher'] ?? null, 256),
+            'pageCount' => self::positiveInteger($volume['pageCount'] ?? null),
+            'publishedDate' => self::date($volume['publishedDate'] ?? null, true),
+            'language' => self::text($volume['language'] ?? null, 32),
+            ...$identifiers,
+        ]);
+    }
+
+    private function tmdbDetail(array $data, string $mediaType, string $sourceId): array
+    {
+        $summary = $this->tmdb($data, $mediaType, $sourceId);
+        $movie = $mediaType === 'movie';
+        $specific = [
+            'originalTitle' => $summary['originalTitle'],
+            'originalLanguage' => self::text($data['original_language'] ?? null, 32),
+        ];
+        if ($movie) {
+            $directors = [];
+            $credits = is_array($data['credits'] ?? null) ? $data['credits'] : [];
+            // Regisseurs staan soms ver na de eerste crewleden; begrens de uitvoer op namen.
+            $crew = $credits['crew'] ?? null;
+            foreach (is_array($crew) && array_is_list($crew) ? $crew : [] as $entry) {
+                if (is_array($entry) && ($entry['job'] ?? null) === 'Director') {
+                    $name = self::text($entry['name'] ?? null, 256);
+                    if ($name !== null && !in_array($name, $directors, true)) {
+                        $directors[] = $name;
+                        if (count($directors) === 32) {
+                            break;
+                        }
+                    }
+                }
+            }
+            $specific += [
+                'releaseDate' => self::date($data['release_date'] ?? null),
+                'runtimeMinutes' => self::positiveInteger($data['runtime'] ?? null),
+                'directors' => self::names($directors),
+            ];
+        } else {
+            $specific += [
+                'firstAirDate' => self::date($data['first_air_date'] ?? null),
+                'lastAirDate' => self::date($data['last_air_date'] ?? null),
+                'numberOfSeasons' => self::positiveInteger($data['number_of_seasons'] ?? null),
+                'numberOfEpisodes' => self::positiveInteger($data['number_of_episodes'] ?? null),
+                'seriesStatus' => self::text($data['status'] ?? null, 256),
+            ];
+        }
+
+        return self::detail($summary, [
+            'artworkImage' => self::tmdbImage($data['poster_path'] ?? null, 'w500'),
+            'backdropImage' => $summary['backdropImage'],
+            'description' => self::plainText($data['overview'] ?? null),
+            'genres' => self::names($data['genres'] ?? null, 'name'),
+        ], $specific);
+    }
+
+    private function gameDetail(array $data, string $sourceId): array
+    {
+        $summary = $this->game($data, $sourceId);
+        $platforms = [];
+        foreach (self::listValues($data['platforms'] ?? null) as $entry) {
+            if (is_array($entry) && is_array($entry['platform'] ?? null)) {
+                $platforms[] = $entry['platform']['name'] ?? null;
+            }
+        }
+
+        return self::detail($summary, [
+            'artworkImage' => $summary['coverImage'],
+            'description' => self::plainText($data['description_raw'] ?? null)
+                ?? self::plainText($data['description'] ?? null),
+            'genres' => self::names($data['genres'] ?? null, 'name'),
+        ], [
+            'releaseDate' => self::date($data['released'] ?? null),
+            'platforms' => self::names($platforms),
+            'developers' => self::names($data['developers'] ?? null, 'name'),
+            'publishers' => self::names($data['publishers'] ?? null, 'name'),
+        ]);
+    }
+
+    private static function detail(array $summary, array $optional, array $specific): array
+    {
+        $present = static fn (mixed $value): bool => $value !== null;
+
+        return [
+            'source' => $summary['source'],
+            'mediaType' => $summary['mediaType'],
+            'sourceId' => $summary['sourceId'],
+            'title' => $summary['title'],
+            // Ook een volledig ontbrekende metadataset moet als JSON-object worden verstuurd.
+            'details' => (object) array_filter($specific, $present),
+            ...array_filter($optional, $present),
+        ];
+    }
+
+    private static function listValues(mixed $value): array
+    {
+        return is_array($value) && array_is_list($value) ? array_slice($value, 0, 32) : [];
+    }
+
+    private static function names(mixed $value, ?string $field = null): ?array
+    {
+        $names = [];
+        foreach (self::listValues($value) as $entry) {
+            $name = self::text($field === null ? $entry : (is_array($entry) ? ($entry[$field] ?? null) : null), 256);
+            if ($name !== null) {
+                $names[] = $name;
+            }
+        }
+
+        return $names === [] ? null : array_values(array_unique($names));
+    }
+
+    private static function positiveInteger(mixed $value): ?int
+    {
+        return is_int($value) && $value > 0 && $value <= 2147483647 ? $value : null;
+    }
+
+    private static function date(mixed $value, bool $partial = false): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        $pattern = $partial ? '/^([0-9]{4})(?:-([0-9]{2})(?:-([0-9]{2}))?)?$/D'
+            : '/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/D';
+        if (preg_match($pattern, $value, $parts) !== 1
+            || !checkdate((int) ($parts[2] ?? 1), (int) ($parts[3] ?? 1), (int) $parts[1])) {
+            return null;
+        }
+
+        return $value;
+    }
+
+    private static function plainText(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $value = preg_replace('~<(script|style)\b[^>]*>.*?</\1\s*>~is', '', $value) ?? '';
+        $value = preg_replace('~<br\b[^>]*>|</(?:p|div|li|h[1-6])\s*>~i', "\n", $value) ?? '';
+        $value = strip_tags($value);
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $value) ?? '';
+        $value = preg_replace('/[^\S\n]+/u', ' ', $value) ?? '';
+        $value = preg_replace('/ *\n */u', "\n", $value) ?? '';
+        $value = preg_replace('/\n{3,}/', "\n\n", $value) ?? '';
+
+        return self::text($value, 20000);
     }
 
     private static function requireIdentity(array $data, string $sourceId): void

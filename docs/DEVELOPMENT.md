@@ -79,9 +79,10 @@ npm test
 npm run build
 php backend/tests/database_safety.php
 php backend/tests/discovery.php
+php backend/tests/media_details.php
 ```
 
-The two PHP commands do not modify databases; discovery tests use fake provider responses.
+These PHP commands do not modify databases; discovery and media detail tests use fake provider responses. From `backend/`, `composer run test:providers` runs both provider suites without live requests or database connections. Media detail resolution currently exists only as a provider interface; no public detail endpoint or frontend detail route is exposed yet.
 Run `composer validate --strict` from `backend/` to check the backend package configuration.
 
 ### Database and HTTP tests
