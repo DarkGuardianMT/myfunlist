@@ -23,9 +23,9 @@ Store the generated value only in the ignored backend configuration. Never commi
 | --- | --- |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Local MySQL/MariaDB connection |
 | `RATE_LIMIT_SECRET` | Required backend-only secret for shared rate limits outside tests |
-| `TMDB_API_TOKEN` | Backend movie/TV discovery and Library metadata resolution |
-| `RAWG_API_KEY` | Backend game discovery and Library metadata resolution |
-| `GOOGLE_BOOKS_API_KEY` | Optional backend key for book Library metadata resolution |
+| `TMDB_API_TOKEN` | Backend movie/TV discovery, Library metadata resolution, and public Media Detail resolution |
+| `RAWG_API_KEY` | Backend game discovery, Library metadata resolution, and public Media Detail resolution |
+| `GOOGLE_BOOKS_API_KEY` | Optional backend key for book Library metadata resolution and public Media Detail resolution |
 | `SESSION_SAVE_PATH` | Optional private PHP-writable session directory; local HTTP defaults to `backend/var/sessions` |
 
 Google Books discovery runs in the browser and works locally without a key, subject to provider quotas.
@@ -122,7 +122,7 @@ errors use an `error` envelope. Send `Content-Type: application/json` for JSON b
 Authenticated routes derive ownership from the current session. IDs are opaque strings.
 All mutations listed below require the current `X-CSRF-Token`, including registration and login.
 
-Database-backed rate limits protect login, registration, TMDB/RAWG discovery, Library import, and password changes.
+Database-backed rate limits protect login, registration, TMDB/RAWG discovery, public Media Detail requests, Library import, and password changes.
 Blocked requests return 429 with `Retry-After`; limiter configuration or storage failures return a generic 503.
 Google Books browser search is outside the PHP limiter. Production client-IP and session requirements are in [Deployment](DEPLOYMENT.md).
 
