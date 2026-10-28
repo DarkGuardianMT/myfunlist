@@ -66,7 +66,9 @@ const discoveryTypes = [
   },
 ]
 
-const { activeMediaType, activeSearch, activeQuery, selectMediaType, handleSearch } = useDiscoverSearch()
+const { activeMediaType, activeSearch, activeQuery, bookFilters, hasBookFilters,
+  setBookFilter, selectMediaType, handleSearch } = useDiscoverSearch()
+const bookSearchLabel = computed(() => ({ all: 'Title, author, or ISBN', title: 'Book title', author: 'Author name' })[bookFilters.value.field])
 const resultPresentation = {
   book: { component: BookCard, prop: 'book', grid: 'book-grid', label: 'Book search results' },
   movie: { component: MovieCard, prop: 'movie', grid: 'media-grid', label: 'Movie search results' },
@@ -168,14 +170,14 @@ function cardProps(media) {
       <h2 :id="`${activeMediaType}-search-title`">{{ activeType.searchTitle }}</h2>
 
       <form class="discovery-search__form" role="search" @submit.prevent="handleSearch">
-        <label :for="`${activeMediaType}-query`">{{ activeType.searchLabel }}</label>
+        <label :for="`${activeMediaType}-query`">{{ activeMediaType === 'book' ? bookSearchLabel : activeType.searchLabel }}</label>
         <div class="discovery-search__controls">
           <input
             :id="`${activeMediaType}-query`"
             v-model="activeQuery"
             type="search"
             :name="`${activeMediaType}-query`"
-            :placeholder="activeType.placeholder"
+            :placeholder="activeMediaType === 'book' && bookFilters.field === 'author' ? 'For example: Ursula Le Guin' : activeType.placeholder"
             maxlength="200"
             autocomplete="off"
           />
@@ -186,6 +188,32 @@ function cardProps(media) {
             {{ activeSearch.status === 'loading' ? 'Searching…' : 'Search' }}
           </button>
         </div>
+        <div v-if="activeMediaType === 'book'" class="book-search-filters">
+          <div>
+            <label for="book-search-field">Search in</label>
+            <select id="book-search-field" :value="bookFilters.field" @change="setBookFilter('field', $event.target.value)">
+              <option value="all">All fields</option>
+              <option value="title">Title</option>
+              <option value="author">Author</option>
+            </select>
+          </div>
+          <div>
+            <label for="book-search-language">Language</label>
+            <select id="book-search-language" :value="bookFilters.language" @change="setBookFilter('language', $event.target.value)">
+              <option value="any">Any language</option>
+              <option value="en">English</option>
+              <option value="nl">Dutch</option>
+              <option value="tr">Turkish</option>
+            </select>
+          </div>
+          <div>
+            <label for="book-search-sort">Sort by</label>
+            <select id="book-search-sort" :value="bookFilters.sort" @change="setBookFilter('sort', $event.target.value)">
+              <option value="relevance">Best match</option>
+              <option value="newest">Newest</option>
+            </select>
+          </div>
+        </div>
       </form>
 
       <div class="discovery-search__feedback" aria-live="polite" aria-atomic="true">
@@ -195,7 +223,7 @@ function cardProps(media) {
         </p>
         <p v-else-if="activeSearch.status === 'empty'">
           No {{ activeType.plural }} found for “{{ activeSearch.searchedQuery }}”. Try a different
-          search.
+          search.<template v-if="hasBookFilters"> Try All fields or Any language to broaden your search.</template>
         </p>
         <p v-else-if="activeSearch.status === 'error'" class="discovery-search__error" role="alert">
           {{ activeSearch.errorMessage }}
@@ -261,3 +289,15 @@ function cardProps(media) {
     </section>
   </div>
 </template>
+
+<style scoped>
+.book-search-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+.book-search-filters > div { min-width: 0; }
+.book-search-filters label { font-size: 0.85rem; }
+.book-search-filters select { width: 100%; min-width: 0; min-height: 44px; padding: 0.5rem; border: 1px solid var(--color-control-border); border-radius: 0.55rem; background: var(--color-surface); color: var(--color-text); font: inherit; }
+.book-search-filters select:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
+@media (max-width: 400px) {
+  .book-search-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .book-search-filters > div:last-child { grid-column: 1 / -1; }
+}
+</style>

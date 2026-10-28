@@ -47,7 +47,10 @@ test('book search suppresses empty queries and supports an optional API key', as
       const url = new URL(request)
       assert.equal(url.searchParams.get('q'), 'The Hobbit')
       assert.equal(url.searchParams.get('key'), 'example-key')
-      assert.equal(url.searchParams.get('maxResults'), '24')
+      assert.equal(url.searchParams.get('maxResults'), '40')
+      assert.equal(url.searchParams.get('orderBy'), 'relevance')
+      assert.equal(url.searchParams.get('printType'), 'books')
+      assert.equal(url.searchParams.has('langRestrict'), false)
       return { ok: true, json: async () => ({ items: [{ id: 'book-1' }] }) }
     },
   })
@@ -60,6 +63,50 @@ test('book search suppresses empty queries and supports an optional API key', as
       return { ok: true, json: async () => ({ totalItems: 0 }) }
     },
   }), [])
+})
+
+test('field operators constrain every word and preserve quoted phrases without nesting operators', async () => {
+  for (const [field, query, expected] of [
+    ['title', 'Harry Potter', 'intitle:"Harry" intitle:"Potter"'],
+    ['author', 'Ursula Le Guin', 'inauthor:"Ursula" inauthor:"Le" inauthor:"Guin"'],
+    ['title', '"Harry Potter" magic', 'intitle:"Harry Potter" intitle:"magic"'],
+    ['author', '"Le Guin"', 'inauthor:"Le Guin"'],
+    ['title', '"unfinished phrase', 'intitle:"unfinished" intitle:"phrase"'],
+    ['title', 'inauthor:Tolkien', 'intitle:"inauthor:Tolkien"'],
+    ['all', '9780261103344', '9780261103344'],
+    ['all', '"The Hobbit"', '"The Hobbit"'],
+  ]) {
+    await searchBooks(query, { field, fetchImpl: async (request) => {
+      assert.equal(new URL(request).searchParams.get('q'), expected)
+      return { ok: true, json: async () => ({ totalItems: 0 }) }
+    } })
+  }
+  assert.deepEqual(await searchBooks('""', { field: 'title', fetchImpl: () => assert.fail('empty expression') }), [])
+})
+
+test('language and ordering are real provider constraints; only title-intent best matches are reranked', async () => {
+  const items = [{ id: 'other', volumeInfo: { title: 'Other book' } },
+    { id: 'equivalent', volumeInfo: { title: 'The Hobbit' } },
+    { id: 'exact', volumeInfo: { title: 'Hobbit' } }]
+  for (const language of ['any', 'en', 'nl', 'tr']) {
+    for (const sort of ['relevance', 'newest']) {
+      for (const field of ['all', 'title', 'author']) {
+        let calls = 0
+        const results = await searchBooks('Hobbit', { language, sort, field, fetchImpl: async (request) => {
+          calls++
+          const params = new URL(request).searchParams
+          assert.equal(params.get('langRestrict'), language === 'any' ? null : language)
+          assert.equal(params.get('orderBy'), sort)
+          assert.equal(params.get('maxResults'), '40')
+          assert.equal(params.get('printType'), 'books')
+          return { ok: true, json: async () => ({ items }) }
+        } })
+        assert.equal(calls, 1)
+        assert.deepEqual(results.map((book) => book.sourceId),
+          sort === 'relevance' && field !== 'author' ? ['exact', 'equivalent', 'other'] : ['other', 'equivalent', 'exact'])
+      }
+    }
+  }
 })
 
 test('book search maps failed requests and malformed responses to friendly errors', async () => {

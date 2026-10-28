@@ -1,6 +1,7 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MEDIA_TYPES } from '../domain/libraryMedia.js'
+import { normalizeBookSearchOptions } from '../domain/bookSearch.js'
 import { discoverReturnLocation, useBrowsingReady } from '../router/browsingContext.js'
 import { getGoogleBooksErrorMessage, searchBooks } from '../services/googleBooks.js'
 import {
@@ -27,12 +28,19 @@ function routeQuery(value) {
   return typeof value === 'string' && value.length <= 200 ? value.trim() : ''
 }
 
-function location(type, query) {
-  return { path: '/discover', query: { ...(type !== 'book' ? { type } : {}), ...(query ? { q: query } : {}) } }
+function location(type, query, options = {}) {
+  const { field, sort, language } = normalizeBookSearchOptions(options)
+  return { path: '/discover', query: { ...(type !== 'book' ? { type } : {}), ...(query ? { q: query } : {}),
+    ...(type === 'book' ? {
+      ...(field !== 'all' ? { field } : {}),
+      ...(sort !== 'relevance' ? { sort } : {}),
+      ...(language !== 'any' ? { lang: language } : {}),
+    } : {}),
+  } }
 }
 
-function search(type, query) {
-  const key = JSON.stringify([type, query])
+function search(type, query, options) {
+  const key = JSON.stringify([type, query, ...(type === 'book' ? [options.field, options.sort, options.language] : [])])
   const cached = cache.get(key)
   if (cached && cached.expiresAt > Date.now()) {
     cache.delete(key)
@@ -42,7 +50,7 @@ function search(type, query) {
   cache.delete(key)
   if (pending.has(key)) return pending.get(key)
   const version = cacheVersion
-  const request = searches[type](query).then((results) => {
+  const request = searches[type](query, type === 'book' ? options : undefined).then((results) => {
     if (version !== cacheVersion) return results
     const now = Date.now()
     for (const [key, entry] of cache) {
@@ -60,6 +68,11 @@ export function useDiscoverSearch() {
   const route = useRoute()
   const router = useRouter()
   const activeMediaType = computed(() => MEDIA_TYPES.includes(route.query.type) ? route.query.type : 'book')
+  const bookFilters = computed(() => normalizeBookSearchOptions({
+    field: route.query.field, sort: route.query.sort, language: route.query.lang,
+  }))
+  const hasBookFilters = computed(() => activeMediaType.value === 'book' &&
+    (bookFilters.value.field !== 'all' || bookFilters.value.sort !== 'relevance' || bookFilters.value.language !== 'any'))
   const activeSearch = ref({ query: '', searchedQuery: '', results: [], status: 'idle', errorMessage: '' })
   const drafts = new Map()
   const activeQuery = computed({
@@ -76,14 +89,16 @@ export function useDiscoverSearch() {
     if (route.path !== '/discover') return
     const type = activeMediaType.value
     const query = routeQuery(route.query.q)
-    queriesByType.set(type, query)
-    discoverReturnLocation.value = location(type, query)
+    const options = bookFilters.value
+    const context = location(type, query, options)
+    queriesByType.set(type, context)
+    discoverReturnLocation.value = context
     const draft = drafts.get(type)
     const input = draft?.submittedQuery === query ? draft.query : query
     activeSearch.value = { query: input, searchedQuery: query, results: [], status: query ? 'loading' : 'idle', errorMessage: '' }
     if (!query) return
     try {
-      const results = await search(type, query)
+      const results = await search(type, query, options)
       if (version !== generation) return
       activeSearch.value.results = results
       activeSearch.value.status = results.length ? 'success' : 'empty'
@@ -94,13 +109,20 @@ export function useDiscoverSearch() {
     }
   }
 
-  watch(() => [route.path, route.query.type, route.query.q], load, { immediate: true })
+  watch(() => [route.path, route.query.type, route.query.q,
+    ...(activeMediaType.value === 'book' ? [route.query.field, route.query.sort, route.query.lang] : []),
+  ], load, { immediate: true })
   onScopeDispose(() => { generation++ })
   useBrowsingReady('/discover', computed(() => activeSearch.value.status !== 'loading'))
 
   function selectMediaType(type) {
     if (type === activeMediaType.value || !MEDIA_TYPES.includes(type)) return
-    return router.push(location(type, queriesByType.get(type) || ''))
+    return router.push(queriesByType.get(type) || location(type, ''))
+  }
+
+  function setBookFilter(name, value) {
+    if (activeMediaType.value !== 'book' || !['field', 'sort', 'language'].includes(name)) return
+    return router.push(location('book', routeQuery(route.query.q), { ...bookFilters.value, [name]: value }))
   }
 
   function handleSearch() {
@@ -108,8 +130,8 @@ export function useDiscoverSearch() {
     if (!query || activeSearch.value.status === 'loading') return
     drafts.delete(activeMediaType.value)
     if (route.path === '/discover' && query === routeQuery(route.query.q)) return load()
-    return router.push(location(activeMediaType.value, query))
+    return router.push(location(activeMediaType.value, query, bookFilters.value))
   }
 
-  return { activeMediaType, activeSearch, activeQuery, selectMediaType, handleSearch }
+  return { activeMediaType, activeSearch, activeQuery, bookFilters, hasBookFilters, setBookFilter, selectMediaType, handleSearch }
 }

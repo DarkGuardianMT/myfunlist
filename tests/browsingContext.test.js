@@ -282,6 +282,154 @@ test('successful result cache expires and evicts old searches; provider errors r
   assert.equal(view.get('article h3').text(), 'Failure')
 })
 
+test('book filters survive Back, explicit detail return and a fresh session reconstructed from the URL', async () => {
+  const { view, router } = await page('/discover?q=Harry+Potter&field=title&sort=newest&lang=nl')
+  const location = router.currentRoute.value.fullPath
+  function assertFilters(target) {
+    assert.equal(target.get('#book-query').element.value, 'Harry Potter')
+    assert.equal(target.get('#book-search-field').element.value, 'title')
+    assert.equal(target.get('#book-search-sort').element.value, 'newest')
+    assert.equal(target.get('#book-search-language').element.value, 'nl')
+  }
+  assertFilters(view)
+  assert.equal(new URL(providerCalls()[0]).searchParams.get('q'), 'intitle:"Harry" intitle:"Potter"')
+  await view.get('article h3 a').trigger('click')
+  await settle()
+  await back(router)
+  assertFilters(view)
+  await view.get('article h3 a').trigger('click')
+  await settle()
+  assert.equal(view.get('.media-detail-back').attributes('href'), location)
+  await view.get('.media-detail-back').trigger('click')
+  await settle()
+  assertFilters(view)
+  assert.equal(providerCalls().length, 1)
+  view.unmount()
+  clearDiscoverCache()
+  const refreshed = await page(location)
+  assertFilters(refreshed.view)
+  assert.equal(providerCalls().length, 2)
+})
+
+test('each book filter searches automatically, isolates cache entries and omits defaults from URLs', async () => {
+  const { view, router } = await page('/discover?q=Hobbit')
+  const initial = router.currentRoute.value.fullPath
+  await view.get('#book-search-field').setValue('title')
+  await settle()
+  assert.equal(providerCalls().length, 2)
+  assert.equal(router.currentRoute.value.query.field, 'title')
+  await view.get('#book-search-language').setValue('tr')
+  await settle()
+  assert.equal(providerCalls().length, 3)
+  assert.equal(new URL(providerCalls().at(-1)).searchParams.get('langRestrict'), 'tr')
+  const beforeSort = router.currentRoute.value.fullPath
+  await view.get('#book-search-sort').setValue('newest')
+  await settle()
+  assert.equal(providerCalls().length, 4)
+  assert.equal(new URL(providerCalls().at(-1)).searchParams.get('orderBy'), 'newest')
+  await back(router)
+  assert.equal(router.currentRoute.value.fullPath, beforeSort)
+  assert.equal(view.get('#book-search-sort').element.value, 'relevance')
+  assert.equal(providerCalls().length, 4)
+  await router.push(initial)
+  await settle()
+  assert.equal(view.get('#book-search-field').element.value, 'all')
+  assert.equal(view.get('#book-search-language').element.value, 'any')
+  assert.deepEqual(router.currentRoute.value.query, { q: 'Hobbit' })
+  assert.equal(providerCalls().length, 4)
+  await router.push('/discover?q=Hobbit&field=invalid&sort=invalid&lang=invalid')
+  await settle()
+  assert.equal(providerCalls().length, 4)
+  await router.push('/discover?q=Hobbit&field=title&field=author&lang=nl&lang=tr')
+  await settle()
+  assert.equal(view.get('#book-search-field').element.value, 'all')
+  assert.equal(view.get('#book-search-language').element.value, 'any')
+  assert.equal(providerCalls().length, 4)
+})
+
+test('filter choices without a query stay idle; query encoding and type-specific filter context are retained', async () => {
+  const { view, router } = await page()
+  await view.get('#book-search-field').setValue('author')
+  await settle()
+  await view.get('#book-search-language').setValue('en')
+  await settle()
+  assert.equal(providerCalls().length, 0)
+  const query = '"Le Guin" & İstanbul'
+  await submit(view, query)
+  const bookLocation = router.currentRoute.value.fullPath
+  assert.equal(router.currentRoute.value.query.q, query)
+  assert.match(bookLocation, /%22Le\+Guin%22/)
+  for (const index of [1, 2, 3]) {
+    await view.findAll('.discover-type-switcher__button')[index].trigger('click')
+    await settle()
+    assert.equal(view.find('#book-search-field').exists(), false)
+    assert.equal(router.currentRoute.value.query.field, undefined)
+    await submit(view, 'Independent')
+  }
+  await view.findAll('.discover-type-switcher__button')[0].trigger('click')
+  await settle()
+  assert.equal(router.currentRoute.value.fullPath, bookLocation)
+  assert.equal(view.get('#book-search-field').element.value, 'author')
+  assert.equal(view.get('#book-search-language').element.value, 'en')
+  assert.equal(view.get('#book-query').element.value, query)
+  assert.equal(providerCalls().length, 4)
+})
+
+test('late book filter responses cannot replace current results, and identical pending filters deduplicate', async () => {
+  const { view, router } = await page('/discover?q=Hobbit')
+  let finish
+  globalThis.fetch = (path) => {
+    if (new URL(path, 'http://localhost').searchParams.get('langRestrict') === 'nl') {
+      calls.push(path)
+      return new Promise((resolve) => { finish = resolve })
+    }
+    return defaultFetch(path)
+  }
+  await view.get('#book-search-language').setValue('nl')
+  await settle()
+  assert.match(view.text(), /Searching Google Books/)
+  await view.get('#book-search-language').setValue('tr')
+  await settle()
+  finish(providerReply('book', 'Stale Dutch result'))
+  await settle()
+  assert.equal(view.get('#book-search-language').element.value, 'tr')
+  assert.doesNotMatch(view.text(), /Stale Dutch result/)
+  await router.push('/discover?q=Pending&lang=nl')
+  await settle()
+  const count = providerCalls().length
+  await router.push('/')
+  await router.push('/discover?q=Pending&lang=nl')
+  await settle()
+  assert.equal(providerCalls().length, count)
+  finish(providerReply('book', 'Current Dutch result'))
+  await settle()
+  assert.equal(view.get('article h3').text(), 'Current Dutch result')
+})
+
+test('filtered empty searches offer broader constraints and provider errors stay visible and retryable', async () => {
+  globalThis.fetch = async (path) => {
+    calls.push(path)
+    return { ok: true, json: async () => ({ totalItems: 0 }) }
+  }
+  const { view } = await page('/discover?q=Missing&field=title&lang=tr')
+  assert.match(view.text(), /Try All fields or Any language/)
+  await view.get('form').trigger('submit')
+  await settle()
+  assert.equal(providerCalls().length, 1)
+  globalThis.fetch = async (path) => {
+    calls.push(path)
+    return { ok: false, status: 429 }
+  }
+  await view.get('#book-search-language').setValue('nl')
+  await settle()
+  assert.match(view.get('[role="alert"]').text(), /too many requests/)
+  globalThis.fetch = defaultFetch
+  await view.get('form').trigger('submit')
+  await settle()
+  assert.equal(view.findAll('article').length, 1)
+  assert.equal(providerCalls().length, 3)
+})
+
 test('Library type, valid status and sort survive detail Back, and switching types resets only status', async () => {
   currentUser.value = { id: '1', email: 'first@example.test' }
   const { view, router } = await page('/library')

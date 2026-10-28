@@ -1,4 +1,6 @@
 import { fetchProvider } from './providerFetch.js'
+import { buildBookSearchExpression, normalizeBookSearchOptions } from '../domain/bookSearch.js'
+import { rankBooksByTitle } from '../domain/bookRelevance.js'
 
 const GOOGLE_BOOKS_API_URL = 'https://www.googleapis.com/books/v1/volumes'
 
@@ -70,6 +72,9 @@ export function normalizeGoogleBook(item = {}) {
 export async function searchBooks(query, {
   apiKey = import.meta.env?.VITE_GOOGLE_BOOKS_API_KEY,
   fetchImpl = fetch,
+  field,
+  sort,
+  language,
 } = {}) {
   const normalizedQuery = typeof query === 'string' ? query.trim() : ''
 
@@ -77,11 +82,16 @@ export async function searchBooks(query, {
     return []
   }
 
+  const options = normalizeBookSearchOptions({ field, sort, language })
+  const expression = buildBookSearchExpression(normalizedQuery, options.field)
+  if (!expression) return []
   const params = new URLSearchParams({
-    q: normalizedQuery,
+    q: expression,
     printType: 'books',
-    maxResults: '24',
+    maxResults: '40',
+    orderBy: options.sort,
   })
+  if (options.language !== 'any') params.set('langRestrict', options.language)
   const normalizedKey = typeof apiKey === 'string' ? apiKey.trim() : ''
   if (normalizedKey) {
     params.set('key', normalizedKey)
@@ -111,7 +121,10 @@ export async function searchBooks(query, {
     throw new GoogleBooksError('invalid-response')
   }
 
-  return Array.isArray(data.items) ? data.items.map(normalizeGoogleBook) : []
+  const books = Array.isArray(data.items) ? data.items.map(normalizeGoogleBook) : []
+  // Auteurzoekopdrachten hebben geen titelintentie; behoud daarvoor de providerrelevantie.
+  return options.sort === 'relevance' && options.field !== 'author'
+    ? rankBooksByTitle(books, normalizedQuery) : books
 }
 
 export function getGoogleBooksErrorMessage(error) {
