@@ -1,5 +1,5 @@
 import { fetchProvider } from './providerFetch.js'
-import { buildBookSearchExpression, normalizeBookSearchOptions } from '../domain/bookSearch.js'
+import { buildBookSearchExpression, normalizeBookLanguage, normalizeBookSearchOptions } from '../domain/bookSearch.js'
 import { rankBooksByTitle } from '../domain/bookRelevance.js'
 
 const GOOGLE_BOOKS_API_URL = 'https://www.googleapis.com/books/v1/volumes'
@@ -61,6 +61,7 @@ export function normalizeGoogleBook(item = {}) {
         ? volumeInfo.title.trim() || 'Untitled book'
         : 'Untitled book',
     authors,
+    language: normalizeBookLanguage(volumeInfo.language),
     publishedDate,
     publishedYear: publishedDate?.match(/^\d{4}/)?.[0] || null,
     coverImage: getCoverImage(volumeInfo.imageLinks),

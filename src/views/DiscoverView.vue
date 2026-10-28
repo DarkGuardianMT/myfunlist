@@ -66,9 +66,12 @@ const discoveryTypes = [
   },
 ]
 
-const { activeMediaType, activeSearch, activeQuery, bookFilters, hasBookFilters,
+const { activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice,
   setBookFilter, selectMediaType, handleSearch } = useDiscoverSearch()
 const bookSearchLabel = computed(() => ({ all: 'Title, author, or ISBN', title: 'Book title', author: 'Author name' })[bookFilters.value.field])
+const bookLanguageLabel = computed(() => ({ en: 'English', nl: 'Dutch', tr: 'Turkish' })[bookFilters.value.language])
+const hiddenLanguageCount = computed(() => (activeSearch.value.languageSummary?.otherLanguageCount || 0) +
+  (activeSearch.value.languageSummary?.unknownLanguageCount || 0))
 const resultPresentation = {
   book: { component: BookCard, prop: 'book', grid: 'book-grid', label: 'Book search results' },
   movie: { component: MovieCard, prop: 'movie', grid: 'media-grid', label: 'Movie search results' },
@@ -223,7 +226,7 @@ function cardProps(media) {
         </p>
         <p v-else-if="activeSearch.status === 'empty'">
           No {{ activeType.plural }} found for “{{ activeSearch.searchedQuery }}”. Try a different
-          search.<template v-if="hasBookFilters"> Try All fields or Any language to broaden your search.</template>
+          search.<template v-if="bookFilterAdvice"> {{ bookFilterAdvice }}</template>
         </p>
         <p v-else-if="activeSearch.status === 'error'" class="discovery-search__error" role="alert">
           {{ activeSearch.errorMessage }}
@@ -232,6 +235,15 @@ function cardProps(media) {
           {{ activeSearch.results.length }}
           {{ activeSearch.results.length === 1 ? activeType.singular : activeType.plural }} found for
           “{{ activeSearch.searchedQuery }}”.
+        </p>
+        <p v-if="activeMediaType === 'book' && bookLanguageLabel" class="book-language-notice">
+          Only results Google Books labels as {{ bookLanguageLabel }} are shown. Results with missing
+          or invalid language information are hidden.
+          <template v-if="hiddenLanguageCount">
+            {{ hiddenLanguageCount }} provider {{ hiddenLanguageCount === 1 ? 'result was' : 'results were' }} hidden:
+            {{ activeSearch.languageSummary.otherLanguageCount }} in other languages and
+            {{ activeSearch.languageSummary.unknownLanguageCount }} with missing or invalid language information.
+          </template>
         </p>
       </div>
 

@@ -42,16 +42,16 @@ function libraryItem(type, status) {
     addedAt: '2026-01-01T00:00:00Z' } }
 }
 const ok = (data) => ({ ok: true, status: 200, json: async () => ({ data }) })
-function providerReply(type, query) {
+function providerReply(type, query, language = 'en') {
   if (type === 'book') return { ok: true, status: 200, json: async () => ({ items: [{
-    id: identities.book.sourceId, volumeInfo: { title: query, publishedDate: '2012' },
+    id: identities.book.sourceId, volumeInfo: { title: query, publishedDate: '2012', language },
   }] }) }
   return ok([media(type, query)])
 }
 function defaultFetch(path, options = {}) {
   calls.push(path)
   const url = new URL(path, 'http://localhost')
-  if (url.hostname === 'www.googleapis.com') return Promise.resolve(providerReply('book', url.searchParams.get('q')))
+  if (url.hostname === 'www.googleapis.com') return Promise.resolve(providerReply('book', url.searchParams.get('q'), url.searchParams.get('langRestrict') || 'en'))
   if (url.pathname.startsWith('/api/v1/discover/')) return Promise.resolve(providerReply(url.pathname.split('/').at(-1), url.searchParams.get('q')))
   if (url.pathname.startsWith('/api/v1/media/')) {
     const type = url.pathname.split('/')[4]
@@ -390,7 +390,7 @@ test('late book filter responses cannot replace current results, and identical p
   assert.match(view.text(), /Searching Google Books/)
   await view.get('#book-search-language').setValue('tr')
   await settle()
-  finish(providerReply('book', 'Stale Dutch result'))
+  finish(providerReply('book', 'Stale Dutch result', 'nl'))
   await settle()
   assert.equal(view.get('#book-search-language').element.value, 'tr')
   assert.doesNotMatch(view.text(), /Stale Dutch result/)
@@ -401,7 +401,7 @@ test('late book filter responses cannot replace current results, and identical p
   await router.push('/discover?q=Pending&lang=nl')
   await settle()
   assert.equal(providerCalls().length, count)
-  finish(providerReply('book', 'Current Dutch result'))
+  finish(providerReply('book', 'Current Dutch result', 'nl'))
   await settle()
   assert.equal(view.get('article h3').text(), 'Current Dutch result')
 })
@@ -428,6 +428,96 @@ test('filtered empty searches offer broader constraints and provider errors stay
   await settle()
   assert.equal(view.findAll('article').length, 1)
   assert.equal(providerCalls().length, 3)
+})
+
+test('empty book searches suggest only field and language restrictions that can actually be broadened', async () => {
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ totalItems: 0 }) })
+  const { view, router } = await page('/discover?q=Missing&sort=newest')
+  for (const [suffix, expected] of [
+    ['&sort=newest', ''], ['', ''], ['&field=title&sort=newest', 'Try All fields to broaden your search.'],
+    ['&field=author', 'Try All fields to broaden your search.'],
+    ['&lang=en&sort=newest', 'Try Any language to broaden your search.'],
+    ['&field=title&lang=tr&sort=newest', 'Try All fields or Any language to broaden your search.'],
+  ]) {
+    await router.push(`/discover?q=Missing${suffix}`)
+    await settle()
+    const feedback = view.get('.discovery-search__feedback > p').text()
+    assert.match(feedback, /No books found/)
+    assert.equal(feedback.includes('Try All fields'), expected.includes('All fields'))
+    assert.equal(feedback.includes('Any language'), expected.includes('Any language'))
+    if (expected) assert.ok(feedback.includes(expected))
+  }
+})
+
+test('provider language mismatches are disclosed and filtered without changing identities, cache restoration or newest order', async () => {
+  const items = [
+    { id: '7cAPEgAAQBAJ', volumeInfo: { title: 'Lo Hobbit', language: 'it' } },
+    { id: identities.book.sourceId, volumeInfo: { title: 'Hobbit guide', language: 'en' } },
+    { id: 'english2', volumeInfo: { title: 'Hobbit', language: 'en' } },
+    { id: 'turkish1', volumeInfo: { title: 'Hobbit', language: 'tr' } },
+    { id: 'missing', volumeInfo: { title: 'Hobbit' } },
+    { id: 'invalid', volumeInfo: { title: 'Hobbit', language: 'unknown' } },
+  ]
+  globalThis.fetch = (path, options) => {
+    if (path.startsWith('https://www.googleapis.com/')) {
+      calls.push(path)
+      return Promise.resolve({ ok: true, json: async () => ({ items }) })
+    }
+    return defaultFetch(path, options)
+  }
+  const { view, router } = await page('/discover?q=Hobbit&lang=en&sort=newest')
+  const englishLocation = router.currentRoute.value.fullPath
+  const links = () => view.findAll('article h3 a').map((link) => link.attributes('href').split('/').at(-1))
+  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
+  assert.match(view.get('.book-language-notice').text(), /labels as English/)
+  assert.match(view.get('.book-language-notice').text(), /4 provider results were hidden: 2 in other languages and 2 with missing or invalid/)
+  assert.equal(providerCalls().length, 1)
+  assert.equal(new URL(providerCalls()[0]).searchParams.get('langRestrict'), 'en')
+  await view.get('article h3 a').trigger('click')
+  await settle()
+  await back(router)
+  assert.equal(router.currentRoute.value.fullPath, englishLocation)
+  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
+  await view.get('article h3 a').trigger('click')
+  await settle()
+  await view.get('.media-detail-back').trigger('click')
+  await settle()
+  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
+  assert.equal(providerCalls().length, 1)
+  await view.get('#book-search-language').setValue('tr')
+  await settle()
+  assert.deepEqual(links(), ['turkish1'])
+  assert.match(view.get('.book-language-notice').text(), /labels as Turkish/)
+  await view.get('#book-search-language').setValue('any')
+  await settle()
+  assert.deepEqual(links(), items.map((item) => item.id))
+  assert.equal(view.find('.book-language-notice').exists(), false)
+  await router.push(englishLocation)
+  await settle()
+  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
+  assert.equal(providerCalls().length, 3)
+})
+
+test('a language selection with no confirmed matches shows an honest empty state and cached omission counts', async () => {
+  globalThis.fetch = async (path) => {
+    calls.push(path)
+    return { ok: true, json: async () => ({ items: [
+      { id: 'italian', volumeInfo: { title: 'Lo Hobbit', language: 'it' } },
+      { id: 'unknown', volumeInfo: { title: 'Hobbit' } },
+    ] }) }
+  }
+  const { view } = await page('/discover?q=Hobbit&lang=en')
+  assert.match(view.text(), /No books found/)
+  assert.match(view.get('.book-language-notice').text(), /2 provider results were hidden: 1 in other languages and 1 with missing or invalid/)
+  assert.equal(view.find('article').exists(), false)
+  await view.get('form').trigger('submit')
+  await settle()
+  assert.equal(providerCalls().length, 1)
+  assert.match(view.get('.book-language-notice').text(), /2 provider results were hidden/)
+  await view.get('#book-search-language').setValue('any')
+  await settle()
+  assert.equal(view.findAll('article').length, 2)
+  assert.equal(providerCalls().length, 2)
 })
 
 test('Library type, valid status and sort survive detail Back, and switching types resets only status', async () => {

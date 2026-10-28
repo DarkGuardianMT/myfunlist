@@ -1,7 +1,7 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MEDIA_TYPES } from '../domain/libraryMedia.js'
-import { normalizeBookSearchOptions } from '../domain/bookSearch.js'
+import { normalizeBookSearchOptions, selectBooksByLanguage } from '../domain/bookSearch.js'
 import { discoverReturnLocation, useBrowsingReady } from '../router/browsingContext.js'
 import { getGoogleBooksErrorMessage, searchBooks } from '../services/googleBooks.js'
 import {
@@ -71,9 +71,14 @@ export function useDiscoverSearch() {
   const bookFilters = computed(() => normalizeBookSearchOptions({
     field: route.query.field, sort: route.query.sort, language: route.query.lang,
   }))
-  const hasBookFilters = computed(() => activeMediaType.value === 'book' &&
-    (bookFilters.value.field !== 'all' || bookFilters.value.sort !== 'relevance' || bookFilters.value.language !== 'any'))
-  const activeSearch = ref({ query: '', searchedQuery: '', results: [], status: 'idle', errorMessage: '' })
+  const bookFilterAdvice = computed(() => {
+    if (activeMediaType.value !== 'book') return ''
+    const suggestions = []
+    if (bookFilters.value.field !== 'all') suggestions.push('All fields')
+    if (bookFilters.value.language !== 'any') suggestions.push('Any language')
+    return suggestions.length ? `Try ${suggestions.join(' or ')} to broaden your search.` : ''
+  })
+  const activeSearch = ref({ query: '', searchedQuery: '', results: [], status: 'idle', errorMessage: '', languageSummary: null })
   const drafts = new Map()
   const activeQuery = computed({
     get: () => activeSearch.value.query,
@@ -95,13 +100,17 @@ export function useDiscoverSearch() {
     discoverReturnLocation.value = context
     const draft = drafts.get(type)
     const input = draft?.submittedQuery === query ? draft.query : query
-    activeSearch.value = { query: input, searchedQuery: query, results: [], status: query ? 'loading' : 'idle', errorMessage: '' }
+    activeSearch.value = { query: input, searchedQuery: query, results: [], status: query ? 'loading' : 'idle', errorMessage: '', languageSummary: null }
     if (!query) return
     try {
       const results = await search(type, query, options)
       if (version !== generation) return
-      activeSearch.value.results = results
-      activeSearch.value.status = results.length ? 'success' : 'empty'
+      const selection = type === 'book' ? selectBooksByLanguage(results, options.language) : { results }
+      activeSearch.value.results = selection.results
+      activeSearch.value.languageSummary = type === 'book' ? {
+        otherLanguageCount: selection.otherLanguageCount, unknownLanguageCount: selection.unknownLanguageCount,
+      } : null
+      activeSearch.value.status = selection.results.length ? 'success' : 'empty'
     } catch (error) {
       if (version !== generation) return
       activeSearch.value.status = 'error'
@@ -133,5 +142,5 @@ export function useDiscoverSearch() {
     return router.push(location(activeMediaType.value, query, bookFilters.value))
   }
 
-  return { activeMediaType, activeSearch, activeQuery, bookFilters, hasBookFilters, setBookFilter, selectMediaType, handleSearch }
+  return { activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice, setBookFilter, selectMediaType, handleSearch }
 }

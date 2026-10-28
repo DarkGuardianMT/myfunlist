@@ -1,6 +1,6 @@
 # MyFunList project context
 
-Current-state reference, checked against implementation commit `8d1aa53cc6cc9add893c6f834a75f484bcd70479` (2026-10-28). Future changes must use the actual HEAD.
+Current-state reference including the Discover Search V1 QA follow-up (2026-10-28). Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
@@ -19,9 +19,9 @@ The staging host is [lightcyan-snake-955164.hostingersite.com](https://lightcyan
 | UI audit Batch 1 (A1/A2) | Discover context/return navigation and Library filters/Back behavior | Complete: automated tests and live Work browser QA passed |
 | UI audit Batch 2 (B1/B2/B3/B7) | Responsive detail layout, actions before synopsis, authors near title, concise book labels/full classifications disclosure, improved action targets | Media Detail complete: automated tests and live Work browser QA passed; Library residual B3-L1 remains open |
 | UI audit Batch 3 (A3/D2) | Compact Discover book metadata, accessible Full info disclosure, action alignment, mobile 2×2 type switcher | Complete: automated tests and live Work browser QA passed across requested viewports and both themes |
-| Discover Search V1 | Smarter book ranking and provider-backed Books filters | Implemented and deployed to staging; 184 frontend tests, production build and relevant non-destructive checks passed in the implementation run; focused live-browser QA is not yet confirmed |
+| Discover Search V1 | Smarter book ranking and provider-backed Books filters; defensive language-metadata checking and actionable empty-state advice | Original live QA partially accepted relevance/navigation/layout/Add; follow-up reproduced an upstream language mismatch and 503 failures. All 191 frontend tests and production build pass with language/P3 regressions; fresh browser acceptance and provider-dependent field/ISBN usefulness remain open |
 
-Batch 1–3 Work QA completion is the project owner's confirmation supplied for this documentation refresh. Original Work reports/screenshots are not tracked here and were not independently re-run during this refresh. Preserve the original evidence wherever it is held. Search V1 staging success is recorded in [workflow run 40751645647](https://github.com/DarkGuardianMT/myfunlist/actions/runs/40751645647); deployed filter code and API health were checked separately. These records do not establish complete production readiness.
+Batch 1–3 Work QA completion is the project owner's confirmation supplied for the documentation refresh. Original Work reports/screenshots are not tracked here; preserve them wherever they are held. The external Search V1 live QA report was subsequently reviewed for this follow-up; it has not been overwritten or re-run as new browser evidence. Initial Search V1 staging success is recorded in [workflow run 40751645647](https://github.com/DarkGuardianMT/myfunlist/actions/runs/40751645647). See [QA follow-up](docs/DISCOVER_SEARCH_V1_QA_FOLLOWUP.md) for direct provider evidence, fixes and unresolved checks. These records do not establish complete production readiness.
 
 ## Technology stack and architecture
 
@@ -122,6 +122,8 @@ Comparison uses Unicode NFKD, lowercasing, accent removal and punctuation/whites
 | Language | Any (default, no restriction); English `en`, Dutch `nl`, Turkish `tr` via `langRestrict` |
 | Sort by | Best match (default, `orderBy=relevance`); Newest (`orderBy=newest`) |
 
+The QA follow-up reproduced Google returning Italian/German language tags despite `langRestrict=en`. Discovery now retains normalized two-letter language metadata. For a selected language, a defensive frontend check shows only matching candidates, explicitly reporting other-language and unknown-language omissions. Missing, invalid or unsupported-format metadata is hidden for a selected language; Any language retains every candidate. This guard makes no extra requests, preserves relative rank/order and IDs, and operates on the existing filter-specific cached candidates. An all-omitted set becomes empty. Empty-state advice mentions only non-default field/language restrictions; sorting alone never triggers it. Details and remaining provider limitations are in the follow-up report.
+
 Submitted query/type use `q`/`type` URL parameters; Books is the default type. Non-default Books filters use `field=title|author`, `lang=en|nl|tr` and `sort=newest`. Invalid/repeated filter values fall back safely. Back, refresh and explicit Media Detail return restore submitted context. Switching types remembers each type's submitted search; an unsubmitted draft survives while Discover remains mounted. Filter changes search the submitted query immediately; without one they remain idle.
 
 Ranking only reorders returned candidates, not the entire catalogue. It is not popularity/sales ranking. Editions are not grouped; Open Library work/edition integration and external popularity signals are future investigations.
@@ -156,11 +158,11 @@ Deferred: Anime/source selection; season-level TV/Anime tracking in dedicated re
 
 | Item | Remaining work |
 | --- | --- |
-| Discover Search V1 | Focused live-browser QA: Hobbit, The Hobbit, Dune, Harry Potter, author and ISBN; compare available candidates without assuming fixed ordering; verify filters, Back/refresh/detail return, Add actions, 320/390px and desktop in both themes |
+| Discover Search V1 | Fresh browser verification of language omission notices/missing metadata and P3 advice, with navigation/Add/320–390px theme regressions; Title/Author/ISBN usefulness and successful minimal language comparisons remain provider-dependent and unresolved |
 | Batch 4 | Remaining Library and Custom Lists UI audit issues |
 | Batch 5 / B6 | Library removal recovery/Undo |
 | B3-L1 (low severity) | Work QA measured Library card status/rating targets around 40px and Remove around 38.4px versus intended 44px; still open, without invalidating Media Detail fixes |
-| C1 | Reported intermittent Google Books provider failures; no root cause established |
+| C1 | Direct Google Books calls reproduced upstream HTTP 503 `backendFailed`; no application-side cause identified for those samples. Existing safe classification and explicit-only retries remain; broader provider reliability is unresolved |
 | Search V2 | Investigate work/edition grouping and external popularity signals; not implemented |
 | Public launch | Complete security/operations checks: real client IP/limits, cookie/session persistence, HTTPS/routing/headers/CSP, backups/isolated restore, logs, provider-key restrictions and account-isolation flows |
 

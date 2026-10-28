@@ -21,6 +21,7 @@ test('normalizes Google Books metadata without user state', () => {
     sourceId: 'volume-1',
     title: 'Example Book',
     authors: ['Author'],
+    language: null,
     publishedDate: '2020-04-01',
     publishedYear: '2020',
     coverImage: 'https://example.com/cover.jpg',
@@ -34,6 +35,17 @@ test('normalizes Google Books metadata without user state', () => {
   assert.equal(normalizeGoogleBook({ volumeInfo: {
     imageLinks: { thumbnail: 'data:image/svg+xml,<svg />' },
   } }).coverImage, null)
+})
+
+test('book language normalization retains usable provider language without changing identities or source metadata', () => {
+  for (const [language, expected] of [[' EN ', 'en'], ['tr', 'tr'], ['it', 'it'],
+    [undefined, null], [null, null], ['', null], ['unknown', null], ['en-US', null], [42, null]]) {
+    const raw = Object.freeze({ id: '7cAPEgAAQBAJ', volumeInfo: Object.freeze({ title: 'Lo Hobbit', language }) })
+    const result = normalizeGoogleBook(raw)
+    assert.equal(result.language, expected)
+    assert.equal(result.sourceId, raw.id)
+    assert.equal(raw.volumeInfo.language, language)
+  }
 })
 
 test('book search suppresses empty queries and supports an optional API key', async () => {
@@ -132,5 +144,15 @@ test('book search maps failed requests and malformed responses to friendly error
       searchBooks('book', { fetchImpl: async () => ({ ok: true, json: async () => data }) }),
       (error) => getGoogleBooksErrorMessage(error).includes('unexpected response'),
     )
+  }
+})
+
+test('provider 503 failures remain unavailable with one request per explicit attempt and no automatic fallback', async () => {
+  let calls = 0
+  const fetchImpl = async () => { calls++; return { ok: false, status: 503 } }
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await assert.rejects(searchBooks('Ursula Le Guin', { field: 'author', fetchImpl }),
+      (error) => error.code === 'unavailable' && getGoogleBooksErrorMessage(error).includes('temporarily unavailable'))
+    assert.equal(calls, attempt)
   }
 })
