@@ -1,0 +1,62 @@
+# MyFunList project history
+
+Historical milestones and verification records moved out of the current-state reference during the 2026-10-28 documentation refresh. Use [PROJECT_CONTEXT.md](../PROJECT_CONTEXT.md) for present behavior and [AGENTS.md](../AGENTS.md) for mandatory working rules. Original UI/Work reports, screenshots, measurements and recovery archives must remain unchanged outside this summary.
+
+The [pre-refresh context at 8d1aa53](https://github.com/DarkGuardianMT/myfunlist/blob/8d1aa53cc6cc9add893c6f834a75f484bcd70479/PROJECT_CONTEXT.md) retains the full earlier implementation narrative in Git. It is a historical snapshot: its pending Batch 1–3 browser-QA statements and publication/deployment status are superseded below.
+
+## Foundations and account persistence
+
+Trackora was the earlier vanilla-JavaScript prototype; MyFunList became the main Vue project. The frontend grew from browser-local tracking to four media types and then account-backed persistence.
+
+September 2026 work introduced the PHP API, CLI migrations/core schema, native session authentication, authoritative Library resolution and legacy import. Private Profile/password management and mixed-media Custom Lists followed. Later fixes stabilized account transitions and list consistency. Implementation contracts now live in the current context and development guide rather than being duplicated here.
+
+## Local database recovery record — September 29
+
+The earlier local audit found evidence of an XAMPP data-directory replacement and logical restore. The original cause was unconfirmed. Read-only checks found the restored development schema/data consistent with fresh migrations; both development and isolated test databases passed checks after a clean MariaDB restart with recovery disabled. The recorded run also passed backend tests and live TMDB/RAWG searches.
+
+A fresh logical backup and verified stopped-data-directory copy were recorded outside Git under XAMPP's recovery directory. Preserve old data directories/recovery exports. This historical record does not establish their current availability or authorize restoration, deletion or a new destructive test run.
+
+## Release and portfolio reviews — September/October
+
+Durable API rate limits, guarded isolated-database tests, Light/Dark themes, backend TMDB/RAWG discovery and mobile bottom navigation were implemented before the deployment milestone.
+
+The October 9 portfolio review scanned 34 existing commits and 384 local file blobs, including unreachable objects, and reported no genuine committed credentials or database exports. The owner accepted the author's personal email in commit metadata. Ignore rules were expanded for sensitive local artifacts; compatible dependency security fixes and setup/development/deployment guides were added. No open-source license was selected.
+
+That review passed 51 frontend tests at the time, production build, PHP/JavaScript syntax, non-database safety/discovery checks, Composer validation/platform checks and advisory checks. Local startup, same-origin proxy and anonymous/CSRF/API-error smoke checks passed; backend credentials were absent from built assets. The local database port refused connections during that run, so its health check failed and database-resetting tests were not run. This is separate from the earlier recovery verification.
+
+Repository visibility was private at that historical review; the record is not a current visibility or publication gate. Likewise, an old credential/dependency scan is not a continuing security guarantee.
+
+## Staging and Media Detail — October 27
+
+The staging workflow was introduced in `455322a` and completed in `2322dd5`, targeting the Hostinger staging host. The deployment runbook remains the authoritative operational procedure.
+
+| Commit | Media Detail milestone |
+| --- | --- |
+| `53cd948` | Normalized provider-side detail resolution, including book date/ISBN precision and bounded public metadata |
+| `48ceac1` | Public detail API, strict source IDs, independent rate limit and deterministic API/provider tests |
+| `152ee42` | Vue detail pages, errors/retry and public metadata cache; local fixture browser checks included refresh, themes and layouts down to 320px |
+| `1cdb3e7` | Shared card artwork/title navigation and browser-history scroll restoration |
+| `4a18c42` | Detail Library actions, shared controls and list-cache invalidation on Library removal |
+| `2350260` | Lazy private Add to List without prefetching list contents, with account/context guards |
+
+Two live server-authenticated RAWG responses were recorded during detail development to confirm field shapes. This historical provider check is not general live-browser QA.
+
+## Completed UI audit batches
+
+| Batch / commit | Delivered scope | Completion record |
+| --- | --- | --- |
+| 1 / `eaeb34d` | A1/A2: Discover query/type/cache/return context, Library filter persistence and render-aware scroll restoration | Automated tests and live Work browser QA passed |
+| 2 / `9dce96d` | B1/B2/B3/B7: compact responsive Media Detail; actions before synopsis; authors near title; concise classifications with full disclosure; improved action targets | Media Detail automated tests and live Work browser QA passed |
+| 3 / `aa377a9` | A3/D2: bounded Discover BookCard metadata/full-info access, bottom action alignment and balanced 2×2 mobile type switcher | Automated tests and live Work browser QA passed across requested viewports and both themes |
+
+The project owner supplied these completed Work QA statuses for this documentation refresh. Original reports/screenshots are not tracked in this repository and were not independently re-run here. Earlier implementation-time limitations in local computer/browser access are superseded by that later Batch 1–3 confirmation, not by invented new checks.
+
+B3-L1 remains open: Work QA measured Library-page status/rating targets around 40px and Remove around 38.4px rather than the intended 44px. This low-severity residual does not invalidate the completed Media Detail changes. Batch 4, Batch 5/B6 and other remaining work are listed in the current roadmap.
+
+## Discover Search V1 — October 28
+
+Commit `8d1aa53cc6cc9add893c6f834a75f484bcd70479` implemented bounded Google Books candidate ranking, field/language/sort constraints and filter-aware URLs/cache. Its implementation run passed all 184 frontend tests, production build, JavaScript/Vue syntax, scoped CSS checks and non-destructive PHP provider/API suites. Database-resetting tests were not run.
+
+[Staging workflow 40751645647](https://github.com/DarkGuardianMT/myfunlist/actions/runs/40751645647) completed successfully, including API health. A separate HTTPS check confirmed the deployed Discover bundle contained the filter controls and 40-result request setting; health returned `data.status=ok`.
+
+Search V1 live-browser QA is not yet confirmed. The implementation run had no browser connector and native Chrome app access timed out awaiting approval. The later Work confirmation above covers UI audit Batches 1–3, not Search V1. Full public-launch security/operations verification also remains separate.

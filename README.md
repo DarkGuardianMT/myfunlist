@@ -9,6 +9,8 @@ Discover books, movies, TV shows, and games, then organize and track them in a p
 
 - Account registration, login, and logout.
 - Book, movie, TV, and game discovery through external media APIs.
+- Books field/language/sort filters and stable title-relevance ranking over Google Books candidates.
+- Public Media Detail pages with account Library controls and Add to List for saved entries.
 - A persistent Library with media-specific statuses, filtering, sorting, and optional personal ratings from 0.5 to 10 in half-point steps.
 - Private Custom Lists for organizing Library entries across media types.
 - Private profiles with display-name editing and password changes.
@@ -72,8 +74,12 @@ For hosting, security configuration, and release checks, see [Deployment](docs/D
 
 ## Project Status
 
-MyFunList is under active development. Deployment and production readiness are not verified.
+MyFunList is under active development. Discover Search V1 has been deployed successfully to staging;
+its focused live-browser QA and full public-launch security/operations checks remain open.
 The features listed above are implemented; anime, public profiles, shared lists, and social features remain future work.
+
+See [Project context](PROJECT_CONTEXT.md) for current architecture, completed UI audit batches and the active roadmap,
+and [Project history](docs/PROJECT_HISTORY.md) for earlier milestones and verification records.
 
 Email verification, password reset, email changes, and account deletion are not implemented.
 Password changes renew the current session but do not invalidate other sessions.

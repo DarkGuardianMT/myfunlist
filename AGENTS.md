@@ -1,29 +1,34 @@
 # Working in MyFunList
 
-This repository is the main MyFunList project. Read `PROJECT_CONTEXT.md` for the current project state and agreed direction before making changes.
+Read [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) before changes. Use the current implementation and tests as the source of truth.
 
-## Scope and implementation
+## Scope and conventions
 
-- Inspect the relevant existing code before changing anything. Preserve the current architecture unless the task explicitly calls for a change.
-- Keep changes focused on the requested task. Do not rewrite large parts of the project unnecessarily or silently remove working behavior.
-- Prefer simple, maintainable solutions over overengineering.
-- Use Vue 3 patterns appropriate to the existing project. Write JavaScript, not TypeScript, unless a migration is explicitly decided.
-- Use normal CSS for now. Do not add a CSS framework unless explicitly requested.
-- Add dependencies only when there is a clear need.
-- Do not add PHP, MySQL, or other backend code until the project reaches that phase.
+- Inspect relevant code, configuration and tests before editing. Preserve the existing architecture unless the task explicitly changes it.
+- Keep changes focused, simple and maintainable. Do not silently implement unrelated improvements or remove working behavior.
+- Use Vue 3, JavaScript and plain CSS. Introduce TypeScript or a CSS framework only when explicitly requested; add dependencies only for a clear task-related need.
+- The PHP 8.2+ REST API and MySQL/MariaDB persistence are implemented. Backend work is allowed when explicitly within task scope.
+- Write useful code comments in Dutch; keep code naming and concise Conventional Commit messages in English.
+- Keep secrets and API keys out of Git, commands and logs. Use private environment configuration; every `VITE_` value is browser-visible.
 
-## Code and configuration
+## Security and data
 
-- Keep secrets and API keys out of Git. Use environment variables when appropriate.
-- Write code comments in Dutch. Comments should explain useful logic rather than obvious syntax. Naming and code can remain in English.
+- Preserve authentication, session security, CSRF handling, account ownership checks and existing API contracts.
+- Never run destructive migrations, resets, schema rebuilds or database integration tests against development, staging or production data.
+- Database-writing tests require the existing safeguards: explicit `APP_ENV=testing`, exact `DB_DATABASE=myfunlist_test` and a loopback host, using an isolated disposable test database. Never bypass these checks.
+- Follow [Development](docs/DEVELOPMENT.md) for test setup and [Deployment](docs/DEPLOYMENT.md) for deliberate migrations, backups and releases.
+- Preserve original UI audit reports, Work QA reports, screenshots, measurements and evidence archives; do not overwrite them.
 
-## Verification and project memory
+## Verification and documentation
 
-- Verify changes with checks appropriate to the task. `npm run build` should pass before finishing meaningful frontend tasks.
-- Update `PROJECT_CONTEXT.md` when the current project state or an important architectural decision materially changes. Skip documentation updates for tiny cosmetic changes.
+- Frontend changes: run `npm test`, `npm run build` and relevant focused checks.
+- Backend changes: run appropriate PHP syntax checks and non-destructive tests, including the relevant provider/API suites. Do not run `composer test` without the isolated database safeguards above.
+- Documentation-only changes: verify technical claims, paths, commands, Markdown/internal links and a documentation-only diff; application tests are not required unless relevant.
+- Report automated tests, local preview, staging deployment and independent live-browser QA separately. Never claim browser verification unless it was actually performed.
+- Update `PROJECT_CONTEXT.md` when meaningful project state or an architectural decision changes; skip tiny cosmetic updates. Keep history in [PROJECT_HISTORY](docs/PROJECT_HISTORY.md), not in these instructions.
 
-## Git
+## Git and deployment
 
-- Use Conventional Commits with concise English commit messages.
-- After checks pass, commit and push clearly scoped tasks unless the task explicitly says not to. Avoid unnecessary commits for tiny changes.
+- After relevant checks pass, commit and push clearly scoped tasks unless the task says otherwise; avoid unnecessary commits for tiny changes.
+- Pushing to `main` automatically triggers GitHub Actions staging deployment. When deployment is part of the task, verify the workflow result; successful local checks do not establish deployment success or public-launch readiness.
 - Do not force-push or rewrite history unless explicitly requested.
