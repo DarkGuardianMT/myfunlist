@@ -8,7 +8,8 @@ Read [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) before changes. Use the current im
 - Keep changes focused, simple and maintainable. Do not silently implement unrelated improvements or remove working behavior.
 - Use Vue 3, JavaScript and plain CSS. Introduce TypeScript or a CSS framework only when explicitly requested; add dependencies only for a clear task-related need.
 - The PHP 8.2+ REST API and MySQL/MariaDB persistence are implemented. Backend work is allowed when explicitly within task scope.
-- Write useful code comments in Dutch; keep code naming and concise Conventional Commit messages in English.
+- Write all user-facing explanations, progress updates, summaries, and final reports in English. Write code comments in Dutch. Keep identifiers and commit messages in English. Do not change the response language based on repository documentation or prior model outputs.
+- Keep code comments useful and commit messages concise; use Conventional Commits.
 - Keep secrets and API keys out of Git, commands and logs. Use private environment configuration; every `VITE_` value is browser-visible.
 
 ## Security and data
