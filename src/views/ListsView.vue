@@ -11,6 +11,15 @@ const description = ref('')
 const isCreating = ref(false)
 const formError = ref('')
 const formSuccess = ref('')
+const createPanel = ref(null)
+
+function cancelCreate() {
+  title.value = ''
+  description.value = ''
+  formError.value = ''
+  createPanel.value.open = false
+  createPanel.value.querySelector('summary').focus()
+}
 
 watch(() => currentUser.value?.id, () => {
   title.value = ''
@@ -37,6 +46,10 @@ async function submitCreate() {
     title.value = ''
     description.value = ''
     formSuccess.value = `Created “${list.title}”.`
+    if (createPanel.value) {
+      createPanel.value.open = false
+      createPanel.value.querySelector('summary').focus()
+    }
   } catch (error) {
     if (currentUser.value?.id === accountId) {
       formError.value = error.fields?.title || error.fields?.description || error.fields?.list || error.message
@@ -61,18 +74,25 @@ async function submitCreate() {
       <RouterLink class="inline-link" to="/register">Register</RouterLink>
     </div>
     <template v-else>
-      <section class="list-panel" aria-labelledby="create-list-heading">
-        <h2 id="create-list-heading">Create a list</h2>
+      <details ref="createPanel" class="list-panel list-disclosure">
+        <summary>Create a list</summary>
         <form class="list-form" @submit.prevent="submitCreate">
-          <label for="list-title">Title</label>
-          <input id="list-title" v-model="title" type="text" required maxlength="120" :disabled="isCreating || !isListsLoaded" />
-          <label for="list-description">Description (optional)</label>
-          <textarea id="list-description" v-model="description" rows="3" maxlength="1000" :disabled="isCreating || !isListsLoaded" />
+          <div class="list-form__field">
+            <label for="list-title">Title</label>
+            <input id="list-title" v-model="title" type="text" required maxlength="120" :disabled="isCreating || !isListsLoaded" />
+          </div>
+          <div class="list-form__field">
+            <label for="list-description">Description (optional)</label>
+            <textarea id="list-description" v-model="description" rows="2" maxlength="1000" :disabled="isCreating || !isListsLoaded" />
+          </div>
           <p v-if="formError" class="list-error" role="alert">{{ formError }}</p>
-          <p v-if="formSuccess" class="list-success" role="status">{{ formSuccess }}</p>
-          <button type="submit" :disabled="isCreating || !isListsLoaded">{{ isCreating ? 'Creating…' : 'Create list' }}</button>
+          <div class="list-form__actions">
+            <button type="submit" :disabled="isCreating || !isListsLoaded">{{ isCreating ? 'Creating…' : 'Create list' }}</button>
+            <button type="button" class="list-form__cancel" :disabled="isCreating" @click="cancelCreate">Cancel</button>
+          </div>
         </form>
-      </section>
+      </details>
+      <p v-if="formSuccess" class="list-success" role="status">{{ formSuccess }}</p>
 
       <section aria-labelledby="my-lists-heading">
         <h2 id="my-lists-heading" class="section-title">My lists</h2>

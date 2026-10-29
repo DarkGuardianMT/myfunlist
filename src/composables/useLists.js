@@ -13,6 +13,8 @@ const selectedItems = ref([])
 const isDetailLoaded = ref(false)
 const isDetailLoading = ref(false)
 const detailError = ref('')
+const memberships = ref(new Map())
+let summariesPromise = null
 let generation = 0
 let listsRequest = 0
 let detailRequest = 0
@@ -32,6 +34,8 @@ export function resetLists() {
   isDetailLoading.value = false
   detailError.value = ''
   loadedId = null
+  memberships.value = new Map()
+  summariesPromise = null
 }
 
 export function invalidateListMemberships() {
@@ -45,6 +49,7 @@ function invalidateListCache(id) {
   isListsLoaded.value = false
   isListsLoading.value = false
   listsError.value = ''
+  summariesPromise = null
   if (loadedId === id) {
     detailRequest++
     loadedId = null
@@ -61,9 +66,18 @@ function guardAccount() {
   return generation
 }
 
-async function loadLists(force = false) {
-  if (!currentUser.value) return []
-  if (isListsLoaded.value && !force) return lists.value
+function loadLists(force = false) {
+  if (!currentUser.value) return Promise.resolve([])
+  if (isListsLoaded.value && !force) return Promise.resolve(lists.value)
+  if (summariesPromise && !force) return summariesPromise
+  const pending = fetchLists().finally(() => {
+    if (summariesPromise === pending) summariesPromise = null
+  })
+  summariesPromise = pending
+  return pending
+}
+
+async function fetchLists() {
   const requestGeneration = generation
   const requestId = ++listsRequest
   isListsLoading.value = true
@@ -101,6 +115,7 @@ async function loadList(id, force = false) {
     if (generation === requestGeneration && detailRequest === requestId) {
       selectedList.value = detail.list
       selectedItems.value = detail.items
+      memberships.value.set(id, new Set(detail.items.map((item) => item.userMedia.id)))
       isDetailLoaded.value = true
       lists.value = lists.value.map((list) => list.id === id ? detail.list : list)
     }
@@ -114,6 +129,10 @@ async function loadList(id, force = false) {
 }
 
 export function useLists() {
+  function isListMember(id, userMediaId) {
+    return memberships.value.get(id)?.has(userMediaId) ?? false
+  }
+
   async function createCustomList(title, description) {
     const requestGeneration = guardAccount()
     const created = await createList(title, description)
@@ -140,6 +159,7 @@ export function useLists() {
     await deleteList(id)
     if (generation === requestGeneration) {
       lists.value = lists.value.filter((list) => list.id !== id)
+      memberships.value.delete(id)
       if (selectedList.value?.id === id) {
         selectedList.value = null
         selectedItems.value = []
@@ -151,11 +171,15 @@ export function useLists() {
 
   async function addToList(id, userMediaId, { refreshDetail = true, isCurrent = () => true } = {}) {
     const requestGeneration = guardAccount()
+    if (isListMember(id, userMediaId)) return { added: false }
     try {
       const result = await addListItem(id, userMediaId, {
         isCurrent: () => generation === requestGeneration && isCurrent(),
       })
       if (generation === requestGeneration) {
+        if (typeof result?.added !== 'boolean') throw new Error('Invalid membership response')
+        if (!memberships.value.has(id)) memberships.value.set(id, new Set())
+        memberships.value.get(id).add(userMediaId)
         if (refreshDetail) await loadList(id, true)
         else invalidateListCache(id)
       }
@@ -169,7 +193,10 @@ export function useLists() {
   async function removeFromList(id, userMediaId) {
     const requestGeneration = guardAccount()
     await removeListItem(id, userMediaId)
-    if (generation === requestGeneration) await loadList(id, true)
+    if (generation === requestGeneration) {
+      memberships.value.get(id)?.delete(userMediaId)
+      await loadList(id, true)
+    }
   }
 
   return {
@@ -179,6 +206,6 @@ export function useLists() {
     isDetailLoaded: readonly(isDetailLoaded), isDetailLoading: readonly(isDetailLoading),
     detailError: readonly(detailError),
     loadLists, loadList, createCustomList, updateCustomList, deleteCustomList,
-    addToList, removeFromList,
+    addToList, removeFromList, isListMember,
   }
 }

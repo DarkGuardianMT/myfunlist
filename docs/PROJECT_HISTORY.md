@@ -60,3 +60,23 @@ Commit `8d1aa53cc6cc9add893c6f834a75f484bcd70479` implemented bounded Google Boo
 [Staging workflow 40751645647](https://github.com/DarkGuardianMT/myfunlist/actions/runs/40751645647) completed successfully, including API health. A separate HTTPS check confirmed the deployed Discover bundle contained the filter controls and 40-result request setting; health returned `data.status=ok`.
 
 Search V1 live-browser QA is not yet confirmed. The implementation run had no browser connector and native Chrome app access timed out awaiting approval. The later Work confirmation above covers UI audit Batches 1–3, not Search V1. Full public-launch security/operations verification also remains separate.
+
+## UI audit Batch 4 — October 29
+
+Implementation started from HEAD `758c720`. The original October 27 `MYFUNLIST_UI_AUDIT.md` and the Batch 2 `MYFUNLIST_BATCH2_VISUAL_QA.md` were read from the owner's local workspace. Original reports, screenshots and measurements were preserved.
+
+| Finding verified against the original evidence | Implemented fix |
+| --- | --- |
+| A4: Successful addition produces misleading no-match feedback | Match the full Library before excluding existing members. Show “All matching Library items are already in this list” after the last eligible match is added; reserve “No Library items match” for absent matches. Preserve the filter and make removed members eligible again |
+| B4: Create/add forms dominate existing-list browsing | Initially collapse Create a list and Add from Library using native disclosures. Compact create/edit forms, retain labels/validation/error feedback, distinguish primary and Cancel actions, reset cancelled edits, and return focus after closing forms |
+| B5: Custom List organization requires leaving Library | Reuse the lazy Media Detail picker directly on each Library card with unique labels/control IDs; keep the route, personal state and browsing preferences intact |
+| D3: List picker still offers an already-completed add | Remember memberships confirmed by reads/add responses within the account session; label/disable satisfied choices and guard repeat submissions on Library and Media Detail. List removals restore eligibility; account/Library removal clears private knowledge |
+| B3-L1: Library-card targets remain below 44px | Set status/rating selectors and Remove controls to minimum 44×44 CSS pixels; retain native controls, accessible names and focus treatment |
+
+Nine new targeted tests in `tests/libraryListsUx.test.js` cover filtered-add/removal/re-add behavior, create/edit disclosures and validation, empty/filter/loading/error distinctions, all four card pickers, summary-request deduplication, duplicate/error feedback, membership invalidation/account separation, cancelled queued requests and computed CSS minimums/keyboard focus. Existing list-view tests now open the disclosures; Media Detail regressions assert that repeated successful/duplicate adds remain disabled. An existing Library test now targets Remove by class instead of assuming it is the only button.
+
+Automated verification: `npm test` passed all **200 tests**; `npm run build` passed. No backend code/contracts or provider-search logic changed. Tests used fetch doubles and did not connect to or modify any database. No PHP/database integration tests were run.
+
+Local preview and independent live-browser QA were **not completed**. The browser access host was unavailable; native Chrome access was stopped because the computer-use tool could not determine the browser URL confidently enough to enforce policy. The requested **320×740, 390×844, 768×1024 and 1440×900, Light/Dark** matrix remains unverified. Computed CSS minimums in jsdom are not rendered browser measurements. Cross-tab/device membership changes require refresh; unknown membership still uses the idempotent API. Batch 5 Undo and remaining D1 rating polish are deferred.
+
+Staging workflow and API-health results are reported separately in the task delivery; local validation alone does not establish deployment success or public-launch readiness.

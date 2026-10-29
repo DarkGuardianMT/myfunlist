@@ -445,7 +445,7 @@ test('Library page reuses extracted controls while filters, sorting, actions, an
   await view.get('#library-status-filter').setValue('reading')
   assert.equal(view.findAll('article').length, 1)
   await view.get('#library-sort-order').setValue('rating-high-low')
-  await controls(view).get('button').trigger('click')
+  await controls(view).get('.remove-button').trigger('click')
   await flushPromises()
   assert.equal(view.findAll('article').length, 0)
   assert.equal(state.items.length, 1)

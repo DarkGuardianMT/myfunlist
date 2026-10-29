@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ListMediaCard from '../components/ListMediaCard.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
@@ -30,15 +30,21 @@ const libraryFilter = ref('')
 const feedback = ref('')
 const feedbackType = ref('status')
 const editError = ref('')
+const addExpanded = ref(false)
+const editButton = ref(null)
 
 const availableItems = computed(() => {
   const included = new Set(selectedItems.value.map((item) => item.userMedia.id))
   return libraryItems.value.filter((item) => !included.has(item.userMedia.id))
 })
-const filteredItems = computed(() => {
+const matchingLibraryItems = computed(() => {
   const query = libraryFilter.value.trim().toLocaleLowerCase()
-  return query ? availableItems.value.filter((item) =>
-    `${item.media.title} ${item.media.mediaType}`.toLocaleLowerCase().includes(query)) : availableItems.value
+  return query ? libraryItems.value.filter((item) =>
+    `${item.media.title} ${item.media.mediaType}`.toLocaleLowerCase().includes(query)) : libraryItems.value
+})
+const filteredItems = computed(() => {
+  const availableIds = new Set(availableItems.value.map((item) => item.userMedia.id))
+  return matchingLibraryItems.value.filter((item) => availableIds.has(item.userMedia.id))
 })
 const hasTmdbMedia = computed(() => selectedItems.value.some((item) => item.media.source === 'tmdb'))
 const hasGames = computed(() => selectedItems.value.some((item) => item.media.mediaType === 'game'))
@@ -48,6 +54,7 @@ watch([() => currentUser.value?.id, isAuthLoading, listId], async () => {
   selectedLibraryId.value = ''
   libraryFilter.value = ''
   editing.value = false
+  addExpanded.value = false
   if (currentUser.value && !isAuthLoading.value) {
     const accountId = currentUser.value.id
     try { await loadList(listId.value, true) } catch { /* De detailfout toont de oorzaak. */ return }
@@ -61,9 +68,20 @@ watch(() => selectedList.value?.id, () => {
   editDescription.value = selectedList.value?.description ?? ''
 })
 
+watch(editing, (value) => {
+  if (!value) nextTick(() => editButton.value?.focus())
+})
+
 function showFeedback(message, type = 'status') {
   feedback.value = message
   feedbackType.value = type
+}
+
+function toggleEdit() {
+  editTitle.value = selectedList.value?.title ?? ''
+  editDescription.value = selectedList.value?.description ?? ''
+  editError.value = ''
+  editing.value = !editing.value
 }
 
 async function saveEdit() {
@@ -158,27 +176,34 @@ async function removeSelected(item) {
         <p v-if="selectedList.description" class="list-detail-description">{{ selectedList.description }}</p>
         <p class="list-meta">{{ selectedList.itemCount }} {{ selectedList.itemCount === 1 ? 'item' : 'items' }} · Created {{ formatListDate(selectedList.createdAt) }} · Updated {{ formatListDate(selectedList.updatedAt) }}</p>
         <div class="list-actions">
-          <button type="button" class="text-button" @click="editing = !editing">{{ editing ? 'Cancel edit' : 'Edit list' }}</button>
+          <button ref="editButton" type="button" class="text-button" :disabled="isSaving || isDeleting" :aria-expanded="editing" aria-controls="edit-list-panel" @click="toggleEdit">{{ editing ? 'Cancel edit' : 'Edit list' }}</button>
           <button type="button" class="text-button list-delete" :disabled="isDeleting" @click="removeList">{{ isDeleting ? 'Deleting…' : 'Delete list' }}</button>
         </div>
       </header>
 
-      <section v-if="editing" class="list-panel" aria-labelledby="edit-list-heading">
+      <section v-if="editing" id="edit-list-panel" class="list-panel" aria-labelledby="edit-list-heading">
         <h2 id="edit-list-heading">Edit list</h2>
         <form class="list-form" @submit.prevent="saveEdit">
-          <label for="edit-list-title">Title</label>
-          <input id="edit-list-title" v-model="editTitle" type="text" required maxlength="120" :disabled="isSaving" />
-          <label for="edit-list-description">Description (optional)</label>
-          <textarea id="edit-list-description" v-model="editDescription" rows="3" maxlength="1000" :disabled="isSaving" />
+          <div class="list-form__field">
+            <label for="edit-list-title">Title</label>
+            <input id="edit-list-title" v-model="editTitle" type="text" required maxlength="120" :disabled="isSaving" />
+          </div>
+          <div class="list-form__field">
+            <label for="edit-list-description">Description (optional)</label>
+            <textarea id="edit-list-description" v-model="editDescription" rows="2" maxlength="1000" :disabled="isSaving" />
+          </div>
           <p v-if="editError" class="list-error" role="alert">{{ editError }}</p>
-          <button type="submit" :disabled="isSaving">{{ isSaving ? 'Saving…' : 'Save changes' }}</button>
+          <div class="list-form__actions">
+            <button type="submit" :disabled="isSaving">{{ isSaving ? 'Saving…' : 'Save changes' }}</button>
+            <button type="button" class="list-form__cancel" :disabled="isSaving" @click="toggleEdit">Cancel</button>
+          </div>
         </form>
       </section>
 
       <p v-if="feedback" :class="feedbackType === 'alert' ? 'list-error' : 'list-success'" :role="feedbackType">{{ feedback }}</p>
 
-      <section class="list-panel list-add-panel" aria-labelledby="add-list-item-heading">
-        <h2 id="add-list-item-heading">Add from Library</h2>
+      <details class="list-panel list-add-panel list-disclosure" :open="addExpanded" @toggle="addExpanded = $event.target.open">
+        <summary>Add from Library</summary>
         <div v-if="libraryError" role="alert">
           <p class="list-error">Your Library could not be loaded. {{ libraryError }}</p>
           <button type="button" class="text-button" @click="loadLibrary(true)">Try again</button>
@@ -199,10 +224,10 @@ async function removeSelected(item) {
               {{ item.media.title }} ({{ item.media.mediaType }})
             </option>
           </select>
-          <p v-if="!filteredItems.length" class="list-filter-empty" role="status">No Library items match this filter.</p>
+          <p v-if="!filteredItems.length" class="list-filter-empty" role="status">{{ matchingLibraryItems.length ? 'All matching Library items are already in this list.' : 'No Library items match this filter.' }}</p>
           <button type="submit" :disabled="isAdding || !selectedLibraryId || !filteredItems.some((item) => item.userMedia.id === selectedLibraryId)">{{ isAdding ? 'Adding…' : 'Add to list' }}</button>
         </form>
-      </section>
+      </details>
 
       <section aria-labelledby="list-items-heading">
         <h2 id="list-items-heading" class="section-title">List items</h2>

@@ -368,6 +368,18 @@ a:focus-visible {
 
 .list-panel h2 { margin: 0 0 1rem; color: var(--color-text); }
 .list-form { display: grid; gap: 0.6rem; max-width: 38rem; }
+.list-disclosure summary { min-height: 44px; align-content: center; cursor: pointer; color: var(--color-primary-ink); font-weight: 700; }
+.list-disclosure summary:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 3px; }
+.list-disclosure[open] > summary { margin-bottom: 0.75rem; }
+.list-form__field { display: grid; align-content: start; gap: 0.4rem; min-width: 0; }
+.list-form__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.list-form .list-form__cancel { border: 1px solid var(--color-control-border); background: var(--color-surface); color: var(--color-primary-ink); }
+.list-form .list-form__cancel:hover:not(:disabled) { background: var(--color-primary-soft); color: var(--color-primary-ink); }
+.list-form button, .list-add-form button, .list-actions button { min-height: 44px; min-width: 44px; max-width: 100%; }
+@media (min-width: 768px) {
+  .list-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .list-form__actions, .list-form > p { grid-column: 1 / -1; }
+}
 .list-form label,
 .list-add-form label { font-weight: 650; }
 .list-form input,
@@ -1083,6 +1095,8 @@ a:focus-visible {
 }
 
 .library-item-controls select {
+  min-width: 44px;
+  min-height: 44px;
   width: 100%;
   border: 1px solid var(--color-control-border);
   border-radius: 0.45rem;
@@ -1094,6 +1108,8 @@ a:focus-visible {
 }
 
 .remove-button {
+  min-width: 44px;
+  min-height: 44px;
   margin-top: 0.25rem;
   border-color: var(--color-danger-ink);
   background: var(--color-surface);

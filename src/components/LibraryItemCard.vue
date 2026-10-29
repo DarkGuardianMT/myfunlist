@@ -4,6 +4,7 @@ import GameCard from './GameCard.vue'
 import MovieCard from './MovieCard.vue'
 import TvCard from './TvCard.vue'
 import LibraryItemControls from './LibraryItemControls.vue'
+import MediaDetailLists from './MediaDetailLists.vue'
 
 defineProps({
   item: { type: Object, required: true },
@@ -29,6 +30,10 @@ function cardProps(item) {
       @status-change="(entry, event) => $emit('status-change', entry, event)"
       @rating-change="(entry, event) => $emit('rating-change', entry, event)"
       @remove="$emit('remove', $event)"
-    />
+    >
+      <template #lists>
+        <MediaDetailLists :media="item.media" :id-prefix="`library-${item.userMedia.id}`" :disabled="busy" compact />
+      </template>
+    </LibraryItemControls>
   </component>
 </template>

@@ -92,6 +92,7 @@ test('Lists overview renders anonymous, loading, empty, create, and validation',
     }
     currentUser.value = { ...account }
     await nextTick()
+    await view.get('.list-disclosure summary').trigger('click')
     assert.match(view.text(), /Loading your lists/)
     assert.equal(view.get('button[type="submit"]').attributes('disabled') !== undefined, true)
     finishLoad(ok([]))
@@ -176,6 +177,7 @@ test('Create form ignores a second submit while its request is pending', async (
   const view = mount(ListsView, { global: { plugins: [await router('/lists')] } })
   try {
     await flushPromises()
+    await view.get('.list-disclosure summary').trigger('click')
     await view.get('#list-title').setValue('Favorites')
     await view.get('form').trigger('submit')
     await flushPromises()
@@ -232,6 +234,7 @@ test('List detail renders mixed items, adds from Library, edits, removes, and co
   try {
     await flushPromises()
     assert.match(view.text(), /book 1/)
+    await view.get('.list-add-panel summary').trigger('click')
     assert.match(view.text(), /movie 2/)
     assert.doesNotMatch(view.findAll('.test-media').map((card) => card.text()).join(' '), /game 4/)
     const options = view.findAll('#list-library-item option').map((option) => option.text())

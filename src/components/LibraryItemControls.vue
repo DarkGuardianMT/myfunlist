@@ -53,6 +53,7 @@ const statusLabels = {
         {{ rating }} / 10
       </option>
     </select>
+    <slot name="lists" />
     <button
       class="remove-button"
       type="button"

@@ -6,12 +6,18 @@ import { useLibrary } from '../composables/useLibrary.js'
 import { useLists } from '../composables/useLists.js'
 import { getMediaKey } from '../domain/mediaIdentity.js'
 
-const props = defineProps({ media: { type: Object, required: true } })
+const props = defineProps({
+  media: { type: Object, required: true },
+  idPrefix: { type: String, default: 'media' },
+  compact: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
+})
 const { currentUser, isAuthLoading } = useAuth()
 const { libraryItems, isLibraryLoaded, isLibraryLoading, libraryError, loadLibrary } = useLibrary()
-const { lists, isListsLoaded, loadLists, addToList } = useLists()
+const { lists, isListsLoaded, loadLists, addToList, isListMember } = useLists()
 const mediaKey = computed(() => getMediaKey(props.media))
 const libraryItem = computed(() => libraryItems.value.find((item) => item.userMedia.mediaKey === mediaKey.value))
+const selectedIsMember = computed(() => isListMember(selectedId.value, libraryItem.value?.userMedia.id))
 const available = computed(() => Boolean(currentUser.value && !isAuthLoading.value && isLibraryLoaded.value && !isLibraryLoading.value && !libraryError.value))
 const opened = ref(false)
 const loadStatus = ref('idle')
@@ -54,7 +60,7 @@ async function loadSummaries(force = false) {
 }
 
 function toggle() {
-  if (busy.value || missingEntry.value || !available.value || !libraryItem.value) return
+  if (props.disabled || busy.value || missingEntry.value || !available.value || !libraryItem.value) return
   if (opened.value) reset()
   else {
     opened.value = true
@@ -65,9 +71,9 @@ function toggle() {
 async function add() {
   const list = lists.value.find((list) => list.id === selectedId.value)
   const item = libraryItem.value
-  if (busy.value || !available.value || !item || !list || !opened.value || loadStatus.value !== 'loaded' || missingEntry.value) return
+  if (props.disabled || busy.value || selectedIsMember.value || !available.value || !item || !list || !opened.value || loadStatus.value !== 'loaded' || missingEntry.value) return
   const version = contextVersion
-  const isCurrent = () => version === contextVersion && available.value && libraryItem.value?.userMedia.id === item.userMedia.id
+  const isCurrent = () => version === contextVersion && !props.disabled && available.value && libraryItem.value?.userMedia.id === item.userMedia.id
   busy.value = true
   feedback.value = ''
   try {
@@ -99,25 +105,25 @@ async function refreshLibrary() {
 </script>
 
 <template>
-  <section v-if="available" class="media-detail-lists" aria-label="Custom Lists">
+  <section v-if="available" class="media-detail-lists" :class="{ 'media-detail-lists--compact': compact }" :aria-label="`Custom Lists for ${media.title}`">
     <p v-if="!libraryItem">Add this item to your Library before adding it to a Custom List.</p>
     <template v-else>
-      <button class="text-button" type="button" :aria-expanded="opened" aria-controls="media-list-panel" :disabled="busy || missingEntry" @click="toggle">
+      <button class="text-button" type="button" :aria-expanded="opened" :aria-controls="`${idPrefix}-list-panel`" :disabled="disabled || busy || missingEntry" @click="toggle">
         Add to Custom List
       </button>
-      <div v-if="opened" id="media-list-panel" class="media-detail-lists__panel" :aria-busy="busy || loadStatus === 'loading'">
+      <div v-if="opened" :id="`${idPrefix}-list-panel`" class="media-detail-lists__panel" :aria-busy="busy || loadStatus === 'loading'">
         <p v-if="loadStatus === 'loading'" role="status">Loading your Custom Lists…</p>
         <button v-else-if="loadStatus === 'error'" class="text-button" type="button" @click="loadSummaries(true)">Retry lists</button>
         <p v-else-if="loadStatus === 'loaded' && !lists.length">
           You do not have any Custom Lists yet. <RouterLink class="inline-link" to="/lists">Create a list</RouterLink>
         </p>
         <form v-else-if="loadStatus === 'loaded'" @submit.prevent="add">
-          <label for="media-custom-list">Custom List</label>
-          <select id="media-custom-list" v-model="selectedId" :disabled="busy || missingEntry">
+          <label :for="`${idPrefix}-custom-list`">Custom List</label>
+          <select :id="`${idPrefix}-custom-list`" v-model="selectedId" :disabled="disabled || busy || missingEntry">
             <option value="">Choose a list</option>
-            <option v-for="list in lists" :key="list.id" :value="list.id">{{ list.title }}</option>
+            <option v-for="list in lists" :key="list.id" :value="list.id" :disabled="isListMember(list.id, libraryItem.userMedia.id)">{{ list.title }}{{ isListMember(list.id, libraryItem.userMedia.id) ? ' — Already in list' : '' }}</option>
           </select>
-          <button class="text-button" type="submit" :disabled="busy || !selectedId || missingEntry">{{ busy ? 'Adding…' : 'Add to list' }}</button>
+          <button class="text-button" type="submit" :disabled="disabled || busy || !selectedId || selectedIsMember || missingEntry">{{ busy ? 'Adding…' : selectedIsMember ? 'Already in list' : 'Add to list' }}</button>
         </form>
         <p v-if="feedback" :role="feedbackType">{{ feedback }}</p>
         <button v-if="missingEntry" class="text-button" type="button" @click="refreshLibrary">Refresh Library</button>
@@ -142,4 +148,6 @@ async function refreshLibrary() {
 @media (min-width: 900px) {
   .media-detail-lists { padding-top: 0; padding-left: 1rem; border-top: 0; border-left: 1px solid var(--color-border); }
 }
+.media-detail-lists--compact { padding: 0; border: 0; margin: 0.75rem 0; }
+.media-detail-lists--compact > button { width: 100%; }
 </style>

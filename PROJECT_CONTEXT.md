@@ -1,6 +1,6 @@
 # MyFunList project context
 
-Current-state reference including the Discover Search V1 QA follow-up (2026-10-28). Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
+Current-state reference including UI audit Batch 4 (2026-10-29) and the Discover Search V1 QA follow-up. Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
@@ -16,6 +16,7 @@ The staging host is [lightcyan-snake-955164.hostingersite.com](https://lightcyan
 | --- | --- | --- |
 | Accounts and persistence | Sessions, registration/login/logout, private Profile/password changes, Library, legacy import, private Custom Lists | Automated coverage exists; full public-launch checks remain open |
 | Media Detail | Public metadata for all four types, card links, account Library controls, lazy Add to List | Implemented through phases 1–6 |
+| UI audit Batch 4 (A4/B4/B5/D3/B3-L1) | Honest membership/filter messages; collapsed create/add forms and compact create/edit actions; shared lazy list picker on Library cards; known membership disables repeat adds; 44px Library control minimums | All 200 frontend tests and production build pass; requested responsive/theme live-browser QA remains open |
 | UI audit Batch 1 (A1/A2) | Discover context/return navigation and Library filters/Back behavior | Complete: automated tests and live Work browser QA passed |
 | UI audit Batch 2 (B1/B2/B3/B7) | Responsive detail layout, actions before synopsis, authors near title, concise book labels/full classifications disclosure, improved action targets | Media Detail complete: automated tests and live Work browser QA passed; Library residual B3-L1 remains open |
 | UI audit Batch 3 (A3/D2) | Compact Discover book metadata, accessible Full info disclosure, action alignment, mobile 2×2 type switcher | Complete: automated tests and live Work browser QA passed across requested viewports and both themes |
@@ -74,6 +75,10 @@ Keep real environment files, credentials, sessions, exports and backups out of G
 Library adds submit identity only. The backend resolves authoritative metadata on first add outside the database transaction, reuses shared records later, and relies on uniqueness constraints for concurrent duplicates. Status/rating updates and deletion are account-scoped.
 
 Custom Lists mix existing Library entries across types without copying metadata or personal state. Titles need not be unique. Items sort by newest membership, then `user_media_id` descending. Cascades remove memberships when a list/Library entry is deleted. List `updatedAt` changes for metadata/membership changes, including Library deletion in the same transaction, but not personal status/rating or shared metadata changes.
+
+Create a list and Add from Library use native, initially collapsed disclosures so saved lists/items remain near the top. Create/edit forms use shorter description fields and separate primary/Cancel actions. The list picker filters the complete Library before excluding members, distinguishing genuinely absent matches from matches already in the list. Library empty/filter/loading/error states and filter preferences remain separate.
+
+Library cards reuse the lazy Media Detail list picker with per-entry control IDs. Concurrent summary reads deduplicate; adding never prefetches list contents. Account-scoped in-memory membership knowledge comes from successful detail reads and add responses, disables satisfied choices/repeated submissions, and is updated on list removal/deletion. Account reset and successful Library removal clear it along with existing private list caches. Unknown membership is resolved by the existing idempotent API response. Other browser tabs/devices do not synchronize membership automatically; a reload obtains fresh state. Library status/rating selectors and Remove controls have 44px CSS minimum width/height; actual viewport measurements still need browser QA.
 
 Profile exposes string ID, email, nullable Unicode display name (non-unique, at most 80 characters) and UTC creation date. Display name is editable; email is read-only. Password behavior is described above.
 
@@ -159,9 +164,9 @@ Deferred: Anime/source selection; season-level TV/Anime tracking in dedicated re
 | Item | Remaining work |
 | --- | --- |
 | Discover Search V1 | Fresh browser verification of language omission notices/missing metadata and P3 advice, with navigation/Add/320–390px theme regressions; Title/Author/ISBN usefulness and successful minimal language comparisons remain provider-dependent and unresolved |
-| Batch 4 | Remaining Library and Custom Lists UI audit issues |
+| Batch 4 | Implemented A4/B4/B5/D3 and B3-L1 with automated regressions; browser acceptance remains open at 320×740, 390×844, 768×1024 and 1440×900 in Light/Dark |
 | Batch 5 / B6 | Library removal recovery/Undo |
-| B3-L1 (low severity) | Work QA measured Library card status/rating targets around 40px and Remove around 38.4px versus intended 44px; still open, without invalidating Media Detail fixes |
+| B3-L1 (low severity) | Library targets now have 44px CSS minimums and computed-style/focus regressions; fresh browser measurements remain open. Original Work QA measured 40px selectors / 38.4px Remove |
 | C1 | Direct Google Books calls reproduced upstream HTTP 503 `backendFailed`; no application-side cause identified for those samples. Existing safe classification and explicit-only retries remain; broader provider reliability is unresolved |
 | Search V2 | Investigate work/edition grouping and external popularity signals; not implemented |
 | Public launch | Complete security/operations checks: real client IP/limits, cookie/session persistence, HTTPS/routing/headers/CSP, backups/isolated restore, logs, provider-key restrictions and account-isolation flows |
