@@ -198,6 +198,7 @@ All list routes require authentication; all mutations require CSRF.
 | Method and path | Purpose |
 | --- | --- |
 | `GET /api/v1/lists` | Read current-user list summaries |
+| `GET /api/v1/lists/memberships` | Read up to 500 account-owned `{listId, userMediaId}` pairs, without media metadata |
 | `POST /api/v1/lists` | Create a list with required `title` and optional `description` |
 | `GET /api/v1/lists/{listId}` | Read owned list metadata and Library-shaped `items` |
 | `PATCH /api/v1/lists/{listId}` | Edit title or description |
@@ -208,6 +209,21 @@ All list routes require authentication; all mutations require CSRF.
 Adding membership returns 201 with `added: true`, or 200 with `added: false` when already present.
 Removing a Library entry automatically removes its list memberships.
 Lists are private; public visibility and sharing are not implemented.
+
+Membership reads use the authenticated session, return `Cache-Control: no-store`, and do not require CSRF or write data.
+The response is `{"data":{"memberships":[{"listId":"2","userMediaId":"84"}],"nextCursor":null}}`.
+Pairs are ordered numerically by list ID, then Library entry ID; IDs remain opaque strings.
+When more rows exist, `nextCursor` contains the final returned `{listId,userMediaId}` pair.
+Pass its values as `?afterListId=2&afterEntryId=84` to continue. Both cursor fields are required together;
+malformed fields and additional query parameters return 422. Account ownership cannot be supplied by the client.
+Each page uses one bounded ID-only query; both list and Library ownership are checked.
+
+Library/Media Detail pickers share one lazy, account-scoped pagination load and wait for every page before enabling Add.
+Partial or failed loads never confirm absence; Retry starts a new read. Local mutations update membership knowledge,
+and mutations during a load restart the snapshot (at most three attempts before an explicit retry is required).
+Account transitions and Library removal clear this cache and reject late results. Other tabs/devices require a refresh.
+The non-destructive `test:api` suite includes `tests/list_memberships_api.php`, using the real route/session pipeline
+and storage doubles that reject all SQL except the bounded ownership-scoped membership read.
 
 ## Third-party attribution
 

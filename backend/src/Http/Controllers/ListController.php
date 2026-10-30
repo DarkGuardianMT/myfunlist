@@ -22,6 +22,11 @@ final class ListController
         return JsonResponse::data($this->lists->all($user), headers: self::NO_STORE);
     }
 
+    public function memberships(AuthenticatedUser $user): JsonResponse
+    {
+        return JsonResponse::data($this->lists->memberships($user, $_GET), headers: self::NO_STORE);
+    }
+
     public function create(AuthenticatedUser $user): JsonResponse
     {
         return JsonResponse::data($this->lists->create($user, JsonRequest::body()), 201, self::NO_STORE);

@@ -14,7 +14,7 @@ const props = defineProps({
 })
 const { currentUser, isAuthLoading } = useAuth()
 const { libraryItems, isLibraryLoaded, isLibraryLoading, libraryError, loadLibrary } = useLibrary()
-const { lists, isListsLoaded, loadLists, addToList, isListMember } = useLists()
+const { lists, isListsLoaded, loadLists, addToList, isListMember, loadMemberships, isMembershipsLoaded } = useLists()
 const mediaKey = computed(() => getMediaKey(props.media))
 const libraryItem = computed(() => libraryItems.value.find((item) => item.userMedia.mediaKey === mediaKey.value))
 const selectedIsMember = computed(() => isListMember(selectedId.value, libraryItem.value?.userMedia.id))
@@ -39,6 +39,9 @@ function reset() {
 }
 watch([currentUser, isAuthLoading, mediaKey, () => libraryItem.value?.userMedia.id, available], reset, { flush: 'sync' })
 onScopeDispose(() => { contextVersion++ })
+watch(isMembershipsLoaded, (loaded) => {
+  if (!loaded && opened.value && loadStatus.value === 'loaded') loadSummaries()
+})
 
 async function loadSummaries(force = false) {
   if (!available.value || !libraryItem.value || !opened.value || loadStatus.value === 'loading') return
@@ -46,9 +49,9 @@ async function loadSummaries(force = false) {
   loadStatus.value = 'loading'
   feedback.value = ''
   try {
-    await loadLists(force)
+    await Promise.all([loadLists(force), loadMemberships()])
     if (version !== contextVersion) return
-    if (!isListsLoaded.value) throw new Error('List cache invalidated')
+    if (!isListsLoaded.value || !isMembershipsLoaded.value) throw new Error('List cache invalidated')
     loadStatus.value = 'loaded'
     if (!lists.value.some((list) => list.id === selectedId.value)) selectedId.value = ''
   } catch {
@@ -71,13 +74,13 @@ function toggle() {
 async function add() {
   const list = lists.value.find((list) => list.id === selectedId.value)
   const item = libraryItem.value
-  if (props.disabled || busy.value || selectedIsMember.value || !available.value || !item || !list || !opened.value || loadStatus.value !== 'loaded' || missingEntry.value) return
+  if (props.disabled || busy.value || selectedIsMember.value || !isMembershipsLoaded.value || !available.value || !item || !list || !opened.value || loadStatus.value !== 'loaded' || missingEntry.value) return
   const version = contextVersion
   const isCurrent = () => version === contextVersion && !props.disabled && available.value && libraryItem.value?.userMedia.id === item.userMedia.id
   busy.value = true
   feedback.value = ''
   try {
-    const result = await addToList(list.id, item.userMedia.id, { refreshDetail: false, isCurrent })
+    const result = await addToList(list.id, item.userMedia.id, { refreshDetail: false, isCurrent, requireMemberships: true })
     if (!isCurrent()) return
     if (typeof result?.added !== 'boolean') throw new Error('Invalid membership response')
     feedbackType.value = 'status'
@@ -119,11 +122,11 @@ async function refreshLibrary() {
         </p>
         <form v-else-if="loadStatus === 'loaded'" @submit.prevent="add">
           <label :for="`${idPrefix}-custom-list`">Custom List</label>
-          <select :id="`${idPrefix}-custom-list`" v-model="selectedId" :disabled="disabled || busy || missingEntry">
+          <select :id="`${idPrefix}-custom-list`" v-model="selectedId" :disabled="disabled || busy || missingEntry || !isMembershipsLoaded">
             <option value="">Choose a list</option>
             <option v-for="list in lists" :key="list.id" :value="list.id" :disabled="isListMember(list.id, libraryItem.userMedia.id)">{{ list.title }}{{ isListMember(list.id, libraryItem.userMedia.id) ? ' — Already in list' : '' }}</option>
           </select>
-          <button class="text-button" type="submit" :disabled="disabled || busy || !selectedId || selectedIsMember || missingEntry">{{ busy ? 'Adding…' : selectedIsMember ? 'Already in list' : 'Add to list' }}</button>
+          <button class="text-button" type="submit" :disabled="disabled || busy || !selectedId || selectedIsMember || missingEntry || !isMembershipsLoaded">{{ busy ? 'Adding…' : selectedIsMember ? 'Already in list' : 'Add to list' }}</button>
         </form>
         <p v-if="feedback" :role="feedbackType">{{ feedback }}</p>
         <button v-if="missingEntry" class="text-button" type="button" @click="refreshLibrary">Refresh Library</button>

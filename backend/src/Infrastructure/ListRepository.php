@@ -33,6 +33,31 @@ SQL;
         return array_map(self::listRow(...), $statement->fetchAll());
     }
 
+    public function membershipsForUser(string $userId, ?array $after): array
+    {
+        $sql = <<<'SQL'
+SELECT li.list_id, li.user_media_id
+FROM lists l
+JOIN list_items li ON li.list_id = l.id
+JOIN user_media um ON um.id = li.user_media_id AND um.user_id = l.user_id
+WHERE l.user_id = ?
+SQL;
+        $values = [$userId];
+        if ($after !== null) {
+            $sql .= ' AND (li.list_id > ? OR (li.list_id = ? AND li.user_media_id > ?))';
+            array_push($values, $after['listId'], $after['listId'], $after['userMediaId']);
+        }
+        $statement = $this->connection->prepare($sql . ' ORDER BY li.list_id, li.user_media_id LIMIT 501');
+        $statement->execute($values);
+        $rows = $statement->fetchAll();
+        $hasMore = count($rows) > 500;
+        $memberships = array_map(static fn (array $row): array => [
+            'listId' => (string) $row['list_id'], 'userMediaId' => (string) $row['user_media_id'],
+        ], array_slice($rows, 0, 500));
+
+        return ['memberships' => $memberships, 'nextCursor' => $hasMore ? $memberships[499] : null];
+    }
+
     public function findForUser(string $userId, string $listId): ?array
     {
         $statement = $this->connection->prepare(self::SELECT_LIST . ' AND l.id = :list_id LIMIT 1');

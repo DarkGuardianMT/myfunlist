@@ -44,6 +44,7 @@ async function detailPage(type, saved = false) {
     if (path.startsWith('/api/v1/media/')) return ok(source)
     if (path === '/api/v1/library') return ok(saved ? [item] : [])
     if (path === '/api/v1/lists') return ok([{ id: '11', title: 'Favorites', itemCount: 0 }])
+    if (path === '/api/v1/lists/memberships') return ok({ memberships: [], nextCursor: null })
     if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'fixture-csrf' })
     if (path === '/api/v1/lists/11/items') return ok({ added: true })
     throw new Error(`Unexpected fixture request: ${path}`)

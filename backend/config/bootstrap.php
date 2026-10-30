@@ -90,6 +90,7 @@ $router->add('DELETE', '/api/v1/library/{entryId}', $middleware->requireUser(
     $middleware->csrf([$library, 'delete']),
 ));
 $router->add('GET', '/api/v1/lists', $middleware->requireUser([$lists, 'all']));
+$router->add('GET', '/api/v1/lists/memberships', $middleware->requireUser([$lists, 'memberships']));
 $router->add('POST', '/api/v1/lists', $middleware->requireUser(
     $middleware->csrf([$lists, 'create']),
 ));

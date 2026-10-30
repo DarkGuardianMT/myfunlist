@@ -1,7 +1,7 @@
 import { readonly, ref } from 'vue'
 import { currentUser } from './authState.js'
 import {
-  addListItem, createList, deleteList, getList, getLists, removeListItem, updateList,
+  addListItem, createList, deleteList, getList, getLists, getMembershipPage, removeListItem, updateList,
 } from '../services/listRepository.js'
 
 const lists = ref([])
@@ -14,6 +14,10 @@ const isDetailLoaded = ref(false)
 const isDetailLoading = ref(false)
 const detailError = ref('')
 const memberships = ref(new Map())
+const isMembershipsLoaded = ref(false)
+let membershipsPromise = null
+let membershipRevision = 0
+let pendingAdds = new Map()
 let summariesPromise = null
 let generation = 0
 let listsRequest = 0
@@ -35,6 +39,10 @@ export function resetLists() {
   detailError.value = ''
   loadedId = null
   memberships.value = new Map()
+  isMembershipsLoaded.value = false
+  membershipsPromise = null
+  membershipRevision++
+  pendingAdds = new Map()
   summariesPromise = null
 }
 
@@ -69,11 +77,47 @@ function guardAccount() {
 function loadLists(force = false) {
   if (!currentUser.value) return Promise.resolve([])
   if (isListsLoaded.value && !force) return Promise.resolve(lists.value)
-  if (summariesPromise && !force) return summariesPromise
+  if (summariesPromise) return summariesPromise
   const pending = fetchLists().finally(() => {
     if (summariesPromise === pending) summariesPromise = null
   })
   summariesPromise = pending
+  return pending
+}
+
+function loadMemberships() {
+  if (!currentUser.value) return Promise.resolve()
+  if (isMembershipsLoaded.value) return Promise.resolve()
+  if (membershipsPromise) return membershipsPromise
+  const requestGeneration = generation
+  const accountId = currentUser.value.id
+  const isCurrent = () => generation === requestGeneration && currentUser.value?.id === accountId
+  const pending = (async () => {
+    // Een gelijktijdige lokale wijziging maakt een gedeeltelijke momentopname ongeldig.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const revision = membershipRevision
+      const result = new Map()
+      let after = null
+      do {
+        const page = await getMembershipPage(after)
+        if (!isCurrent()) return
+        if (revision !== membershipRevision) break
+        for (const { listId, userMediaId } of page.memberships) {
+          if (!result.has(listId)) result.set(listId, new Set())
+          result.get(listId).add(userMediaId)
+        }
+        after = page.nextCursor
+      } while (after)
+      if (revision !== membershipRevision) continue
+      memberships.value = result
+      isMembershipsLoaded.value = true
+      return
+    }
+    throw new Error('List memberships changed while loading. Please try again.')
+  })().finally(() => {
+    if (membershipsPromise === pending) membershipsPromise = null
+  })
+  membershipsPromise = pending
   return pending
 }
 
@@ -103,6 +147,7 @@ async function loadList(id, force = false) {
     return { list: selectedList.value, items: selectedItems.value }
   }
   const requestGeneration = generation
+  const revision = membershipRevision
   const requestId = ++detailRequest
   loadedId = id
   selectedList.value = null
@@ -115,7 +160,7 @@ async function loadList(id, force = false) {
     if (generation === requestGeneration && detailRequest === requestId) {
       selectedList.value = detail.list
       selectedItems.value = detail.items
-      memberships.value.set(id, new Set(detail.items.map((item) => item.userMedia.id)))
+      if (revision === membershipRevision) memberships.value.set(id, new Set(detail.items.map((item) => item.userMedia.id)))
       isDetailLoaded.value = true
       lists.value = lists.value.map((list) => list.id === id ? detail.list : list)
     }
@@ -138,6 +183,7 @@ export function useLists() {
     const created = await createList(title, description)
     if (generation === requestGeneration) {
       lists.value = [created, ...lists.value]
+      membershipRevision++
       isListsLoaded.value = true
       listsError.value = ''
     }
@@ -159,6 +205,7 @@ export function useLists() {
     await deleteList(id)
     if (generation === requestGeneration) {
       lists.value = lists.value.filter((list) => list.id !== id)
+      membershipRevision++
       memberships.value.delete(id)
       if (selectedList.value?.id === id) {
         selectedList.value = null
@@ -169,15 +216,28 @@ export function useLists() {
     }
   }
 
-  async function addToList(id, userMediaId, { refreshDetail = true, isCurrent = () => true } = {}) {
+  function addToList(id, userMediaId, options = {}) {
+    const key = JSON.stringify([id, userMediaId])
+    if (pendingAdds.has(key)) return pendingAdds.get(key)
+    const pending = performAdd(id, userMediaId, options).finally(() => {
+      if (pendingAdds.get(key) === pending) pendingAdds.delete(key)
+    })
+    pendingAdds.set(key, pending)
+    return pending
+  }
+
+  async function performAdd(id, userMediaId, { refreshDetail = true, isCurrent = () => true, requireMemberships = false } = {}) {
     const requestGeneration = guardAccount()
+    if (requireMemberships && !isMembershipsLoaded.value) throw new Error('Load list memberships before adding.')
     if (isListMember(id, userMediaId)) return { added: false }
     try {
       const result = await addListItem(id, userMediaId, {
-        isCurrent: () => generation === requestGeneration && isCurrent(),
+        isCurrent: () => generation === requestGeneration && isCurrent()
+          && (!requireMemberships || isMembershipsLoaded.value) && !isListMember(id, userMediaId),
       })
       if (generation === requestGeneration) {
         if (typeof result?.added !== 'boolean') throw new Error('Invalid membership response')
+        membershipRevision++
         if (!memberships.value.has(id)) memberships.value.set(id, new Set())
         memberships.value.get(id).add(userMediaId)
         if (refreshDetail) await loadList(id, true)
@@ -194,6 +254,7 @@ export function useLists() {
     const requestGeneration = guardAccount()
     await removeListItem(id, userMediaId)
     if (generation === requestGeneration) {
+      membershipRevision++
       memberships.value.get(id)?.delete(userMediaId)
       await loadList(id, true)
     }
@@ -206,6 +267,6 @@ export function useLists() {
     isDetailLoaded: readonly(isDetailLoaded), isDetailLoading: readonly(isDetailLoading),
     detailError: readonly(detailError),
     loadLists, loadList, createCustomList, updateCustomList, deleteCustomList,
-    addToList, removeFromList, isListMember,
+    addToList, removeFromList, isListMember, loadMemberships, isMembershipsLoaded: readonly(isMembershipsLoaded),
   }
 }

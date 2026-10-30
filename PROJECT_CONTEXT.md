@@ -1,6 +1,6 @@
 # MyFunList project context
 
-Current-state reference including UI audit Batch 4 (2026-10-29) and the Discover Search V1 QA follow-up. Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
+Current-state reference including the Batch 4 D3 persisted-membership fix (2026-10-30) and the Discover Search V1 QA follow-up. Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
@@ -16,7 +16,7 @@ The staging host is [lightcyan-snake-955164.hostingersite.com](https://lightcyan
 | --- | --- | --- |
 | Accounts and persistence | Sessions, registration/login/logout, private Profile/password changes, Library, legacy import, private Custom Lists | Automated coverage exists; full public-launch checks remain open |
 | Media Detail | Public metadata for all four types, card links, account Library controls, lazy Add to List | Implemented through phases 1–6 |
-| UI audit Batch 4 (A4/B4/B5/D3/B3-L1) | Honest membership/filter messages; collapsed create/add forms and compact create/edit actions; shared lazy list picker on Library cards; known membership disables repeat adds; 44px Library control minimums | All 200 frontend tests and production build pass; requested responsive/theme live-browser QA remains open |
+| UI audit Batch 4 (A4/B4/B5/D3/B3-L1) | Honest membership/filter messages; collapsed forms; shared lazy Library/Detail picker now hydrates persisted membership IDs before enabling Add; 44px Library controls | Original live QA passed B4/B3-L1 and held acceptance for D3; fix has automated regressions, with fresh browser acceptance still required |
 | UI audit Batch 1 (A1/A2) | Discover context/return navigation and Library filters/Back behavior | Complete: automated tests and live Work browser QA passed |
 | UI audit Batch 2 (B1/B2/B3/B7) | Responsive detail layout, actions before synopsis, authors near title, concise book labels/full classifications disclosure, improved action targets | Media Detail complete: automated tests and live Work browser QA passed; Library residual B3-L1 remains open |
 | UI audit Batch 3 (A3/D2) | Compact Discover book metadata, accessible Full info disclosure, action alignment, mobile 2×2 type switcher | Complete: automated tests and live Work browser QA passed across requested viewports and both themes |
@@ -78,7 +78,7 @@ Custom Lists mix existing Library entries across types without copying metadata 
 
 Create a list and Add from Library use native, initially collapsed disclosures so saved lists/items remain near the top. Create/edit forms use shorter description fields and separate primary/Cancel actions. The list picker filters the complete Library before excluding members, distinguishing genuinely absent matches from matches already in the list. Library empty/filter/loading/error states and filter preferences remain separate.
 
-Library cards reuse the lazy Media Detail list picker with per-entry control IDs. Concurrent summary reads deduplicate; adding never prefetches list contents. Account-scoped in-memory membership knowledge comes from successful detail reads and add responses, disables satisfied choices/repeated submissions, and is updated on list removal/deletion. Account reset and successful Library removal clear it along with existing private list caches. Unknown membership is resolved by the existing idempotent API response. Other browser tabs/devices do not synchronize membership automatically; a reload obtains fresh state. Library status/rating selectors and Remove controls have 44px CSS minimum width/height; actual viewport measurements still need browser QA.
+Library cards reuse the lazy Media Detail list picker with per-entry control IDs. Concurrent summary and membership reads deduplicate. Authenticated `GET /api/v1/lists/memberships` returns account-owned list/Library ID pairs in pages of at most 500, using one bounded query per page without media metadata. Pickers enable Add only after all pages succeed; failed/partial loads remain unavailable with explicit Retry. Successful detail reads/adds and list removals/deletions update membership knowledge. Local mutations during hydration restart the snapshot; account generations reject stale responses, and concurrent adds for the same pair share one POST. Account reset and successful Library removal clear the private caches; remaining open pickers reload membership state. Existing idempotent Add responses still handle external changes. Other browser tabs/devices do not synchronize automatically; a reload obtains fresh state. Original Batch 4 browser QA measured Library status/rating/Remove controls at 44px high and wider than 44px in all eight requested viewport/theme combinations; fresh acceptance of the D3 fix remains open.
 
 Profile exposes string ID, email, nullable Unicode display name (non-unique, at most 80 characters) and UTC creation date. Display name is editable; email is read-only. Password behavior is described above.
 
@@ -164,9 +164,9 @@ Deferred: Anime/source selection; season-level TV/Anime tracking in dedicated re
 | Item | Remaining work |
 | --- | --- |
 | Discover Search V1 | Fresh browser verification of language omission notices/missing metadata and P3 advice, with navigation/Add/320–390px theme regressions; Title/Author/ISBN usefulness and successful minimal language comparisons remain provider-dependent and unresolved |
-| Batch 4 | Implemented A4/B4/B5/D3 and B3-L1 with automated regressions; browser acceptance remains open at 320×740, 390×844, 768×1024 and 1440×900 in Light/Dark |
+| Batch 4 | Original live QA held acceptance for persisted-membership D3, now fixed with automated regressions; rerun refresh/picker cases at 320×740, 390×844, 768×1024 and 1440×900 in Light/Dark, plus uncovered error/retry and request checks |
 | Batch 5 / B6 | Library removal recovery/Undo |
-| B3-L1 (low severity) | Library targets now have 44px CSS minimums and computed-style/focus regressions; fresh browser measurements remain open. Original Work QA measured 40px selectors / 38.4px Remove |
+| B3-L1 (low severity) | Passed original Batch 4 live QA: 120 target measurements across all eight requested size/theme combinations met 44×44 CSS px; physical-device/native OS picker coverage remains open |
 | C1 | Direct Google Books calls reproduced upstream HTTP 503 `backendFailed`; no application-side cause identified for those samples. Existing safe classification and explicit-only retries remain; broader provider reliability is unresolved |
 | Search V2 | Investigate work/edition grouping and external popularity signals; not implemented |
 | Public launch | Complete security/operations checks: real client IP/limits, cookie/session persistence, HTTPS/routing/headers/CSP, backups/isolated restore, logs, provider-key restrictions and account-isolation flows |

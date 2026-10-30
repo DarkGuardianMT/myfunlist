@@ -43,6 +43,9 @@ function backend() {
     const handler = state.handlers.get(`${method} ${path}`)
     if (handler) return handler(options)
     if (path.endsWith('/csrf')) return ok({ csrfToken: 'fixture-csrf' })
+    if (path === '/api/v1/lists/memberships') return ok({ memberships: state.items
+      .map((item) => ({ listId: '1', userMediaId: item.userMedia.id }))
+      .sort((a, b) => Number(a.userMediaId) - Number(b.userMediaId)), nextCursor: null })
     if (path === '/api/v1/library') return ok(state.library)
     if (path.startsWith('/api/v1/library/') && method === 'DELETE') {
       state.library = state.library.filter((item) => item.userMedia.id !== path.split('/').at(-1))
@@ -324,6 +327,81 @@ test('leaving Library while a card add awaits CSRF cancels the queued POST', asy
   waiting.resolve(ok({ csrfToken: 'fixture-csrf' }))
   await flushPromises()
   assert.equal(adds(state).length, 0)
+})
+
+test('D3: fresh Library pickers hydrate persisted memberships for all four media types in one shared read', async () => {
+  const state = backend()
+  state.items = [...state.library]
+  state.handlers.set('GET /api/v1/lists', () => ok([state.list, { ...state.list, id: '2', title: 'Next up' }]))
+  const waiting = deferred()
+  state.handlers.set('GET /api/v1/lists/memberships', () => waiting.promise)
+  const { view } = await page()
+  const areas = view.findAll('.media-detail-lists')
+  assert.equal(state.calls.some((call) => call.path.includes('memberships')), false)
+  for (const area of areas) await area.get('button').trigger('click')
+  await flushPromises()
+  for (const area of areas) {
+    assert.match(area.text(), /Loading your Custom Lists/)
+    assert.equal(area.find('form').exists(), false)
+  }
+  assert.equal(state.calls.filter((call) => call.path.includes('memberships')).length, 1)
+  waiting.resolve(ok({ memberships: state.items.map((item) => ({ listId: '1', userMediaId: item.userMedia.id })), nextCursor: null }))
+  await flushPromises()
+  for (const area of areas) {
+    assert.match(area.get('option[value="1"]').text(), /Already in list/)
+    assert.equal(area.get('option[value="1"]').element.disabled, true)
+    await area.get('select').setValue('1')
+    assert.equal(area.get('button[type="submit"]').text(), 'Already in list')
+    await area.get('form').trigger('submit')
+    assert.equal(area.get('button[type="submit"]').element.disabled, true)
+    assert.equal(area.get('option[value="2"]').element.disabled, false)
+    await area.get('select').setValue('2')
+    assert.equal(area.get('button[type="submit"]').element.disabled, false)
+  }
+  assert.equal(adds(state).length, 0)
+  assert.equal(state.calls.some((call) => /^\/api\/v1\/lists\/\d+$/.test(call.path)), false)
+  assert.deepEqual(state.library.map((item) => [item.userMedia.status, item.userMedia.rating]),
+    [['reading', 8.5], ['watched', 8.5], ['watching', 8.5], ['playing', 8.5]])
+})
+
+test('D3: remove membership, reset page state and re-add from a fresh Library picker', async () => {
+  const state = backend()
+  state.items = [state.library[0]]
+  await useLists().loadMemberships()
+  assert.equal(useLists().isListMember('1', '100'), true)
+  await useLists().removeFromList('1', '100')
+  resetLists()
+  resetLibrary()
+  const { view } = await page()
+  const area = view.findAll('.media-detail-lists')[0]
+  await area.get('button').trigger('click')
+  await flushPromises()
+  assert.equal(area.get('option[value="1"]').element.disabled, false)
+  await area.get('select').setValue('1')
+  await area.get('form').trigger('submit')
+  await flushPromises()
+  assert.equal(adds(state).length, 1)
+  assert.equal(state.items.length, 1)
+  assert.equal(area.get('button[type="submit"]').text(), 'Already in list')
+})
+
+test('D3: removing another Library entry reloads membership state for an already open picker', async () => {
+  const state = backend()
+  const { view } = await page()
+  const area = view.findAll('.media-detail-lists')[0]
+  await area.get('button').trigger('click')
+  await flushPromises()
+  await area.get('select').setValue('1')
+  const waiting = deferred()
+  state.handlers.set('GET /api/v1/lists/memberships', () => waiting.promise)
+  await view.findAll('.remove-button')[1].trigger('click')
+  await flushPromises()
+  assert.match(area.text(), /Loading your Custom Lists/)
+  assert.equal(area.find('form').exists(), false)
+  waiting.resolve(ok({ memberships: [], nextCursor: null }))
+  await flushPromises()
+  assert.equal(area.get('button[type="submit"]').element.disabled, false)
+  assert.equal(state.calls.filter((call) => call.path === '/api/v1/lists/memberships').length, 2)
 })
 
 test('B3-L1: Library status, rating and Remove retain 44px CSS minimums and keyboard focus', async () => {

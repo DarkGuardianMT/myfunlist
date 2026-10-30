@@ -27,6 +27,22 @@ final class ListService
         return $this->lists()->listForUser($user->id);
     }
 
+    public function memberships(AuthenticatedUser $user, array $query): array
+    {
+        $after = null;
+        if ($query !== []) {
+            if (count($query) !== 2 || !isset($query['afterListId'], $query['afterEntryId'])
+                || !is_string($query['afterListId']) || !is_string($query['afterEntryId'])
+                || preg_match('/^[1-9][0-9]{0,19}$/D', $query['afterListId']) !== 1
+                || preg_match('/^[1-9][0-9]{0,19}$/D', $query['afterEntryId']) !== 1) {
+                throw new ApiException(422, 'validation_error', 'Invalid membership cursor.');
+            }
+            $after = ['listId' => $query['afterListId'], 'userMediaId' => $query['afterEntryId']];
+        }
+
+        return $this->lists()->membershipsForUser($user->id, $after);
+    }
+
     public function get(AuthenticatedUser $user, string $listId): array
     {
         $list = $this->lists()->findForUser($user->id, $listId);

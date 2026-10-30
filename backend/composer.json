@@ -24,6 +24,7 @@
       "@php tests/media_details.php",
       "@php tests/media_api.php",
       "@php tests/media_rate_limit.php",
+      "@php tests/list_memberships_api.php",
       "@php tests/foundation.php",
       "@php tests/schema.php",
       "@php tests/rate_limit.php",
@@ -40,7 +41,8 @@
     "test:api": [
       "@php tests/router.php",
       "@php tests/media_api.php",
-      "@php tests/media_rate_limit.php"
+      "@php tests/media_rate_limit.php",
+      "@php tests/list_memberships_api.php"
     ],
     "migrate": "@php bin/migrate.php migrate",
     "migrate:status": "@php bin/migrate.php status"

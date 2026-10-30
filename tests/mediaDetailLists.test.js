@@ -40,7 +40,7 @@ function account(id) {
   clearCsrfToken()
 }
 function backend(items = [entry()]) {
-  const state = { items, lists: [summary('11', 'Favorites'), summary('22', 'Next up')], calls: [], handlers: new Map(), added: true }
+  const state = { items, lists: [summary('11', 'Favorites'), summary('22', 'Next up')], memberships: [], calls: [], handlers: new Map(), added: true }
   globalThis.fetch = async (path, options = {}) => {
     const method = options.method || 'GET'
     state.calls.push({ path, method, body: options.body && JSON.parse(options.body) })
@@ -48,6 +48,7 @@ function backend(items = [entry()]) {
     if (handler) return handler(options)
     if (path.startsWith('/api/v1/media/')) return ok(mediaDetail(path.split('/')[4]))
     if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'fixture-csrf' })
+    if (path === '/api/v1/lists/memberships') return ok({ memberships: state.memberships, nextCursor: null })
     if (path === '/api/v1/library' && method === 'GET') return ok(state.items)
     if (path === '/api/v1/library' && method === 'POST') {
       const item = entry(JSON.parse(options.body).media.mediaType)
@@ -99,6 +100,63 @@ afterEach(() => {
   globalThis.fetch = originalFetch
 })
 after(() => dom.window.close())
+
+test('D3: Media Detail uses persisted membership before enabling Add and leaves other lists eligible', async () => {
+  const state = backend()
+  state.memberships = [{ listId: '11', userMediaId: '987654' }]
+  const { view } = await page()
+  await open(view)
+  assert.equal(listArea(view).get('option[value="11"]').element.disabled, true)
+  assert.match(listArea(view).get('option[value="11"]').text(), /Already in list/)
+  await choose(view)
+  await submit(view)
+  assert.equal(listArea(view).get('button[type="submit"]').text(), 'Already in list')
+  assert.equal(addCalls(state).length, 0)
+  await choose(view, '22')
+  assert.equal(listArea(view).get('button[type="submit"]').element.disabled, false)
+  await submit(view)
+  assert.equal(addCalls(state).length, 1)
+})
+
+test('D3: failed membership loading keeps Add unavailable and explicit retry recovers', async () => {
+  const state = backend()
+  state.handlers.set('GET /api/v1/lists/memberships', () => fail(503, 'service_unavailable'))
+  const { view } = await page()
+  await open(view)
+  assert.match(listArea(view).get('[role="alert"]').text(), /could not be loaded/)
+  assert.equal(listArea(view).find('form').exists(), false)
+  assert.equal(useLists().isMembershipsLoaded.value, false)
+  assert.equal(addCalls(state).length, 0)
+  state.handlers.clear()
+  state.memberships = [{ listId: '11', userMediaId: '987654' }]
+  await listArea(view).findAll('button').find((button) => button.text() === 'Retry lists').trigger('click')
+  await flushPromises()
+  assert.equal(listArea(view).get('option[value="11"]').element.disabled, true)
+  assert.equal(listArea(view).get('option[value="22"]').element.disabled, false)
+})
+
+for (const target of [null, 'B']) {
+  test(`D3: ${target ? 'account switch' : 'logout'} during membership loading rejects late private results`, async () => {
+    const state = backend()
+    const old = deferred()
+    state.handlers.set('GET /api/v1/lists/memberships', () => old.promise)
+    const { view } = await page()
+    await open(view)
+    account(target)
+    await flushPromises()
+    if (target) {
+      state.handlers.clear()
+      state.items = [entry('movie', '200')]
+      await open(view)
+    }
+    old.resolve(ok({ memberships: [{ listId: '11', userMediaId: '987654' }], nextCursor: null }))
+    await flushPromises()
+    assert.equal(useLists().isListMember('11', '987654'), false)
+    if (target) assert.equal(listArea(view).get('option[value="11"]').element.disabled, false)
+    else assert.equal(view.find('.media-detail-lists').exists(), false)
+    assert.equal(addCalls(state).length, 0)
+  })
+}
 
 test('anonymous detail requests neither Library nor lists and retains normal Login/Register links', async () => {
   account(null)
@@ -217,7 +275,7 @@ test('Add submits the exact Library ID once, invalidates summary cache, and neve
   assert.equal(summaryCalls(state).length, 2)
 })
 
-test('duplicate membership uses backend added=false without prefetching any memberships', async () => {
+test('membership created elsewhere still handles backend added=false without fetching list contents', async () => {
   const state = backend()
   state.added = false
   const { view } = await page()
