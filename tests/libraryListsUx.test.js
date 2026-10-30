@@ -180,7 +180,8 @@ test('B4: create and add disclosures prioritize saved content; cancel, validatio
   assert.match(view.text(), /List details saved/)
 })
 
-test('Library keeps filter preferences after removing the last match and distinguishes an actually empty Library', async () => {
+test('Library keeps filter preferences after removing the last match and distinguishes an actually empty Library', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
   const state = backend()
   const { view } = await page()
   await view.get('#library-media-filter').setValue('movie')
@@ -195,8 +196,11 @@ test('Library keeps filter preferences after removing the last match and disting
   await view.get('.library-empty button').trigger('click')
   assert.equal(view.findAll('article').length, 3)
   assert.equal(view.get('#library-sort-order').element.value, 'rating-high-low')
+  t.mock.timers.tick(8000)
+  await flushPromises()
   while (state.library.length) {
     await view.findAll('.remove-button')[0].trigger('click')
+    t.mock.timers.tick(8000)
     await flushPromises()
   }
   assert.match(view.text(), /Your Library is empty/)
@@ -385,7 +389,8 @@ test('D3: remove membership, reset page state and re-add from a fresh Library pi
   assert.equal(area.get('button[type="submit"]').text(), 'Already in list')
 })
 
-test('D3: removing another Library entry reloads membership state for an already open picker', async () => {
+test('D3: removing another Library entry reloads membership state for an already open picker', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
   const state = backend()
   const { view } = await page()
   const area = view.findAll('.media-detail-lists')[0]
@@ -395,6 +400,7 @@ test('D3: removing another Library entry reloads membership state for an already
   const waiting = deferred()
   state.handlers.set('GET /api/v1/lists/memberships', () => waiting.promise)
   await view.findAll('.remove-button')[1].trigger('click')
+  t.mock.timers.tick(8000)
   await flushPromises()
   assert.match(area.text(), /Loading your Custom Lists/)
   assert.equal(area.find('form').exists(), false)

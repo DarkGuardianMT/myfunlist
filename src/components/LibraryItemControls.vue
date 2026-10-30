@@ -55,6 +55,7 @@ const statusLabels = {
     </select>
     <slot name="lists" />
     <button
+      :id="`remove-library-${item.userMedia.id}`"
       class="remove-button"
       type="button"
       :disabled="busy"

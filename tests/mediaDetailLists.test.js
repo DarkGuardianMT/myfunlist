@@ -342,7 +342,8 @@ test('a missing Library entry disables stale submission and offers an explicit s
   assert.equal(listArea(view).find('form').exists(), false)
 })
 
-test('Library removal resets the selector and ignores slow Add completion and invalidated list cache', async () => {
+test('committed Library removal resets the selector and ignores slow Add completion and invalidated list cache', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
   const state = backend()
   const waiting = deferred()
   state.handlers.set('POST /api/v1/lists/11/items', () => waiting.promise)
@@ -351,6 +352,7 @@ test('Library removal resets the selector and ignores slow Add completion and in
   await choose(view)
   await submit(view)
   await view.get('.library-item-controls button').trigger('click')
+  t.mock.timers.tick(8000)
   await flushPromises()
   assert.match(listArea(view).text(), /Add this item to your Library before/)
   assert.equal(listArea(view).find('button, select').exists(), false)

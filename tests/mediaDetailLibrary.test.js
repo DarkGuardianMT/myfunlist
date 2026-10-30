@@ -223,7 +223,8 @@ test('Add failures stay local, reveal no raw provider errors, and remain retryab
   assert.ok(view.find('.library-item-controls').exists())
 })
 
-test('status, rating, Not rated, and removal update shared state while keeping the public page open', async () => {
+test('status, rating, Not rated, and deferred removal update shared state while keeping the public page open', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
   account('A')
   const state = backend([entry('game')])
   const { view, router } = await page('game')
@@ -244,6 +245,8 @@ test('status, rating, Not rated, and removal update shared state while keeping t
   state.handlers.set(`DELETE ${libraryPath}/100`, () => waiting.promise)
   await controls(view).get('button').trigger('click')
   await controls(view).get('button').trigger('click')
+  assert.equal(state.calls.filter((call) => call.method === 'DELETE').length, 0)
+  t.mock.timers.tick(8000)
   await flushPromises()
   assert.ok(controls(view).findAll('select, button').every((control) => control.element.disabled))
   assert.equal(state.calls.filter((call) => call.method === 'DELETE').length, 1)
@@ -252,12 +255,13 @@ test('status, rating, Not rated, and removal update shared state while keeping t
   assert.equal(useLibrary().libraryItems.value.length, 0)
   assert.equal(view.get('.library-add-button').text(), 'Add to Library')
   assert.equal(router.currentRoute.value.path, getMediaDetailPath(identities.game))
-  assert.match(view.get('[role="status"]').text(), /Removed from Library/)
+  assert.equal(useLibrary().removalNotices.value.at(-1).state, 'removed')
   assertPublic(view, 'game')
   assert.equal(state.calls.filter((call) => call.path.startsWith('/api/v1/media/')).length, 1)
 })
 
-test('failed status, rating, and remove actions restore controls and keep public metadata', async () => {
+test('failed status, rating, and deferred remove actions restore controls and keep public metadata', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
   account('A')
   const state = backend([entry('movie', '100', { rating: 7 })])
   state.handlers.set(`PATCH ${libraryPath}/100`, () => fail(503, 'service_unavailable'))
@@ -272,8 +276,9 @@ test('failed status, rating, and remove actions restore controls and keep public
   assert.equal(ratingSelect(view).element.value, '7')
   assert.match(view.get('[role="alert"]').text(), /rating could not be updated/)
   await controls(view).get('button').trigger('click')
+  t.mock.timers.tick(8000)
   await flushPromises()
-  assert.match(view.get('[role="alert"]').text(), /could not be removed/)
+  assert.equal(useLibrary().removalNotices.value.at(-1).state, 'error')
   assert.equal(controls(view).get('button').element.disabled, false)
   assertPublic(view)
 })
@@ -429,7 +434,8 @@ test('shared public detail cache stays personal-state-free across mutations, log
   assert.equal(state.calls.filter((call) => call.path.startsWith('/api/v1/media/')).length, 1)
 })
 
-test('Library page reuses extracted controls while filters, sorting, actions, and card links still work', async () => {
+test('Library page reuses extracted controls while filters, sorting, actions, and card links still work', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: Date.now() })
   account('A')
   const state = backend([entry('book', '100'), entry('movie', '200')])
   const { view } = await page('movie', '/library')
@@ -446,6 +452,7 @@ test('Library page reuses extracted controls while filters, sorting, actions, an
   assert.equal(view.findAll('article').length, 1)
   await view.get('#library-sort-order').setValue('rating-high-low')
   await controls(view).get('.remove-button').trigger('click')
+  t.mock.timers.tick(8000)
   await flushPromises()
   assert.equal(view.findAll('article').length, 0)
   assert.equal(state.items.length, 1)

@@ -73,11 +73,15 @@ export async function updateRating(mediaKey, rating) {
   return version === repositoryVersion ? remember(updated) : updated
 }
 
-export async function removeItem(mediaKey) {
+export async function removeItem(mediaKey, { isCurrent = () => true, expectedId } = {}) {
   const version = repositoryVersion
   const item = entryFor(mediaKey)
   if (!item) return false
-  await request(`/api/v1/library/${encodeURIComponent(item.userMedia.id)}`, { method: 'DELETE' })
+  if (expectedId && item.userMedia.id !== expectedId) return false
+  await request(`/api/v1/library/${encodeURIComponent(item.userMedia.id)}`, {
+    method: 'DELETE', timeoutMs: 11000,
+    isCurrent: () => version === repositoryVersion && entryFor(mediaKey)?.userMedia.id === item.userMedia.id && isCurrent(),
+  })
   if (version === repositoryVersion) itemsByKey.delete(mediaKey)
   return true
 }

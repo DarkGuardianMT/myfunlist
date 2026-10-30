@@ -16,18 +16,18 @@ const feedbackType = ref('status')
 const { mediaTypeFilter, statusFilter, sortOrder } = useLibraryBrowsing()
 const { currentUser, isAuthLoading, authError } = useAuth()
 const {
-  libraryItems,
+  libraryItems, displayLibraryItems,
   isLibraryLoaded,
   isLibraryLoading,
   libraryError,
   loadLibrary,
   updateLibraryStatus,
   updateLibraryRating,
-  removeLibraryItem,
+  scheduleLibraryRemoval,
 } = useLibrary()
 const visibleLibraryItems = computed(() =>
   getVisibleLibraryItems(
-    libraryItems.value,
+    displayLibraryItems.value,
     mediaTypeFilter.value,
     statusFilter.value,
     sortOrder.value,
@@ -92,25 +92,11 @@ async function handleRatingChange(item, event) {
   }
 }
 
-async function handleRemove(item) {
-  const accountId = currentUser.value?.id
+function handleRemove(item) {
   const mediaKey = item.userMedia.mediaKey
-  busyMediaKeys.value.add(mediaKey)
+  if (busyMediaKeys.value.has(mediaKey)) return
   feedback.value = ''
-
-  try {
-    const removed = await removeLibraryItem(mediaKey)
-    if (currentUser.value?.id !== accountId) return
-    if (!removed) throw new Error('Library item was not found')
-    feedbackType.value = 'status'
-    feedback.value = `“${item.media.title}” was removed from your Library.`
-  } catch {
-    if (currentUser.value?.id !== accountId) return
-    feedbackType.value = 'alert'
-    feedback.value = `“${item.media.title}” could not be removed.`
-  } finally {
-    if (currentUser.value?.id === accountId) busyMediaKeys.value.delete(mediaKey)
-  }
+  scheduleLibraryRemoval(mediaKey, { expectedId: item.userMedia.id })
 }
 </script>
 
@@ -183,7 +169,8 @@ async function handleRemove(item) {
       </div>
 
       <div v-if="!visibleLibraryItems.length" class="library-empty" role="status">
-        <p>No items match the selected filters.</p>
+        <p v-if="!displayLibraryItems.length">Your Library items are pending removal. Use Undo to keep them.</p>
+        <p v-else>No items match the selected filters.</p>
         <button
           class="text-button"
           type="button"

@@ -1,6 +1,6 @@
 # MyFunList project context
 
-Current-state reference including the Batch 4 D3 persisted-membership fix (2026-10-30) and the Discover Search V1 QA follow-up. Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
+Current-state reference including Batch 5 Library removal Undo and the Batch 4 D3 persisted-membership fix (2026-10-30). Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
@@ -16,6 +16,7 @@ The staging host is [lightcyan-snake-955164.hostingersite.com](https://lightcyan
 | --- | --- | --- |
 | Accounts and persistence | Sessions, registration/login/logout, private Profile/password changes, Library, legacy import, private Custom Lists | Automated coverage exists; full public-launch checks remain open |
 | Media Detail | Public metadata for all four types, card links, account Library controls, lazy Add to List | Implemented through phases 1–6 |
+| UI audit Batch 5 (B6) | Shared eight-second deferred Library removal with title-specific Undo, accessible notices, navigation continuity and account/interruption guards | All 256 frontend tests and production build pass; fresh responsive/theme browser QA remains required |
 | UI audit Batch 4 (A4/B4/B5/D3/B3-L1) | Honest membership/filter messages; collapsed forms; shared lazy Library/Detail picker now hydrates persisted membership IDs before enabling Add; 44px Library controls | Original live QA passed B4/B3-L1 and held acceptance for D3; fix has automated regressions, with fresh browser acceptance still required |
 | UI audit Batch 1 (A1/A2) | Discover context/return navigation and Library filters/Back behavior | Complete: automated tests and live Work browser QA passed |
 | UI audit Batch 2 (B1/B2/B3/B7) | Responsive detail layout, actions before synopsis, authors near title, concise book labels/full classifications disclosure, improved action targets | Media Detail complete: automated tests and live Work browser QA passed; Library residual B3-L1 remains open |
@@ -73,6 +74,10 @@ Keep real environment files, credentials, sessions, exports and backups out of G
 ### Library, Custom Lists and Profile
 
 Library adds submit identity only. The backend resolves authoritative metadata on first add outside the database transaction, reuses shared records later, and relies on uniqueness constraints for concurrent duplicates. Status/rating updates and deletion are account-scoped.
+
+Library and Media Detail Remove actions now schedule an eight-second in-memory Undo window. Library hides pending entries through a separate display projection; canonical records, original `user_media` IDs, statuses/ratings and Custom List memberships remain untouched until DELETE succeeds. Undo cancels the timer without an API write, restoring the existing item under the active filters/sort. The application-level notice panel survives SPA navigation and provides named native Undo buttons, persistent live regions and focus handoff; pending items cannot be edited/re-added. Independent timers support multiple removals; repeated Remove clicks share the same job.
+
+At expiry, Undo ends and the existing authenticated DELETE runs with an 11-second response timeout, account generation and exact-entry guards checked after CSRF resolution. Confirmed success removes canonical state and invalidates List caches, preserving backend cascades. Failure makes the unchanged local record visible with an explicit uncertain-outcome warning and no automatic retry or reconstruction. Logout/account changes, a forced Library reload, application unmount and `pagehide` cancel unsent work, including work waiting for CSRF. No deletion intents are persisted or replayed and no unload/beacon DELETE is sent. Already-dispatched requests may still complete after navigation, refresh, closure or logout; a new page reads the server state. Browser suspension can delay dispatch past eight seconds, but cannot extend Undo. See [Undo behavior and QA](docs/LIBRARY_REMOVE_UNDO.md).
 
 Custom Lists mix existing Library entries across types without copying metadata or personal state. Titles need not be unique. Items sort by newest membership, then `user_media_id` descending. Cascades remove memberships when a list/Library entry is deleted. List `updatedAt` changes for metadata/membership changes, including Library deletion in the same transaction, but not personal status/rating or shared metadata changes.
 
@@ -165,7 +170,7 @@ Deferred: Anime/source selection; season-level TV/Anime tracking in dedicated re
 | --- | --- |
 | Discover Search V1 | Fresh browser verification of language omission notices/missing metadata and P3 advice, with navigation/Add/320–390px theme regressions; Title/Author/ISBN usefulness and successful minimal language comparisons remain provider-dependent and unresolved |
 | Batch 4 | Original live QA held acceptance for persisted-membership D3, now fixed with automated regressions; rerun refresh/picker cases at 320×740, 390×844, 768×1024 and 1440×900 in Light/Dark, plus uncovered error/retry and request checks |
-| Batch 5 / B6 | Library removal recovery/Undo |
+| Batch 5 / B6 | Deferred Library removal/Undo implemented; fresh 320×740, 390×844, 768×1024 and 1440×900 Light/Dark browser acceptance and physical-device/screen-reader checks remain open. D1 rating presentation is outside this task |
 | B3-L1 (low severity) | Passed original Batch 4 live QA: 120 target measurements across all eight requested size/theme combinations met 44×44 CSS px; physical-device/native OS picker coverage remains open |
 | C1 | Direct Google Books calls reproduced upstream HTTP 503 `backendFailed`; no application-side cause identified for those samples. Existing safe classification and explicit-only retries remain; broader provider reliability is unresolved |
 | Search V2 | Investigate work/edition grouping and external popularity signals; not implemented |

@@ -11,7 +11,7 @@ const props = defineProps({ media: { type: Object, required: true } })
 const { currentUser, isAuthLoading } = useAuth()
 const {
   libraryItems, isLibraryLoaded, isLibraryLoading, libraryError, loadLibrary,
-  addLibraryItem, updateLibraryStatus, updateLibraryRating, removeLibraryItem,
+  addLibraryItem, updateLibraryStatus, updateLibraryRating, scheduleLibraryRemoval, isLibraryRemovalPending,
 } = useLibrary()
 const mediaKey = computed(() => getMediaKey(props.media))
 const libraryItem = computed(() => libraryItems.value.find((item) => item.userMedia.mediaKey === mediaKey.value))
@@ -38,7 +38,7 @@ async function retryLibrary() {
 }
 
 async function mutate(action, failureMessage, restoreControl = () => {}) {
-  if (busy.value || !currentUser.value || isAuthLoading.value || !isLibraryLoaded.value || libraryError.value) return
+  if (busy.value || isLibraryRemovalPending(mediaKey.value) || !currentUser.value || isAuthLoading.value || !isLibraryLoaded.value || libraryError.value) return
   const version = contextVersion
   busy.value = true
   feedback.value = ''
@@ -87,10 +87,9 @@ function changeRating(item, event) {
 }
 
 function remove(item) {
-  return mutate(async () => {
-    if (!await removeLibraryItem(item.userMedia.mediaKey)) throw new Error('Missing Library item')
-    return 'Removed from Library.'
-  }, 'This item could not be removed from your Library. Please try again.')
+  if (busy.value || isLibraryRemovalPending(mediaKey.value)) return
+  feedback.value = ''
+  scheduleLibraryRemoval(item.userMedia.mediaKey, { expectedId: item.userMedia.id })
 }
 </script>
 
@@ -110,7 +109,7 @@ function remove(item) {
     <LibraryItemControls
       v-else-if="libraryItem"
       :item="libraryItem"
-      :busy="busy"
+      :busy="busy || isLibraryRemovalPending(mediaKey)"
       @status-change="changeStatus"
       @rating-change="changeRating"
       @remove="remove"
