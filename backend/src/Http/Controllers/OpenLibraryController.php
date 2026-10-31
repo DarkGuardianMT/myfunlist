@@ -7,6 +7,7 @@ namespace MyFunList\Http\Controllers;
 use MyFunList\Http\JsonResponse;
 use MyFunList\Provider\OpenLibraryPilot;
 use MyFunList\Provider\ProviderException;
+use MyFunList\RateLimit\OpenLibraryClientLimitExceeded;
 
 final class OpenLibraryController
 {
@@ -18,6 +19,9 @@ final class OpenLibraryController
     {
         try {
             return JsonResponse::data($this->pilot->search($parameters), headers: ['Cache-Control' => 'no-store']);
+        } catch (OpenLibraryClientLimitExceeded $exception) {
+            return JsonResponse::error(429, 'rate_limited', $exception->getMessage(),
+                ['Retry-After' => (string) $exception->retryAfter, 'Cache-Control' => 'no-store']);
         } catch (ProviderException $exception) {
             $unavailable = $exception->status === 429 || ($exception->status >= 500 && $exception->status !== 502);
             return JsonResponse::error($unavailable ? 503 : 502,

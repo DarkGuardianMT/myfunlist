@@ -22,6 +22,7 @@
       "@php tests/provider_http.php",
       "@php tests/discovery.php",
       "@php tests/open_library.php",
+      "@php tests/open_library_admission.php",
       "@php tests/media_details.php",
       "@php tests/media_api.php",
       "@php tests/media_rate_limit.php",
@@ -38,6 +39,7 @@
       "@php tests/provider_http.php",
       "@php tests/discovery.php",
       "@php tests/open_library.php",
+      "@php tests/open_library_admission.php",
       "@php tests/media_details.php"
     ],
     "test:api": [

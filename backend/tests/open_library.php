@@ -70,7 +70,7 @@ namespace {
     }
     function resetOpenLibraryState(string $file, array $cache = [], float $next = 0): void
     {
-        file_put_contents($file, json_encode(['version' => 1, 'nextRequestAt' => $next, 'cache' => $cache], JSON_THROW_ON_ERROR));
+        file_put_contents($file, json_encode(['version' => 2, 'nextRequestAt' => $next, 'cache' => $cache, 'clients' => []], JSON_THROW_ON_ERROR));
     }
 
     $originalEnvironment = $_ENV;
@@ -85,7 +85,8 @@ namespace {
     $fixture = json_decode(file_get_contents(__DIR__ . '/fixtures/open_library.json'), true, 512, JSON_THROW_ON_ERROR);
     $http = new Http();
     $adapter = new OpenLibraryAdapter($http, 'MyFunList (fixture@example.test)');
-    $pilot = new OpenLibraryPilot($http, true, true, $stateFile, 'MyFunList (fixture@example.test)');
+    $pilot = new OpenLibraryPilot($http, true, true, $stateFile, 'MyFunList (fixture@example.test)', str_repeat('fixture-', 8));
+    $_SERVER['REMOTE_ADDR'] = '192.0.2.10';
     try {
         Http::$payload = $fixture;
         foreach (['general', 'title', 'author', 'isbn'] as $field) {
@@ -168,7 +169,7 @@ namespace {
         resetOpenLibraryState($stateFile);
         $before = Http::$calls;
         $first = $pilot->search(['q' => 'Hobbit']);
-        $otherWorker = new OpenLibraryPilot($http, true, true, $stateFile, 'MyFunList (fixture@example.test)');
+        $otherWorker = new OpenLibraryPilot($http, true, true, $stateFile, 'MyFunList (fixture@example.test)', str_repeat('fixture-', 8));
         verifyOpenLibrary($otherWorker->search(['q' => 'Hobbit']) === $first && Http::$calls === $before + 1,
             'Separate pilot instances must share cached results and suppress duplicate provider calls.');
         expectOpenLibrary(static fn () => $otherWorker->search(['q' => 'Dune']), 503);
@@ -182,6 +183,7 @@ namespace {
         $pilot->search(['q' => 'Hobbit']);
         verifyOpenLibrary(Http::$calls === $before + 2, 'Expired cache must not be served.');
         for ($i = 0; $i < 22; $i++) {
+            $_SERVER['REMOTE_ADDR'] = '192.0.2.' . (20 + $i);
             $state = json_decode(file_get_contents($stateFile), true);
             $state['nextRequestAt'] = 0;
             file_put_contents($stateFile, json_encode($state));
@@ -196,6 +198,7 @@ namespace {
             return [...$largeDoc, 'key' => 'OL' . (100 + $i) . 'W'];
         }, range(1, 10))];
         for ($i = 0; $i < 8; $i++) {
+            $_SERVER['REMOTE_ADDR'] = '192.0.2.' . (50 + $i);
             $state = json_decode(file_get_contents($stateFile), true);
             $state['nextRequestAt'] = 0;
             file_put_contents($stateFile, json_encode($state));
@@ -246,6 +249,7 @@ namespace {
         $_ENV['OPEN_LIBRARY_STATE_FILE'] = $stateFile;
         $_ENV['OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED'] = 'true';
         $_ENV['OPEN_LIBRARY_USER_AGENT'] = 'MyFunList (fixture@example.test)';
+        $_ENV['RATE_LIMIT_SECRET'] = str_repeat('fixture-', 8);
         $_GET = ['q' => 'Hobbit'];
         unset($_ENV['OPEN_LIBRARY_PILOT_ENABLED'], $_SERVER['OPEN_LIBRARY_PILOT_ENABLED']);
         putenv('OPEN_LIBRARY_PILOT_ENABLED');

@@ -42,6 +42,34 @@ jobs:
           VITE_GOOGLE_BOOKS_API_KEY: ${{ secrets.VITE_GOOGLE_BOOKS_API_KEY }}
         run: npm run build
 
+      - name: Set up PHP
+        # Vastgezet op de gecontroleerde v2-commit van setup-php.
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.2'
+          extensions: curl, pdo_mysql
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate Composer configuration
+        run: composer --working-dir=backend validate --strict
+
+      - name: Install backend dependencies
+        run: composer --working-dir=backend install --no-interaction --prefer-dist --no-progress
+
+      - name: Validate PHP syntax
+        run: |
+          set -euo pipefail
+          find backend/src backend/config backend/public backend/bin backend/tests \
+            -type f -name '*.php' -print0 | xargs -0 -n 1 php -l
+
+      - name: Run database-independent backend tests
+        run: |
+          set -euo pipefail
+          php backend/tests/database_safety.php
+          composer --working-dir=backend run test:providers
+          composer --working-dir=backend run test:api
+
       - name: Configure SSH
         env:
           STAGING_HOST: ${{ secrets.STAGING_HOST }}

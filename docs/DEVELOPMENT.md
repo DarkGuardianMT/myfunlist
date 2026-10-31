@@ -22,7 +22,7 @@ Store the generated value only in the ignored backend configuration. Never commi
 | Variable | Local use |
 | --- | --- |
 | `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Local MySQL/MariaDB connection |
-| `RATE_LIMIT_SECRET` | Required backend-only secret for shared rate limits outside tests |
+| `RATE_LIMIT_SECRET` | Stable backend-only secret (at least 32 characters) for shared rate limits and the pilot's HMAC client identifiers; no pilot fallback secret |
 | `TMDB_API_TOKEN` | Backend movie/TV discovery, Library metadata resolution, and public Media Detail resolution |
 | `RAWG_API_KEY` | Backend game discovery, Library metadata resolution, and public Media Detail resolution |
 | `GOOGLE_BOOKS_API_KEY` | Optional backend key for book Library metadata resolution and public Media Detail resolution |
@@ -86,6 +86,8 @@ composer --working-dir=backend run test:api
 
 These commands do not modify databases or contact live providers. Provider tests cover HTTP error mapping/protections, discovery, and detail normalization. API tests cover routing, public detail responses, and the real bootstrap/middleware/limiter pipeline with provider and counter-storage doubles; the latter accepts only counter SQL and rejects application-table access. The separate guarded MySQL rate-limit suite remains necessary to verify actual database persistence and concurrent workers.
 Run `composer validate --strict` from `backend/` to check the backend package configuration.
+
+The provider suite also runs Open Library discovery/cache/budget and per-client admission fixtures, including competing PHP processes against disposable private files. It needs no running MySQL/XAMPP service. Admission uses five requests per rolling 60 seconds, HMACs of `REMOTE_ADDR`, and the same version-2 file/lock as the provider budget; see [Phase 1.1 storage and failure behavior](BOOK_SEARCH_V2_PROVIDER_EVALUATION.md#phase-11-hardening--31-october-2026). Keep the real pilot disabled. Staging CI now requires PHP 8.2, strict Composer validation, dependency installation, syntax validation, the database safety check and both database-independent suites before SSH/deployment.
 
 ### Public media detail API
 

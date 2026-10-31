@@ -6,6 +6,8 @@ namespace MyFunList\Provider;
 
 use JsonException;
 use MyFunList\Http\ApiException;
+use MyFunList\RateLimit\OpenLibraryClientLimiter;
+use MyFunList\RateLimit\OpenLibraryClientLimitExceeded;
 use Throwable;
 
 final class OpenLibraryPilot
@@ -18,6 +20,8 @@ final class OpenLibraryPilot
         private readonly bool $sharedBudgetConfirmed,
         private readonly string $stateFile,
         private readonly string $userAgent,
+        private readonly string $clientSecret = '',
+        private readonly ?\Closure $clock = null,
     ) {
     }
 
@@ -29,13 +33,12 @@ final class OpenLibraryPilot
         };
         return new self($http, $value('OPEN_LIBRARY_PILOT_ENABLED') === 'true',
             $value('OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED') === 'true',
-            $value('OPEN_LIBRARY_STATE_FILE'), $value('OPEN_LIBRARY_USER_AGENT'));
+            $value('OPEN_LIBRARY_STATE_FILE'), $value('OPEN_LIBRARY_USER_AGENT'), $value('RATE_LIMIT_SECRET'));
     }
 
     public function search(array $parameters): array
     {
         if (!$this->enabled) throw new ApiException(404, 'not_found', 'Route not found.');
-        $query = OpenLibraryQuery::fromParameters($parameters);
         if (!$this->sharedBudgetConfirmed || strlen($this->userAgent) > 200
             || preg_match('/[^\x20-\x7E]/', $this->userAgent) === 1
             || preg_match('/^MyFunList[^\r\n]*\([A-Za-z0-9.!#$%&\x27*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\)$/D', $this->userAgent) !== 1) {
@@ -56,7 +59,15 @@ final class OpenLibraryPilot
             // Dezelfde inode blijft bestaan; vervang of verwijder dit bestand nooit tijdens gebruik.
             if (!flock($handle, LOCK_EX | LOCK_NB)) throw self::unavailable();
             $state = $this->readState($handle);
-            $now = microtime(true);
+            $now = $this->now();
+            try {
+                (new OpenLibraryClientLimiter($this->clientSecret))->admit($state['clients'], $_SERVER['REMOTE_ADDR'] ?? null, $now);
+            } catch (OpenLibraryClientLimitExceeded $exception) {
+                $this->writeState($handle, $state);
+                throw $exception;
+            }
+            $this->writeState($handle, $state);
+            $query = OpenLibraryQuery::fromParameters($parameters);
             $state['cache'] = array_filter($state['cache'], static fn (array $entry): bool => $entry['expiresAt'] > $now);
             $key = hash('sha256', 'v1:' . json_encode([$query->providerParameters(), $query->languageMode], JSON_THROW_ON_ERROR));
             if (isset($state['cache'][$key])) {
@@ -69,20 +80,18 @@ final class OpenLibraryPilot
             if ($now < $state['nextRequestAt']) throw self::unavailable();
 
             // Schrijf de reservering voor I/O: een gecrashte worker laat een veilige afkoelperiode achter.
-            $state['nextRequestAt'] = $now + 60;
+            $state['nextRequestAt'] = $this->now() + 60;
             $this->writeState($handle, $state);
+            $startedAt = $this->now();
             try {
                 $data = (new OpenLibraryAdapter($this->http, $this->userAgent))->search($query);
             } catch (Throwable $exception) {
-                $state['nextRequestAt'] = microtime(true) + 60;
+                $state['nextRequestAt'] = $this->now() + 60;
                 $this->writeState($handle, $state);
                 throw $exception;
             }
-            $state['nextRequestAt'] = max($now + 1.1, microtime(true));
-            $state['cache'][$key] = ['expiresAt' => microtime(true) + 300, 'data' => $data];
-            while (count($state['cache']) > 20 || strlen(json_encode($state, JSON_THROW_ON_ERROR)) > self::MAX_BYTES) {
-                unset($state['cache'][array_key_first($state['cache'])]);
-            }
+            $state['nextRequestAt'] = max($startedAt + 1.1, $this->now());
+            $state['cache'][$key] = ['expiresAt' => $this->now() + 300, 'data' => $data];
             $this->writeState($handle, $state);
             return $data;
         } finally {
@@ -99,7 +108,7 @@ final class OpenLibraryPilot
         } catch (JsonException) {
             throw self::unavailable();
         }
-        if (!is_array($state) || ($state['version'] ?? null) !== 1
+        if (!is_array($state) || ($state['version'] ?? null) !== 2 || !is_array($state['clients'] ?? null)
             || !is_numeric($state['nextRequestAt'] ?? null) || !is_finite((float) $state['nextRequestAt'])
             || $state['nextRequestAt'] < 0 || !is_array($state['cache'] ?? null) || count($state['cache']) > 20) {
             throw self::unavailable();
@@ -114,11 +123,21 @@ final class OpenLibraryPilot
         return $state;
     }
 
-    private function writeState(mixed $handle, array $state): void
+    private function writeState(mixed $handle, array &$state): void
     {
         $json = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        while (count($state['cache']) > 20 || strlen($json) > self::MAX_BYTES) {
+            if ($state['cache'] === []) throw self::unavailable();
+            unset($state['cache'][array_key_first($state['cache'])]);
+            $json = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        }
         if (!rewind($handle) || fwrite($handle, $json) !== strlen($json) || !ftruncate($handle, strlen($json))
             || !fflush($handle) || !fsync($handle)) throw self::unavailable();
+    }
+
+    private function now(): float
+    {
+        return ($this->clock ?? static fn (): float => microtime(true))();
     }
 
     private static function unavailable(): ProviderException
