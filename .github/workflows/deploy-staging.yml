@@ -127,6 +127,25 @@ jobs:
           }
           NODE
 
+      - name: Verify Open Library pilot stays disabled
+        run: |
+          status=$(curl --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --output "$RUNNER_TEMP/staging-pilot.json" --write-out '%{http_code}' \
+            https://lightcyan-snake-955164.hostingersite.com/api/v1/pilot/open-library/search)
+          test "$status" = '404'
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs'
+
+          try {
+            const pilot = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/staging-pilot.json`, 'utf8'))
+            if (pilot.error?.code !== 'not_found') throw new Error()
+          } catch {
+            console.error('Open Library pilot must remain disabled on staging.')
+            process.exit(1)
+          }
+          NODE
+
       - name: Remove SSH credentials
         if: always()
         run: rm -rf -- "$RUNNER_TEMP/staging-ssh"

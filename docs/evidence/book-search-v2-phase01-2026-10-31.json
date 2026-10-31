@@ -1,0 +1,344 @@
+{
+    "baseline": "180bab0a18ae608e81cd9e6e4b49dfeff82e67c9",
+    "verificationDate": "2026-10-31",
+    "method": {
+        "predefinedCorpus": [
+            [
+                "popular",
+                {
+                    "q": "Hobbit"
+                }
+            ],
+            [
+                "obscure",
+                {
+                    "q": "The Vet's Daughter",
+                    "field": "title"
+                }
+            ],
+            [
+                "dutch",
+                {
+                    "q": "De aanslag",
+                    "field": "title",
+                    "language": "nl",
+                    "languageMode": "strict"
+                }
+            ],
+            [
+                "turkish",
+                {
+                    "q": "Kürk Mantolu Madonna",
+                    "field": "title",
+                    "language": "tr",
+                    "languageMode": "strict"
+                }
+            ],
+            [
+                "duplicate-title",
+                {
+                    "q": "Home",
+                    "field": "title"
+                }
+            ],
+            [
+                "author",
+                {
+                    "q": "Ursula Le Guin",
+                    "field": "author"
+                }
+            ],
+            [
+                "isbn13",
+                {
+                    "q": "9780261103344",
+                    "field": "isbn"
+                }
+            ],
+            [
+                "isbn10",
+                {
+                    "q": "0261103342",
+                    "field": "isbn"
+                }
+            ],
+            [
+                "invalid-isbn",
+                {
+                    "q": "9780261103345",
+                    "field": "isbn"
+                }
+            ],
+            [
+                "adaptations-and-missing-metadata",
+                {
+                    "q": "The Hobbit",
+                    "field": "title"
+                }
+            ],
+            [
+                "collection",
+                {
+                    "q": "The Great Dune Trilogy",
+                    "field": "title"
+                }
+            ],
+            [
+                "preferred-language",
+                {
+                    "q": "Hobbit",
+                    "language": "nl"
+                }
+            ],
+            [
+                "empty-control",
+                {
+                    "q": "myfunlist-no-such-book-20261031-x7q9"
+                }
+            ]
+        ],
+        "pauseAfterResponseMs": 1200,
+        "timeoutSeconds": 12,
+        "bodyLimitBytes": 1048576,
+        "retries": 0,
+        "maxResults": 10,
+        "identification": "MyFunList evaluation (no contact; default 1 request/second budget)",
+        "notes": "One execution host; no pagination, credentials, cookies, covers or account data. Literal-text query construction from Phase 1 adapter."
+    },
+    "requests": [
+        {
+            "label": "popular",
+            "input": {
+                "q": "Hobbit"
+            },
+            "requestedAt": "2026-10-31T15:05:19+00:00",
+            "parameters": {
+                "q": "\"Hobbit\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 163,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "obscure",
+            "input": {
+                "q": "The Vet's Daughter",
+                "field": "title"
+            },
+            "requestedAt": "2026-10-31T15:05:20+00:00",
+            "parameters": {
+                "title": "\"The\" \"Vet's\" \"Daughter\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "dutch",
+            "input": {
+                "q": "De aanslag",
+                "field": "title",
+                "language": "nl",
+                "languageMode": "strict"
+            },
+            "requestedAt": "2026-10-31T15:05:21+00:00",
+            "parameters": {
+                "title": "\"De\" \"aanslag\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i",
+                "lang": "nl",
+                "q": "language:dut"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "turkish",
+            "input": {
+                "q": "Kürk Mantolu Madonna",
+                "field": "title",
+                "language": "tr",
+                "languageMode": "strict"
+            },
+            "requestedAt": "2026-10-31T15:05:22+00:00",
+            "parameters": {
+                "title": "\"Kürk\" \"Mantolu\" \"Madonna\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i",
+                "lang": "tr",
+                "q": "language:tur"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "duplicate-title",
+            "input": {
+                "q": "Home",
+                "field": "title"
+            },
+            "requestedAt": "2026-10-31T15:05:24+00:00",
+            "parameters": {
+                "title": "\"Home\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "author",
+            "input": {
+                "q": "Ursula Le Guin",
+                "field": "author"
+            },
+            "requestedAt": "2026-10-31T15:05:25+00:00",
+            "parameters": {
+                "author": "\"Ursula\" \"Le\" \"Guin\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "isbn13",
+            "input": {
+                "q": "9780261103344",
+                "field": "isbn"
+            },
+            "requestedAt": "2026-10-31T15:05:26+00:00",
+            "parameters": {
+                "isbn": "9780261103344",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "isbn10",
+            "input": {
+                "q": "0261103342",
+                "field": "isbn"
+            },
+            "requestedAt": "2026-10-31T15:05:27+00:00",
+            "parameters": {
+                "isbn": "0261103342",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 3,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "invalid-isbn",
+            "input": {
+                "q": "9780261103345",
+                "field": "isbn"
+            },
+            "requestedAt": "2026-10-31T15:05:28+00:00",
+            "outcome": "locally-rejected",
+            "status": 422
+        },
+        {
+            "label": "adaptations-and-missing-metadata",
+            "input": {
+                "q": "The Hobbit",
+                "field": "title"
+            },
+            "requestedAt": "2026-10-31T15:05:28+00:00",
+            "parameters": {
+                "title": "\"The\" \"Hobbit\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "collection",
+            "input": {
+                "q": "The Great Dune Trilogy",
+                "field": "title"
+            },
+            "requestedAt": "2026-10-31T15:05:30+00:00",
+            "parameters": {
+                "title": "\"The\" \"Great\" \"Dune\" \"Trilogy\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "preferred-language",
+            "input": {
+                "q": "Hobbit",
+                "language": "nl"
+            },
+            "requestedAt": "2026-10-31T15:05:31+00:00",
+            "parameters": {
+                "q": "\"Hobbit\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i",
+                "lang": "nl"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        },
+        {
+            "label": "empty-control",
+            "input": {
+                "q": "myfunlist-no-such-book-20261031-x7q9"
+            },
+            "requestedAt": "2026-10-31T15:05:32+00:00",
+            "parameters": {
+                "q": "\"myfunlist-no-such-book-20261031-x7q9\"",
+                "limit": 10,
+                "fields": "key,title,author_name,first_publish_year,edition_count,language,cover_i,editions,editions.key,editions.title,editions.language,editions.publish_date,editions.isbn,editions.cover_i"
+            },
+            "httpStatus": 0,
+            "elapsedMs": 2,
+            "bytes": 0,
+            "transportErrorNumber": 7,
+            "outcome": "transport-error"
+        }
+    ],
+    "finishedAt": "2026-10-31T15:05:33+00:00"
+}

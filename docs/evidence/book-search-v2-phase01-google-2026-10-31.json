@@ -1,0 +1,77 @@
+{
+    "verificationDate": "2026-10-31",
+    "baseline": "180bab0a18ae608e81cd9e6e4b49dfeff82e67c9",
+    "method": {
+        "corpus": "Same predefined Phase 0 corpus as Open Library; invalid ISBN rejected locally for this comparison, not a claim about existing Google UI validation.",
+        "access": "Deployed public browser configuration, key value omitted, staging Referer; two read-only HTML/bundle configuration reads.",
+        "parameters": "Title/Author per-word quoted operators from existing Search V1; explicit isbn: operator for evaluation only; language restrictions when requested; provider order without frontend reranking.",
+        "pauseAfterResponseMs": 1200,
+        "timeoutSeconds": 12,
+        "bodyLimitBytes": 1200000,
+        "maxResults": 10,
+        "retries": 0,
+        "stopRule": "Stop on 401/403/429 or three consecutive 5xx failures. No cookies, OAuth, pagination or image reads."
+    },
+    "requests": [
+        {
+            "label": "popular",
+            "input": {
+                "q": "Hobbit"
+            },
+            "requestedAt": "2026-10-31T15:11:10+00:00",
+            "parameters": {
+                "q": "Hobbit",
+                "printType": "books",
+                "maxResults": "10",
+                "orderBy": "relevance"
+            },
+            "httpStatus": 503,
+            "elapsedMs": 464,
+            "transportErrorNumber": 0,
+            "bytes": 244,
+            "outcome": "provider-error"
+        },
+        {
+            "label": "obscure",
+            "input": {
+                "q": "The Vet's Daughter",
+                "field": "title"
+            },
+            "requestedAt": "2026-10-31T15:11:12+00:00",
+            "parameters": {
+                "q": "intitle:\"The\" intitle:\"Vet's\" intitle:\"Daughter\"",
+                "printType": "books",
+                "maxResults": "10",
+                "orderBy": "relevance"
+            },
+            "httpStatus": 503,
+            "elapsedMs": 457,
+            "transportErrorNumber": 0,
+            "bytes": 244,
+            "outcome": "provider-error"
+        },
+        {
+            "label": "dutch",
+            "input": {
+                "q": "De aanslag",
+                "field": "title",
+                "language": "nl",
+                "languageMode": "strict"
+            },
+            "requestedAt": "2026-10-31T15:11:13+00:00",
+            "parameters": {
+                "q": "intitle:\"De\" intitle:\"aanslag\"",
+                "printType": "books",
+                "maxResults": "10",
+                "orderBy": "relevance",
+                "langRestrict": "nl"
+            },
+            "httpStatus": 503,
+            "elapsedMs": 489,
+            "transportErrorNumber": 0,
+            "bytes": 244,
+            "outcome": "provider-error"
+        }
+    ],
+    "finishedAt": "2026-10-31T15:11:14+00:00"
+}

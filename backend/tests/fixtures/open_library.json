@@ -1,0 +1,35 @@
+{
+  "numFound": 2,
+  "start": 0,
+  "docs": [
+    {
+      "key": "/works/OL27482W",
+      "title": "The Hobbit",
+      "author_name": ["J. R. R. Tolkien"],
+      "first_publish_year": 1937,
+      "edition_count": 482,
+      "language": ["eng", "dut", "tur"],
+      "cover_i": 100,
+      "isbn": ["9780000000002"],
+      "userMedia": {"rating": 10},
+      "lists": ["private-fixture"],
+      "editions": {
+        "numFound": 1,
+        "docs": [
+          {
+            "key": "/books/OL10236414M",
+            "title": "The Hobbit",
+            "language": ["eng"],
+            "publish_date": ["1995"],
+            "isbn": ["9780261103344", "0261103342", "9780261103345"],
+            "cover_i": 200
+          }
+        ]
+      }
+    },
+    {
+      "key": "OL19659526W",
+      "title": "The Hobbit"
+    }
+  ]
+}

@@ -27,6 +27,8 @@ Store the generated value only in the ignored backend configuration. Never commi
 | `RAWG_API_KEY` | Backend game discovery, Library metadata resolution, and public Media Detail resolution |
 | `GOOGLE_BOOKS_API_KEY` | Optional backend key for book Library metadata resolution and public Media Detail resolution |
 | `SESSION_SAVE_PATH` | Optional private PHP-writable session directory; local HTTP defaults to `backend/var/sessions` |
+| `OPEN_LIBRARY_PILOT_ENABLED` | Disabled unless exactly `true`; separate read-only pilot, no frontend integration |
+| `OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED`, `OPEN_LIBRARY_STATE_FILE`, `OPEN_LIBRARY_USER_AGENT` | Backend-only hosting assertion, pre-provisioned private shared state and application/contact identification; see the [Phase 0/1 contract and enablement constraints](BOOK_SEARCH_V2_PROVIDER_EVALUATION.md#policy-and-hosting-constraints) before configuring |
 
 Google Books discovery runs in the browser and works locally without a key, subject to provider quotas.
 Optionally copy the root `.env.example` to `.env` and set `VITE_GOOGLE_BOOKS_API_KEY`.

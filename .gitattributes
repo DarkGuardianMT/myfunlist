@@ -1,0 +1,2 @@
+# Bewaar bewijsbestanden bytegetrouw, ook bij Windows-checkouts.
+docs/evidence/*.json -text

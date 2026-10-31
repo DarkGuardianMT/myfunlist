@@ -1,6 +1,6 @@
 # MyFunList project context
 
-Current-state reference including Batch 5 Library removal Undo and the Batch 4 D3 persisted-membership fix (2026-10-30). Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
+Current-state reference including the disabled Open Library discovery pilot (2026-10-31), Batch 5 Library removal Undo and the Batch 4 D3 persisted-membership fix. Use the actual HEAD; the initial Search V1 implementation is `8d1aa53cc6cc9add893c6f834a75f484bcd70479`.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
@@ -106,10 +106,13 @@ Light is default; Light/Dark tokens and the `myfunlist_theme` device preference 
 | Google Books | Browser-side discovery in `src/services/googleBooks.js`; backend independently resolves Library/detail metadata |
 | TMDB | Movie/TV discovery and detail resolution on PHP, with backend-only `TMDB_API_TOKEN` |
 | RAWG | Game discovery and detail resolution on PHP, with backend-only `RAWG_API_KEY` |
+| Open Library | Isolated read-only Phase 1 backend pilot; disabled by default, no frontend or saved-record support |
 
 TMDB/RAWG discovery uses public `GET /api/v1/discover/{movie|tv|game}?q=...`, returning bounded normalized metadata without inserting search results. Backend Books resolution accepts optional `GOOGLE_BOOKS_API_KEY`; browser discovery uses optional `VITE_GOOGLE_BOOKS_API_KEY`, restricted to the deployed origin and Books API. Google Books browser search is outside the PHP limiter.
 
 Preserve TMDB logo/notice, RAWG attribution backlinks and detail's Google Books credit. Metadata/artwork remain subject to provider rights; no open-source license has been selected and the backend package is proprietary.
+
+The separate `GET /api/v1/pilot/open-library/search` route supports bounded General/Title/Author/ISBN lookup with separate Work/selected Edition IDs, provenance/missing states and explicit `en→eng`, `nl→dut`, `tr→tur` preference/strict semantics. It does not change canonical media identities, Google Books, Library/List data or the database schema. Absent `OPEN_LIBRARY_PILOT_ENABLED=true` returns 404 before network access. Enabling also requires private application/contact identification, `OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED=true` and a pre-provisioned stable private state file outside the webroot. Its cross-worker file lock serializes provider I/O, enforces at least 1.1 seconds between starts and a shared failure cooldown, and holds a bounded public-only cache (five minutes, 20 entries, 2 MiB). Missing/corrupt storage fails closed; independent files/hosts or uncoordinated egress cannot guarantee a global budget. Hostinger locking/topology and policy/use-case registration remain prerequisites, so keep the network pilot disabled. The staging workflow checks that it remains disabled. See the [Phase 0/1 report and API contract](docs/BOOK_SEARCH_V2_PROVIDER_EVALUATION.md#phase-0-extension-and-phase-1-implementation--31-october-2026) for policy sources, sanitized samples, configuration, test coverage and limitations; no multi-day reliability or browser acceptance is claimed.
 
 ## Search, navigation and caching
 
@@ -136,7 +139,7 @@ The QA follow-up reproduced Google returning Italian/German language tags despit
 
 Submitted query/type use `q`/`type` URL parameters; Books is the default type. Non-default Books filters use `field=title|author`, `lang=en|nl|tr` and `sort=newest`. Invalid/repeated filter values fall back safely. Back, refresh and explicit Media Detail return restore submitted context. Switching types remembers each type's submitted search; an unsubmitted draft survives while Discover remains mounted. Filter changes search the submitted query immediately; without one they remain idle.
 
-Ranking only reorders returned candidates, not the entire catalogue. It is not popularity/sales ranking. Editions are not grouped; Open Library work/edition integration and external popularity signals are future investigations.
+Ranking only reorders returned candidates, not the entire catalogue. It is not popularity/sales ranking. Editions are not grouped in the frontend; the disabled Open Library backend pilot evaluates separate Work/Edition discovery. Frontend integration and external popularity signals remain future work.
 
 ### State and cache boundaries
 
@@ -173,7 +176,7 @@ Deferred: Anime/source selection; season-level TV/Anime tracking in dedicated re
 | Batch 5 / B6 | Deferred Library removal/Undo implemented; fresh 320×740, 390×844, 768×1024 and 1440×900 Light/Dark browser acceptance and physical-device/screen-reader checks remain open. D1 rating presentation is outside this task |
 | B3-L1 (low severity) | Passed original Batch 4 live QA: 120 target measurements across all eight requested size/theme combinations met 44×44 CSS px; physical-device/native OS picker coverage remains open |
 | C1 | Direct Google Books calls reproduced upstream HTTP 503 `backendFailed`; no application-side cause identified for those samples. Existing safe classification and explicit-only retries remain; broader provider reliability is unresolved |
-| Search V2 | Investigate work/edition grouping and external popularity signals; not implemented |
+| Search V2 | Phase 0 corpus/policy evaluation and isolated read-only Open Library adapter implemented, disabled by default; policy/hosting and multi-day validation gate enablement. Phase 2 UI, edition selection/saving and popularity signals remain deferred |
 | Public launch | Complete security/operations checks: real client IP/limits, cookie/session persistence, HTTPS/routing/headers/CSP, backups/isolated restore, logs, provider-key restrictions and account-isolation flows |
 
 The remaining audit roadmap and measurements above come from the owner's Work QA status update; the original reports remain the evidence source. Public launch requires the separate [release checklist](docs/DEPLOYMENT.md#public-release-checklist).

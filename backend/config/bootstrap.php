@@ -13,6 +13,7 @@ use MyFunList\Http\Controllers\HealthController;
 use MyFunList\Http\Controllers\LibraryController;
 use MyFunList\Http\Controllers\ListController;
 use MyFunList\Http\Controllers\MediaController;
+use MyFunList\Http\Controllers\OpenLibraryController;
 use MyFunList\Http\Controllers\ProfileController;
 use MyFunList\Http\JsonResponse;
 use MyFunList\Http\Middleware\AuthMiddleware;
@@ -23,6 +24,7 @@ use MyFunList\Library\LibraryImportService;
 use MyFunList\Lists\ListService;
 use MyFunList\Provider\CurlProviderHttpClient;
 use MyFunList\Provider\ProviderMediaResolver;
+use MyFunList\Provider\OpenLibraryPilot;
 use MyFunList\Infrastructure\Database;
 use MyFunList\Infrastructure\PhpSession;
 use MyFunList\Infrastructure\SessionCurrentUserProvider;
@@ -49,8 +51,11 @@ $library = new LibraryController($libraryService, new LibraryImportService($libr
 $lists = new ListController(new ListService($database));
 $discover = new DiscoverController($providers);
 $media = new MediaController($providers);
+$openLibrary = new OpenLibraryController(OpenLibraryPilot::fromEnvironment(new CurlProviderHttpClient()));
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
+$router->add('GET', '/api/v1/pilot/open-library/search',
+    static fn (): JsonResponse => $openLibrary->search($_GET));
 foreach (['movie', 'tv', 'game'] as $mediaType) {
     $router->add('GET', '/api/v1/discover/' . $mediaType,
         $limits->ip('discover_ip', static fn (): JsonResponse => $discover->search($mediaType, $_GET)));
