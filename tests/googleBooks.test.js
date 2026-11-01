@@ -96,7 +96,7 @@ test('field operators constrain every word and preserve quoted phrases without n
   assert.deepEqual(await searchBooks('""', { field: 'title', fetchImpl: () => assert.fail('empty expression') }), [])
 })
 
-test('language and ordering are real provider constraints; only title-intent best matches are reranked', async () => {
+test('language and ordering are sent upstream; Google results always retain provider order', async () => {
   const items = [{ id: 'other', volumeInfo: { title: 'Other book' } },
     { id: 'equivalent', volumeInfo: { title: 'The Hobbit' } },
     { id: 'exact', volumeInfo: { title: 'Hobbit' } }]
@@ -115,7 +115,7 @@ test('language and ordering are real provider constraints; only title-intent bes
         } })
         assert.equal(calls, 1)
         assert.deepEqual(results.map((book) => book.sourceId),
-          sort === 'relevance' && field !== 'author' ? ['exact', 'equivalent', 'other'] : ['other', 'equivalent', 'exact'])
+          ['other', 'equivalent', 'exact'])
       }
     }
   }

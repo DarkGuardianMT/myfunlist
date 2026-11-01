@@ -8,6 +8,7 @@ const props = defineProps({
     type: Object,
     required: true,
   },
+  showProviderLink: { type: Boolean, default: false },
   compactMetadata: { type: Boolean, default: false },
 })
 
@@ -64,6 +65,8 @@ watch(
         </div>
       </details>
       <p v-else class="book-card__authors">{{ authorText }}</p>
+      <a v-if="showProviderLink && book.source === 'google-books' && detailRoute" class="book-provider-link" :href="'https://books.google.com/books?id=' + encodeURIComponent(book.sourceId)" target="_blank" rel="noopener noreferrer">View on Google Books</a>
+      <p v-if="showProviderLink">Language tag: {{ book.language || 'Unknown' }}</p>
       <p v-if="book.publishedYear" class="book-card__year">{{ book.publishedYear }}</p>
     </div>
 
@@ -74,6 +77,7 @@ watch(
 </template>
 
 <style scoped>
+.book-provider-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-primary-ink); }
 .book-card--compact { grid-template-columns: 5.5rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; align-items: start; }
 .book-card--compact .media-card-title-link { display: block; }
 .book-card__title-preview, .book-card__author-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }

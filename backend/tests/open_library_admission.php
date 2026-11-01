@@ -255,6 +255,32 @@ namespace {
         Http::$fail = false;
 
         seedAdmission($stateFile);
+        $now = 5500.0;
+        $callsBefore = Http::$calls;
+        verifyAdmission(admissionRequest($app)->status === 200, 'Busy fixture did not warm cache.');
+        $busy = admissionRequest($app, ['q' => 'another modern book']);
+        verifyAdmission($busy->status === 503 && json_decode($busy->body(), true)['error']['code'] === 'provider_busy'
+            && admissionHeaders($busy)['Retry-After'] === '2' && Http::$calls === $callsBefore + 1
+            && count(array_values(admissionState($stateFile)['clients'])[0]) === 2,
+            'Interval contention must have short manual backoff, count admission and make no extra upstream call.');
+        verifyAdmission(admissionRequest($app)->status === 200 && Http::$calls === $callsBefore + 1,
+            'A cached result must remain usable during provider spacing.');
+        $beforeState = file_get_contents($stateFile);
+        $lock = fopen($stateFile, 'r+b');
+        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) throw new RuntimeException('Fixture lock unavailable.');
+        $started = hrtime(true);
+        try {
+            $busy = admissionRequest($app);
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+        verifyAdmission($busy->status === 503 && json_decode($busy->body(), true)['error']['code'] === 'provider_busy'
+            && admissionHeaders($busy)['Retry-After'] === '2' && Http::$calls === $callsBefore + 1
+            && file_get_contents($stateFile) === $beforeState && (hrtime(true) - $started) / 1e9 < 2,
+            'Lock contention must end within a bounded local wait without state writes or upstream retries.');
+
+        seedAdmission($stateFile);
         $now = 6000.0;
         for ($i = 0; $i < Limiter::LIMIT - 1; $i++) admissionRequest($app);
         $workers = [];

@@ -288,7 +288,7 @@ test('book filters survive Back, explicit detail return and a fresh session reco
   function assertFilters(target) {
     assert.equal(target.get('#book-query').element.value, 'Harry Potter')
     assert.equal(target.get('#book-search-field').element.value, 'title')
-    assert.equal(target.get('#book-search-sort').element.value, 'newest')
+    assert.equal(target.find('#book-search-sort').exists(), false)
     assert.equal(target.get('#book-search-language').element.value, 'nl')
   }
   assertFilters(view)
@@ -323,13 +323,13 @@ test('each book filter searches automatically, isolates cache entries and omits 
   assert.equal(providerCalls().length, 3)
   assert.equal(new URL(providerCalls().at(-1)).searchParams.get('langRestrict'), 'tr')
   const beforeSort = router.currentRoute.value.fullPath
-  await view.get('#book-search-sort').setValue('newest')
+  await router.push({ path: '/discover', query: { ...router.currentRoute.value.query, sort: 'newest' } })
   await settle()
   assert.equal(providerCalls().length, 4)
   assert.equal(new URL(providerCalls().at(-1)).searchParams.get('orderBy'), 'newest')
   await back(router)
   assert.equal(router.currentRoute.value.fullPath, beforeSort)
-  assert.equal(view.get('#book-search-sort').element.value, 'relevance')
+  assert.equal(view.find('#book-search-sort').exists(), false)
   assert.equal(providerCalls().length, 4)
   await router.push(initial)
   await settle()
@@ -449,7 +449,7 @@ test('empty book searches suggest only field and language restrictions that can 
   }
 })
 
-test('provider language mismatches are disclosed and filtered without changing identities, cache restoration or newest order', async () => {
+test('Google language caveat preserves every result, provider order, identities and navigation', async () => {
   const items = [
     { id: '7cAPEgAAQBAJ', volumeInfo: { title: 'Lo Hobbit', language: 'it' } },
     { id: identities.book.sourceId, volumeInfo: { title: 'Hobbit guide', language: 'en' } },
@@ -468,37 +468,37 @@ test('provider language mismatches are disclosed and filtered without changing i
   const { view, router } = await page('/discover?q=Hobbit&lang=en&sort=newest')
   const englishLocation = router.currentRoute.value.fullPath
   const links = () => view.findAll('article h3 a').map((link) => link.attributes('href').split('/').at(-1))
-  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
-  assert.match(view.get('.book-language-notice').text(), /labels as English/)
-  assert.match(view.get('.book-language-notice').text(), /4 provider results were hidden: 2 in other languages and 2 with missing or invalid/)
+  assert.deepEqual(links(), items.map(item => item.id))
+  assert.match(view.get('.book-language-notice').text(), /Requested English/)
+  assert.match(view.get('.book-language-notice').text(), /all returned results remain visible in provider order/)
   assert.equal(providerCalls().length, 1)
   assert.equal(new URL(providerCalls()[0]).searchParams.get('langRestrict'), 'en')
   await view.get('article h3 a').trigger('click')
   await settle()
   await back(router)
   assert.equal(router.currentRoute.value.fullPath, englishLocation)
-  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
+  assert.deepEqual(links(), items.map(item => item.id))
   await view.get('article h3 a').trigger('click')
   await settle()
   await view.get('.media-detail-back').trigger('click')
   await settle()
-  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
+  assert.deepEqual(links(), items.map(item => item.id))
   assert.equal(providerCalls().length, 1)
   await view.get('#book-search-language').setValue('tr')
   await settle()
-  assert.deepEqual(links(), ['turkish1'])
-  assert.match(view.get('.book-language-notice').text(), /labels as Turkish/)
+  assert.deepEqual(links(), items.map(item => item.id))
+  assert.match(view.get('.book-language-notice').text(), /Requested Turkish/)
   await view.get('#book-search-language').setValue('any')
   await settle()
   assert.deepEqual(links(), items.map((item) => item.id))
   assert.equal(view.find('.book-language-notice').exists(), false)
   await router.push(englishLocation)
   await settle()
-  assert.deepEqual(links(), [identities.book.sourceId, 'english2'])
+  assert.deepEqual(links(), items.map(item => item.id))
   assert.equal(providerCalls().length, 3)
 })
 
-test('a language selection with no confirmed matches shows an honest empty state and cached omission counts', async () => {
+test('Google language selection retains unknown and mismatched metadata without local omissions', async () => {
   globalThis.fetch = async (path) => {
     calls.push(path)
     return { ok: true, json: async () => ({ items: [
@@ -507,13 +507,12 @@ test('a language selection with no confirmed matches shows an honest empty state
     ] }) }
   }
   const { view } = await page('/discover?q=Hobbit&lang=en')
-  assert.match(view.text(), /No books found/)
-  assert.match(view.get('.book-language-notice').text(), /2 provider results were hidden: 1 in other languages and 1 with missing or invalid/)
-  assert.equal(view.find('article').exists(), false)
+  assert.equal(view.findAll('article').length, 2)
+  assert.match(view.get('.book-language-notice').text(), /all returned results remain visible/)
   await view.get('form').trigger('submit')
   await settle()
   assert.equal(providerCalls().length, 1)
-  assert.match(view.get('.book-language-notice').text(), /2 provider results were hidden/)
+  assert.match(view.get('.book-language-notice').text(), /all returned results remain visible/)
   await view.get('#book-search-language').setValue('any')
   await settle()
   assert.equal(view.findAll('article').length, 2)
@@ -614,4 +613,25 @@ test('scroll restoration waits for results, honors saved history positions, and 
   await settle()
   assert.equal(view.get('h1').text(), 'Home')
   assert.deepEqual(scrolls.at(-1), { left: 0, top: 0 })
+})
+
+test('switching from the Open Library child keeps the parent Google loading readiness', async () => {
+  const { view, router } = await page('/discover?provider=open-library&q=Hobbit')
+  let finish
+  globalThis.fetch = path => {
+    calls.push(path)
+    return new Promise(resolve => { finish = resolve })
+  }
+  await view.get('#book-provider').setValue('google-books')
+  await settle()
+  assert.match(view.text(), /Searching Google Books/)
+  const saved = { left: 0, top: 700 }
+  let restored = false
+  const restoration = browsingScrollBehavior(router.currentRoute.value, {}, saved)
+    .then(position => { restored = true; return position })
+  await settle()
+  assert.equal(restored, false)
+  finish(providerReply('book', 'Hobbit'))
+  await settle()
+  assert.deepEqual(await restoration, saved)
 })

@@ -1,7 +1,8 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { resolveBookProvider } from '../domain/bookProviders.js'
 import { MEDIA_TYPES } from '../domain/libraryMedia.js'
-import { normalizeBookSearchOptions, selectBooksByLanguage } from '../domain/bookSearch.js'
+import { normalizeBookSearchOptions } from '../domain/bookSearch.js'
 import { discoverReturnLocation, useBrowsingReady } from '../router/browsingContext.js'
 import { getGoogleBooksErrorMessage, searchBooks } from '../services/googleBooks.js'
 import {
@@ -68,6 +69,7 @@ export function useDiscoverSearch() {
   const route = useRoute()
   const router = useRouter()
   const activeMediaType = computed(() => MEDIA_TYPES.includes(route.query.type) ? route.query.type : 'book')
+  const bookProvider = computed(() => resolveBookProvider(route.query.provider))
   const bookFilters = computed(() => normalizeBookSearchOptions({
     field: route.query.field, sort: route.query.sort, language: route.query.lang,
   }))
@@ -96,21 +98,26 @@ export function useDiscoverSearch() {
     const query = routeQuery(route.query.q)
     const options = bookFilters.value
     const context = location(type, query, options)
+    if (type === 'book' && (bookProvider.value === 'open-library' || route.query.provider)) {
+      context.query.provider = bookProvider.value
+      if (bookProvider.value === 'open-library') {
+        delete context.query.sort
+        if (route.query.field === 'isbn') context.query.field = 'isbn'
+        if (route.query.mode === 'strict') context.query.mode = 'strict'
+      }
+    }
     queriesByType.set(type, context)
     discoverReturnLocation.value = context
     const draft = drafts.get(type)
     const input = draft?.submittedQuery === query ? draft.query : query
     activeSearch.value = { query: input, searchedQuery: query, results: [], status: query ? 'loading' : 'idle', errorMessage: '', languageSummary: null }
+    if (type === 'book' && bookProvider.value === 'open-library') { activeSearch.value.status = 'idle'; return }
     if (!query) return
     try {
       const results = await search(type, query, options)
       if (version !== generation) return
-      const selection = type === 'book' ? selectBooksByLanguage(results, options.language) : { results }
-      activeSearch.value.results = selection.results
-      activeSearch.value.languageSummary = type === 'book' ? {
-        otherLanguageCount: selection.otherLanguageCount, unknownLanguageCount: selection.unknownLanguageCount,
-      } : null
-      activeSearch.value.status = selection.results.length ? 'success' : 'empty'
+      activeSearch.value.results = results
+      activeSearch.value.status = results.length ? 'success' : 'empty'
     } catch (error) {
       if (version !== generation) return
       activeSearch.value.status = 'error'
@@ -119,7 +126,7 @@ export function useDiscoverSearch() {
   }
 
   watch(() => [route.path, route.query.type, route.query.q,
-    ...(activeMediaType.value === 'book' ? [route.query.field, route.query.sort, route.query.lang] : []),
+    ...(activeMediaType.value === 'book' ? [route.query.provider, route.query.field, route.query.sort, route.query.lang, route.query.mode] : []),
   ], load, { immediate: true })
   onScopeDispose(() => { generation++ })
   useBrowsingReady('/discover', computed(() => activeSearch.value.status !== 'loading'))
@@ -131,7 +138,9 @@ export function useDiscoverSearch() {
 
   function setBookFilter(name, value) {
     if (activeMediaType.value !== 'book' || !['field', 'sort', 'language'].includes(name)) return
-    return router.push(location('book', routeQuery(route.query.q), { ...bookFilters.value, [name]: value }))
+    const target = location('book', routeQuery(route.query.q), { ...bookFilters.value, [name]: value })
+    if (route.query.provider) target.query.provider = 'google-books'
+    return router.push(target)
   }
 
   function handleSearch() {
@@ -139,8 +148,15 @@ export function useDiscoverSearch() {
     if (!query || activeSearch.value.status === 'loading') return
     drafts.delete(activeMediaType.value)
     if (route.path === '/discover' && query === routeQuery(route.query.q)) return load()
-    return router.push(location(activeMediaType.value, query, bookFilters.value))
+    const target = location(activeMediaType.value, query, bookFilters.value)
+    if (activeMediaType.value === 'book' && route.query.provider) target.query.provider = bookProvider.value
+    return router.push(target)
   }
 
-  return { activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice, setBookFilter, selectMediaType, handleSearch }
+  function setBookProvider(provider) {
+    if (!['open-library', 'google-books'].includes(provider)) return
+    return router.push({ path: '/discover', query: { provider, ...(routeQuery(route.query.q) ? { q: routeQuery(route.query.q) } : {}) } })
+  }
+
+  return { bookProvider, setBookProvider, activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice, setBookFilter, selectMediaType, handleSearch }
 }

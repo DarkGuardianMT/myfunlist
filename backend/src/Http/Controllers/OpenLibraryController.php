@@ -23,6 +23,10 @@ final class OpenLibraryController
             return JsonResponse::error(429, 'rate_limited', $exception->getMessage(),
                 ['Retry-After' => (string) $exception->retryAfter, 'Cache-Control' => 'no-store']);
         } catch (ProviderException $exception) {
+            if ($exception->errorCode === 'provider_busy') {
+                return JsonResponse::error(503, 'provider_busy', 'Book search is busy. Please wait before retrying.',
+                    ['Cache-Control' => 'no-store', 'Retry-After' => '2']);
+            }
             $unavailable = $exception->status === 429 || ($exception->status >= 500 && $exception->status !== 502);
             return JsonResponse::error($unavailable ? 503 : 502,
                 $unavailable ? 'provider_unavailable' : 'provider_error',

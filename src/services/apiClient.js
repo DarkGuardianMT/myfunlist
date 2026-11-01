@@ -97,6 +97,10 @@ export async function request(path, options = {}) {
         typeof error?.code === 'string' ? error.code : 'request_failed',
         error?.fields ?? null,
       )
+      const retryAfter = response.headers?.get?.('Retry-After')
+      if (typeof retryAfter === 'string' && /^[0-9]{1,4}$/.test(retryAfter)) {
+        apiError.retryAfter = Math.min(3600, Math.max(1, Number(retryAfter)))
+      }
       if (response.status === 401 && handleUnauthorized && requestEpoch === authEpoch) {
         sessionExpired?.()
       }

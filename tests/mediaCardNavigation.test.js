@@ -57,7 +57,7 @@ async function render(component, props = {}, path = '/discover') {
 }
 function assertLinks(view, item) {
   const card = view.get('article')
-  const links = card.findAll('a')
+  const links = card.findAll('a').filter(link => !link.classes().includes('book-provider-link'))
   assert.equal(links.length, 2)
   const expected = `/media/${item.mediaType}/${item.source}/${item.sourceId}`
   assert.equal(getMediaDetailPath(item), expected)

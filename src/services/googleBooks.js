@@ -1,6 +1,5 @@
 import { fetchProvider } from './providerFetch.js'
 import { buildBookSearchExpression, normalizeBookLanguage, normalizeBookSearchOptions } from '../domain/bookSearch.js'
-import { rankBooksByTitle } from '../domain/bookRelevance.js'
 
 const GOOGLE_BOOKS_API_URL = 'https://www.googleapis.com/books/v1/volumes'
 
@@ -123,9 +122,7 @@ export async function searchBooks(query, {
   }
 
   const books = Array.isArray(data.items) ? data.items.map(normalizeGoogleBook) : []
-  // Auteurzoekopdrachten hebben geen titelintentie; behoud daarvoor de providerrelevantie.
-  return options.sort === 'relevance' && options.field !== 'author'
-    ? rankBooksByTitle(books, normalizedQuery) : books
+  return books
 }
 
 export function getGoogleBooksErrorMessage(error) {

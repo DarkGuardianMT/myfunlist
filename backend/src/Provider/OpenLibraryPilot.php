@@ -57,7 +57,12 @@ final class OpenLibraryPilot
         if ($handle === false) throw self::unavailable();
         try {
             // Dezelfde inode blijft bestaan; vervang of verwijder dit bestand nooit tijdens gebruik.
-            if (!flock($handle, LOCK_EX | LOCK_NB)) throw self::unavailable();
+            // Wacht hoogstens 150 ms op korte cache-/schrijfcontentie, nooit op een onbeperkte wachtrij.
+            $deadline = hrtime(true) + 150000000;
+            while (!flock($handle, LOCK_EX | LOCK_NB)) {
+                if (hrtime(true) >= $deadline) throw self::busy();
+                usleep(10000);
+            }
             $state = $this->readState($handle);
             $now = $this->now();
             try {
@@ -77,7 +82,10 @@ final class OpenLibraryPilot
                 $this->writeState($handle, $state);
                 return $entry['data'];
             }
-            if ($now < $state['nextRequestAt']) throw self::unavailable();
+            if ($now < $state['nextRequestAt']) {
+                if ($state['nextRequestAt'] - $now <= 1.100001) throw self::busy();
+                throw self::unavailable();
+            }
 
             // Schrijf de reservering voor I/O: een gecrashte worker laat een veilige afkoelperiode achter.
             $state['nextRequestAt'] = $this->now() + 60;
@@ -143,5 +151,10 @@ final class OpenLibraryPilot
     private static function unavailable(): ProviderException
     {
         return new ProviderException(503, 'provider_unavailable', 'Book search pilot is temporarily unavailable.');
+    }
+
+    private static function busy(): ProviderException
+    {
+        return new ProviderException(503, 'provider_busy', 'Book search is busy. Please wait before retrying.');
     }
 }

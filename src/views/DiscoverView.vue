@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import OpenLibraryDiscover from '../components/OpenLibraryDiscover.vue'
 import BookCard from '../components/BookCard.vue'
 import GameCard from '../components/GameCard.vue'
 import LibraryAddButton from '../components/LibraryAddButton.vue'
@@ -16,7 +17,7 @@ const discoveryTypes = [
     id: 'book',
     label: 'Books',
     heading: 'Discover books',
-    intro: 'Search for your next read using book information from Google Books.',
+    intro: 'Choose a book catalogue to discover books and inspect publication information.',
     searchTitle: 'Search books',
     searchLabel: 'Title, author, or ISBN',
     placeholder: 'For example: The Hobbit',
@@ -66,12 +67,10 @@ const discoveryTypes = [
   },
 ]
 
-const { activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice,
+const { bookProvider, setBookProvider, activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice,
   setBookFilter, selectMediaType, handleSearch } = useDiscoverSearch()
 const bookSearchLabel = computed(() => ({ all: 'Title, author, or ISBN', title: 'Book title', author: 'Author name' })[bookFilters.value.field])
 const bookLanguageLabel = computed(() => ({ en: 'English', nl: 'Dutch', tr: 'Turkish' })[bookFilters.value.language])
-const hiddenLanguageCount = computed(() => (activeSearch.value.languageSummary?.otherLanguageCount || 0) +
-  (activeSearch.value.languageSummary?.unknownLanguageCount || 0))
 const resultPresentation = {
   book: { component: BookCard, prop: 'book', grid: 'book-grid', label: 'Book search results' },
   movie: { component: MovieCard, prop: 'movie', grid: 'media-grid', label: 'Movie search results' },
@@ -95,12 +94,18 @@ const {
   addLibraryItem,
 } = useLibrary()
 
+async function loadActiveLibrary() {
+  if (!currentUser.value || isAuthLoading.value) return
+  if (activeMediaType.value === 'book' && bookProvider.value === 'open-library') return
+  try { await loadLibrary() } catch { /* De gedeelde foutstatus toont de oorzaak. */ }
+}
+
 watch([currentUser, isAuthLoading], async () => {
   libraryFeedback.value = ''
   addingMediaKeys.value = new Set()
-  if (!currentUser.value || isAuthLoading.value) return
-  try { await loadLibrary() } catch { /* De gedeelde foutstatus toont de oorzaak. */ }
+  await loadActiveLibrary()
 }, { immediate: true })
+watch([activeMediaType, bookProvider], loadActiveLibrary)
 
 watch([activeMediaType, activeSearch], () => { libraryFeedback.value = '' })
 
@@ -144,7 +149,7 @@ function isAdding(media) {
 
 function cardProps(media) {
   return { [activeResultPresentation.value.prop]: media,
-    ...(activeMediaType.value === 'book' ? { compactMetadata: true } : {}) }
+    ...(activeMediaType.value === 'book' ? { compactMetadata: true, showProviderLink: true } : {}) }
 }
 </script>
 
@@ -169,9 +174,18 @@ function cardProps(media) {
       </button>
     </div>
 
-    <section class="discovery-search" :aria-labelledby="`${activeMediaType}-search-title`">
+    <div v-if="activeMediaType === 'book'" class="book-provider-choice">
+      <label for="book-provider">Book catalogue</label>
+      <select id="book-provider" :value="bookProvider" @change="setBookProvider($event.target.value)">
+        <option value="open-library">Open Library</option>
+        <option value="google-books">Google Books (secondary option)</option>
+      </select>
+    </div>
+    <OpenLibraryDiscover v-if="activeMediaType === 'book' && bookProvider === 'open-library'" />
+    <section v-else class="discovery-search" :aria-labelledby="`${activeMediaType}-search-title`">
       <h2 :id="`${activeMediaType}-search-title`">{{ activeType.searchTitle }}</h2>
 
+      <p v-if="activeMediaType === 'book'" class="google-attribution"><a href="https://books.google.com" target="_blank" rel="noopener noreferrer"><img src="https://books.google.com/googlebooks/images/poweredby.png" alt="Powered by Google" /></a></p>
       <form class="discovery-search__form" role="search" @submit.prevent="handleSearch">
         <label :for="`${activeMediaType}-query`">{{ activeMediaType === 'book' ? bookSearchLabel : activeType.searchLabel }}</label>
         <div class="discovery-search__controls">
@@ -209,13 +223,6 @@ function cardProps(media) {
               <option value="tr">Turkish</option>
             </select>
           </div>
-          <div>
-            <label for="book-search-sort">Sort by</label>
-            <select id="book-search-sort" :value="bookFilters.sort" @change="setBookFilter('sort', $event.target.value)">
-              <option value="relevance">Best match</option>
-              <option value="newest">Newest</option>
-            </select>
-          </div>
         </div>
       </form>
 
@@ -237,13 +244,7 @@ function cardProps(media) {
           “{{ activeSearch.searchedQuery }}”.
         </p>
         <p v-if="activeMediaType === 'book' && bookLanguageLabel" class="book-language-notice">
-          Only results Google Books labels as {{ bookLanguageLabel }} are shown. Results with missing
-          or invalid language information are hidden.
-          <template v-if="hiddenLanguageCount">
-            {{ hiddenLanguageCount }} provider {{ hiddenLanguageCount === 1 ? 'result was' : 'results were' }} hidden:
-            {{ activeSearch.languageSummary.otherLanguageCount }} in other languages and
-            {{ activeSearch.languageSummary.unknownLanguageCount }} with missing or invalid language information.
-          </template>
+          Requested {{ bookLanguageLabel }} from Google Books. Its language restriction can be unreliable; all returned results remain visible in provider order. Check each book's metadata.
         </p>
       </div>
 
@@ -272,6 +273,8 @@ function cardProps(media) {
         <button class="text-button" type="button" @click="loadLibrary()">Try again</button>
       </p>
 
+      <button v-if="activeSearch.status === 'error'" type="button" @click="handleSearch">Retry search</button>
+      <p v-if="activeMediaType === 'book' && activeSearch.status === 'success'">Google Books search results</p>
       <div
         v-if="activeSearch.status === 'success'"
         :class="activeResultPresentation.grid"
@@ -303,7 +306,13 @@ function cardProps(media) {
 </template>
 
 <style scoped>
-.book-search-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+.book-provider-choice { margin: 1rem 0; }
+.book-provider-choice label { display: block; margin-bottom: 0.5rem; }
+.book-provider-choice select { width: 100%; min-height: 44px; padding: 0.6rem; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-control-border); border-radius: 0.5rem; font: inherit; }
+.book-provider-choice select:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
+.google-attribution img { background: white; padding: 0.5rem; max-width: 100%; }
+
+.book-search-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1rem; }
 .book-search-filters > div { min-width: 0; }
 .book-search-filters label { font-size: 0.85rem; }
 .book-search-filters select { width: 100%; min-width: 0; min-height: 44px; padding: 0.5rem; border: 1px solid var(--color-control-border); border-radius: 0.55rem; background: var(--color-surface); color: var(--color-text); font: inherit; }

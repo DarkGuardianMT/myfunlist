@@ -25,7 +25,10 @@ export function clearBrowsingPositions(path) {
 export function useBrowsingReady(path, ready) {
   const entry = { promise: Promise.resolve() }
   let finish = null
-  readiness.set(path, entry)
+  // Discover en de afzonderlijke catalogus houden elk hun eigen gereedheidsstatus.
+  const entries = readiness.get(path) || new Set()
+  entries.add(entry)
+  readiness.set(path, entries)
   watch(ready, (value) => {
     if (!value && !finish) entry.promise = new Promise((resolve) => { finish = resolve })
     if (value && finish) {
@@ -35,7 +38,8 @@ export function useBrowsingReady(path, ready) {
   }, { immediate: true, flush: 'sync' })
   onScopeDispose(() => {
     finish?.()
-    if (readiness.get(path) === entry) readiness.delete(path)
+    entries.delete(entry)
+    if (entries.size === 0 && readiness.get(path) === entries) readiness.delete(path)
   })
 }
 
@@ -49,7 +53,7 @@ export function browsingScrollBehavior(to, from, savedPosition) {
   // Wacht tot het raster bestaat, anders begrenst de browser de oude scrollpositie te vroeg.
   return (async () => {
     await nextTick()
-    await readiness.get(to.path)?.promise
+    await Promise.all([...readiness.get(to.path) || []].map(entry => entry.promise))
     await nextTick()
     return version === scrollVersion ? position : false
   })()
