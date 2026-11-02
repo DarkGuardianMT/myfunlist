@@ -1,0 +1,68 @@
+# Phase 2C follow-up - proposed GitHub Actions diagnostics
+
+**Status: prepared locally for review; not approved, pushed or executed.** This proposal follows local commit `611db54` and preserves the [original preflight report](BOOK_SEARCH_V2_PHASE2C_PREFLIGHT.md) unchanged. The owner identified the existing Actions-managed staging SSH connection; a new local SSH profile is not required for the proposed execution path. No new Hostinger evidence has been collected by preparing these files. Activation remains No-Go pending evidence and separate authorization.
+
+## Exact files for review
+
+| File | Role |
+| --- | --- |
+| [staging-open-library-preflight.yml](../.github/workflows/staging-open-library-preflight.yml) | Complete separate manual workflow; uses existing `STAGING_HOST`, `STAGING_PORT`, `STAGING_USER`, `STAGING_SSH_KEY`. |
+| [open-library-preflight.php](../scripts/diagnostics/open-library-preflight.php) | Exact streamed SSH/CLI diagnostic and scoped disposable-file cleanup. No HTTP endpoint or application bootstrap. |
+| [print-preflight-report.mjs](../scripts/diagnostics/print-preflight-report.mjs) | Strict output allowlist; prints only approved field names, fixed status values and a numerical PHP version. |
+| [preflightReport.test.js](../tests/preflightReport.test.js) | Local synthetic-input checks that private/raw/injected output cannot reach logs or summaries. Does not execute SSH or the PHP diagnostic. |
+
+The existing deployment workflow is **unchanged**. This proposal adds no app dependencies, new secret, server endpoint, provider lookup, database access, application flag mutation, checkout update, package installation or permission change on the server. It does load the existing environment loader into an isolated CLI process; this reads private settings in memory without persisting changes. It does not load controllers, sessions, providers or the database bootstrap.
+
+## Workflow controls
+
+- Only `workflow_dispatch`; no push, pull-request, schedule or workflow-run trigger. The job requires `main` and explicit `confirm_reviewed=true`. This checkbox is an operator acknowledgement, not a replacement for owner review/approval.
+- Explicit forty-character `expected_staging_sha` input; default is the last verified deployed application baseline `f8480e8af6a9a734a2a7038f19d40c0806a8a09a`. The remote checkout must already match. Mismatch stops inspection; there is no fetch/reset/install/deploy. Enter the actual approved deployed SHA after any later authorized release.
+- A separate `test_disposable_flock` input defaults false. With false, inventory/configuration/state metadata inspection makes no filesystem writes on staging. With true, only the disposable fixture below may be written; the real pilot file remains read-only.
+- `contents: read`, no persisted checkout credentials, same non-cancelling `deploy-staging` concurrency group to avoid overlap with the existing deployment job, five-minute job timeout, bounded SSH/remote command timeouts and no connection retries. The diagnostic uses `queue: max` so dispatching it does not replace an already pending deployment. The unchanged deployment workflow retains its own queue policy and could supersede a pending diagnostic. Dispatch only after the deployment queue is idle and do not push during the inspection. [GitHub concurrency semantics](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency)
+- SSH setup mirrors the existing deployment's managed secrets and host-key bootstrap. Strict checking is on after `ssh-keyscan`; like the existing workflow, initial key discovery still trusts that network observation. It is not independent host-key fingerprint verification. No secret is fetched back from GitHub or printed.
+- Script source is streamed over SSH into `php /dev/stdin`. No diagnostic script is uploaded to the server. Failed SSH output, banners, warnings and unexpected JSON are suppressed; only allowlisted report fields reach logs/the job summary. No raw artifacts are uploaded. Runner key/config/raw-output files are removed in an `always()` step.
+- Missing prerequisites are findings, not activation approval. A successful workflow means a safely delivered diagnostic and cleanup result, **not** that the pilot is operationally ready. Explicit probe failures, fatal inspection or cleanup failure fail the workflow. No green result closes a gate listed as unverified or requiring HTTP.
+
+GitHub requires a dispatch workflow to exist on the default branch before manual triggering. **Publishing these files to `main` would also trigger the unchanged staging deployment workflow.** That publication/deployment consequence and the subsequent diagnostic run each remain subject to explicit authorization; neither was performed here. [GitHub workflow syntax](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatch)
+
+## Exact diagnostic scope and safe output
+
+| Diagnostic | Exact operation / output | What it does not prove |
+| --- | --- | --- |
+| Runtime | Report numeric `PHP_MAJOR_VERSION.MINOR.RELEASE`, SAPI `cli`, PHP 8.2 minimum status; `extension_loaded` for cURL/PDO/PDO MySQL; function availability for flock/flush/sync/truncate/clock/sleep/subprocess/UID functions. | Actual website PHP/SAPI, TLS/CA transport behavior and web-worker configuration. |
+| Configuration | Load only `backend/config/environment.php` from the existing checkout. Use the same `$_ENV` / `$_SERVER` / `getenv` lookup order as the pilot. Report flag absent/disabled/enabled/invalid; state-path presence; exact pilot User-Agent syntax match; secret minimum 32-byte length. | Contact ownership, secret entropy/stability/equality across workers, and effective web environment overrides. No path, contact, secret, secret length or fingerprint is printed. |
+| Existing state | Canonical regular non-symlink file, CLI read/write access, matching effective CLI UID, private group/other mode bits, size bound; compare location to declared public/deployment trees. If metadata is safe and the CLI pilot flag is not enabled, open **`rb` only**, take nonblocking shared lock, read at most 2 MiB + 1, validate v2/cache/client structure in memory and close. Busy/unavailable is reported without retry. | Authoritative live lookup success, web access, every public alias, actual filesystem durability, multi-host coordination or future retention. Nothing opens the real file for writing or calls `OpenLibraryPilot::search()`. Enabled CLI flag skips state-content reading and fixture tests. |
+| Candidate directories | Check only configured state parent, account `private`, and account `.local/state`, in that order. No recursive listing; no directory creation. A directory is eligible only if canonical, non-symlink, readable/writable/traversable, owned by CLI UID, group/other inaccessible, and outside declared checkout/public roots. Report aliases and fixed statuses only. | Existence of other suitable directories, web-worker ownership, host cleanup policy or persistent storage guarantees. `absent` candidate means not visible as a directory to this CLI inspection; inaccessible ancestors can obscure existence. |
+| Disposable flock, opt-in | First eligible candidate only; parent PHP holds an exclusive nonblocking lock, flushes/syncs a harmless fixed marker. A separate PHP CLI child reopens its own `/proc/self/fd/3` reference and must observe actual would-block contention. After parent unlocks, another child must acquire and read the marker. Each child has a three-second deadline; no polling for a provider slot or retries. | All web workers, multiple hosts/mount namespaces, crash-cooldown behavior, sustained worker capacity, or release/restart persistence. Linux `/proc`, `proc_open` and related functions are diagnostic dependencies; restrictions can make the probe fail without proving that the pilot's own flock is broken. |
+| Deployment risks | Classify the configured state location against the declared frontend public tree and checkout, which the current workflow mutates. A path in either is risky; paths outside are only outside the **declared** deployment trees. | Additional host cleanup/backup rules, aliases, long-term inode retention and verified shared egress. No deployment/restart is performed to test retention. |
+
+The stdout schema is fully enumerated in the formatter. No directory names/paths, file contents/cache items/client keys, UID/inode values, raw IPs, environment dumps, contacts, errors with interpolated data, session data, keys or fingerprints are emitted. No live HTTP request is made, including to staging health or the disabled pilot. If the streamed script outputs anything outside the schema, the runner rejects the entire output without echoing it.
+
+## Disposable-file lifecycle and cleanup
+
+The only possible server creation is an exclusive `x+b`, mode 0600 file named `.myfunlist-preflight-<run-id>-<attempt>.tmp` in the first already-existing eligible directory. It is protected against selecting the configured real state target. Existing files are never overwritten. The file's pathname is **unlinked immediately, before writing the harmless marker or launching children**. PHP keeps an open descriptor to this anonymous inode; children use an inherited descriptor solely to reopen it independently. Handles close on normal completion, exceptions and process exit; the inode is reclaimed after the final reference closes. [PHP unlink semantics](https://www.php.net/manual/en/function.unlink.php), [Linux flock/open-description semantics](https://man7.org/linux/man-pages/man2/flock.2.html)
+
+The script also uses `finally`/shutdown cleanup, and an `always()` workflow step reconnects in cleanup-only mode. That step inspects only the exact run/attempt basename in the same three candidate locations. It can remove only an empty, owner-matching private regular non-symlink diagnostic file, never the configured state target. A named leftover can only be empty because marker writing starts after unlink. Nonempty/unsafe/colliding files are not deleted; cleanup fails for owner inspection. It verifies named-path absence and returns a fixed status. No recursive deletion or sweep of arbitrary server files is used. Runner-only credential cleanup is scoped to the dedicated runner temporary directory.
+
+**A completed successful run requires verified cleanup. Absolute cleanup across an unreachable/failed host cannot honestly be guaranteed.** If the machine is lost during the tiny creation-before-unlink window and the cleanup connection cannot complete, status is failed/unverified and the owner must verify that exact empty diagnostic basename before retrying. The workflow must not report cleanup success in that case. Keep flock opt-in false if this residual operational limitation is unacceptable. No server test has yet run, so neither cleanup behavior nor `/proc` compatibility is claimed verified on Hostinger.
+
+## Checks reserved for a separately approved HTTP test
+
+The original report's protected HTTP test proposal remains a proposal. This workflow creates **no public or private HTTP handler**. These gates stay open:
+
+1. Actual web PHP version, SAPI, extensions/functions, filesystem restrictions and web-worker identity/access to the intended persistent directory.
+2. Effective web-request values of the five settings, including consistency across real workers. CLI loading a `.env` file is insufficient where the web handler overrides it.
+3. Flock contention and visibility between distinct simultaneous **web** workers using a separate disposable fixture and confirmed overlap, not this CLI parent/child pair.
+4. Actual `REMOTE_ADDR` under the staging HTTPS/CDN route, distinct controlled client networks and resistance to spoofed forwarding headers. Never echo raw addresses or trust arbitrary `X-Forwarded-For` in application code.
+5. Origin/egress/mount topology and cross-deployment persistence still need host/owner evidence beyond either small diagnostic; a single host's successful CLI/HTTP pair cannot prove all instances or future migrations.
+
+No follow-up HTTP test, policy registration or activation is implied by approval of this SSH-only workflow.
+
+## Local validation of the proposal
+
+- PHP syntax check and Node syntax check pass; the actual diagnostic PHP script was **not executed**.
+- Three focused formatter tests pass using synthetic local files only, including malformed/oversized output, unknown fields, raw values and workflow-command injection attempts.
+- **Actionlint 1.7.12** checks the workflow with one specific unsupported-key diagnostic suppressed: it does not yet recognize `concurrency.queue`, which the current official GitHub syntax documents. `queue: max` was checked against that primary documentation; all remaining syntax/expression checks pass. The validation command is `actionlint -shellcheck= -pyflakes= -ignore 'unexpected key .*queue.* for .*concurrency.* section' .github/workflows/staging-open-library-preflight.yml`. The official Windows tool archive was checked against the release's SHA-256 digest before use; it was kept in ignored local validation output. Shellcheck/pyflakes were disabled because those tools are not installed. This is static validation, not a workflow run or SSH session.
+- Internal document links, fences and whitespace are checked. The original Phase 2C report, existing deployment workflow, application source, environment files and original evidence remain unchanged.
+
+Review the complete YAML, PHP source, output allowlist and cleanup lifecycle before authorizing publication or execution. This draft does not change the original No-Go activation recommendation.
