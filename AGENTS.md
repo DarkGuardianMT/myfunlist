@@ -23,6 +23,10 @@ Read [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) before changes. Use the current im
 ## Verification and documentation
 
 - Frontend changes: run `npm test`, `npm run build` and relevant focused checks.
+- Browser checks are separate: use `npm run test:ui` for isolated Chromium headless tests. Follow [Headless UI QA](docs/HEADLESS_UI_QA.md). Never use headed, debug or Playwright UI mode, visible browser windows, desktop/keyboard/mouse automation, existing browser sessions or persistent browser profiles. Browser-scoped interactions in a fresh headless context are allowed. If headless execution fails, report the failure; do not switch to a visible browser.
+- Browser tests must use their own loopback-only server, synthetic data and mocks. Do not use staging/production, real accounts, live providers or databases. Block unexpected external requests; keep Open Library disabled.
+- For meaningful browser QA, share a sanitized `report.md` and selected desktop/mobile screenshots under a fresh `qa/reviews/<task-name>/` directory on the review branch. Record executed tests, results, warnings, limitations and reproducible failures. Actually inspect screenshots; passing assertions alone do not prove visual quality. Never overwrite historical evidence or commit secrets, tokens, cookies, real personal data, profiles, sensitive URLs/configuration, raw traces/videos or large generated reports.
+- Before an approved merge, remove only the newly generated temporary QA evidence unless the user explicitly approves it as permanent documentation. Preserve existing historical reports, screenshots and evidence archives.
 - Backend changes: run appropriate PHP syntax checks and non-destructive tests, including the relevant provider/API suites. Do not run `composer test` without the isolated database safeguards above.
 - Documentation-only changes: verify technical claims, paths, commands, Markdown/internal links and a documentation-only diff; application tests are not required unless relevant.
 - Report automated tests, local preview, staging deployment and independent live-browser QA separately. Never claim browser verification unless it was actually performed.
@@ -30,6 +34,8 @@ Read [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) before changes. Use the current im
 
 ## Git and deployment
 
-- After relevant checks pass, commit and push clearly scoped tasks unless the task says otherwise; avoid unnecessary commits for tiny changes.
-- Pushing to `main` automatically triggers GitHub Actions staging deployment. When deployment is part of the task, verify the workflow result; successful local checks do not establish deployment success or public-launch readiness.
+- Never commit or push directly to `main`. Fetch and use an explicitly requested review branch; for future implementation tasks, create `review/<task-name>` from the latest `origin/main`. Preserve uncommitted work; use a separate worktree when needed instead of discarding it.
+- After relevant checks pass, commit and push meaningful, clearly scoped changes only to their review branch unless the task says otherwise. Report the branch, commit SHA, summary, test results and review-evidence paths. The user and ChatGPT review before merging.
+- Do not automatically merge, deploy or delete branches. Merging and deployment require explicit user approval. Delete a review branch only after approved review, verified successful merge and separate explicit deletion authorization.
+- Merging/pushing to `main` triggers GitHub Actions staging deployment. Keep that consequence explicit during merge review. When deployment is separately authorized, verify the workflow result; successful local checks do not establish deployment success or public-launch readiness.
 - Do not force-push or rewrite history unless explicitly requested.

@@ -233,6 +233,10 @@ Account transitions and Library removal clear this cache and reject late results
 The non-destructive `test:api` suite includes `tests/list_memberships_api.php`, using the real route/session pipeline
 and storage doubles that reject all SQL except the bounded ownership-scoped membership read.
 
+## Headless browser QA and review workflow
+
+The separate Playwright smoke suite uses Chromium headless, synthetic responses and its own loopback-only Vite server. Run `npm run test:ui:install` once, then `npm run test:ui`; keep the existing `npm test` and `npm run build` checks. Follow [Headless UI QA](HEADLESS_UI_QA.md) for isolation, desktop/mobile screenshots, temporary sanitized review evidence and the required `review/<task-name>` branch workflow. Do not use visible browser/debug/UI modes, real accounts, live providers or staging/production. Review branches are committed/pushed for review; merges, deployments and deletion require explicit authorization.
+
 ## Third-party attribution
 
 Provider links, attribution information, and licensing status are in the [README](../README.md#third-party-services).

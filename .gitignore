@@ -17,6 +17,15 @@ dist-ssr
 /backend/vendor/
 /backend/var/
 
+# Ruwe browseruitvoer en lokale browserinstallaties blijven buiten Git.
+/test-results/
+/playwright-report/
+/blob-report/
+/qa/reviews/*/*
+!/qa/reviews/*/report.md
+!/qa/reviews/*/desktop-*.png
+!/qa/reviews/*/mobile-*.png
+
 # Lokale databasekopieën, gebruikersbestanden en privésleutels horen niet in Git.
 *.sql
 *.sql.*
