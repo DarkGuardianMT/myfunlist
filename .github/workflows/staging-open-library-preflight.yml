@@ -1,0 +1,103 @@
+name: Staging Open Library preflight (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_reviewed:
+        description: Run only after explicit approval of this workflow and diagnostics
+        type: boolean
+        required: true
+        default: false
+      expected_staging_sha:
+        description: Full approved deployed commit SHA; no checkout update is performed
+        type: string
+        required: true
+      test_disposable_flock:
+        description: Approve the disposable private-file CLI lock test and cleanup
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  inspect:
+    if: github.ref == 'refs/heads/main' && inputs.confirm_reviewed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EXPECTED_STAGING_SHA: ${{ inputs.expected_staging_sha }}
+      TEST_DISPOSABLE_FLOCK: ${{ inputs.test_disposable_flock }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out reviewed diagnostics
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure existing staging SSH connection
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_PORT: ${{ secrets.STAGING_PORT }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_HOST_KEY: ${{ secrets.STAGING_SSH_HOST_KEY }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_STAGING_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+-[0-9]+$ ]]
+          umask 077
+          node scripts/diagnostics/configure-preflight-ssh.mjs
+
+      - name: Inspect staging without activation
+        id: inspection
+        run: |
+          set -euo pipefail
+          remote="cd /home/u403470553/myfunlist-stage/backend && test \"\$(git rev-parse HEAD)\" = '$EXPECTED_STAGING_SHA' && timeout --kill-after=5s 40s php -d display_errors=0 -d log_errors=0 /dev/stdin '$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT' inspect '$TEST_DISPOSABLE_FLOCK'"
+          result=0
+          timeout --kill-after=5s 70s ssh -F "$RUNNER_TEMP/staging-preflight/config" staging "$remote" \
+            < scripts/diagnostics/open-library-preflight.php \
+            > "$RUNNER_TEMP/staging-preflight/report.json" \
+            2> "$RUNNER_TEMP/staging-preflight/ssh-error" || result=$?
+          node scripts/diagnostics/print-preflight-report.mjs "$RUNNER_TEMP/staging-preflight/report.json"
+          if [ "$result" -ne 0 ]; then echo 'Remote inspection failed; private raw output is suppressed.'; exit 1; fi
+
+      - name: Verify disposable-file cleanup
+        if: always()
+        env:
+          INSPECTION_OUTCOME: ${{ steps.inspection.outcome }}
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_PORT: ${{ secrets.STAGING_PORT }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_HOST_KEY: ${{ secrets.STAGING_SSH_HOST_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          cleanup_needed=$(node scripts/diagnostics/configure-preflight-ssh.mjs cleanup)
+          if [ "$cleanup_needed" = false ]; then
+            echo 'Remote inspection was not started; no remote fixture cleanup is needed.'
+            exit 0
+          fi
+          [[ "$EXPECTED_STAGING_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+-[0-9]+$ ]]
+          remote="cd /home/u403470553/myfunlist-stage/backend && test \"\$(git rev-parse HEAD)\" = '$EXPECTED_STAGING_SHA' && timeout --kill-after=5s 20s php -d display_errors=0 -d log_errors=0 /dev/stdin '$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT' cleanup false"
+          result=0
+          timeout --kill-after=5s 40s ssh -F "$RUNNER_TEMP/staging-preflight/config" staging "$remote" \
+            < scripts/diagnostics/open-library-preflight.php \
+            > "$RUNNER_TEMP/staging-preflight/cleanup.json" \
+            2> "$RUNNER_TEMP/staging-preflight/cleanup-error" || result=$?
+          node scripts/diagnostics/print-preflight-report.mjs "$RUNNER_TEMP/staging-preflight/cleanup.json" --require-cleanup || result=1
+          if [ "$result" -ne 0 ]; then echo 'Cleanup is unverified; owner follow-up is required. No raw output is printed.'; exit 1; fi
+
+      - name: Remove runner credentials and private raw output
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/staging-preflight"
