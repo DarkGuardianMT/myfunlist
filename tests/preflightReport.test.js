@@ -7,13 +7,13 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const formatter = new URL('../scripts/diagnostics/print-preflight-report.mjs', import.meta.url)
-function format(raw) {
+function format(raw, args = []) {
   const directory = mkdtempSync(join(tmpdir(), 'mfl-safe-report-'))
   try {
     const input = join(directory, 'report.json')
     const summary = join(directory, 'summary.md')
     writeFileSync(input, raw)
-    const result = spawnSync(process.execPath, [fileURLToPath(formatter), input],
+    const result = spawnSync(process.execPath, [fileURLToPath(formatter), input, ...args],
       { encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: summary } })
     return { ...result, summary: result.status === 0 ? readFileSync(summary, 'utf8') : '' }
   } finally {
@@ -28,6 +28,17 @@ test('diagnostic formatter prints only approved status fields and a numerical PH
   assert.match(report.stdout, /`php_version`: `8.3.35`/)
   assert.match(report.stdout, /`web_worker_flock`: `requires_http_test`/)
   assert.equal(report.summary.trim(), report.stdout.trim())
+})
+
+test('cleanup verification requires an explicit pass without relaxing private-output filtering', () => {
+  for (const report of [{ php_version: '8.3.35' }, { fixture_cleanup: 'not_tested' },
+    { fixture_cleanup: 'fail' }, { fixture_cleanup: 'pass', private: 'CANARY_NOT_A_REAL_SECRET' }]) {
+    const result = format(JSON.stringify(report), ['--require-cleanup'])
+    assert.equal(result.status, 1)
+    assert.equal(result.stdout, '')
+    assert.doesNotMatch(result.stderr, /CANARY_NOT_A_REAL_SECRET/)
+  }
+  assert.equal(format(JSON.stringify({ fixture_cleanup: 'pass' }), ['--require-cleanup']).status, 0)
 })
 
 test('diagnostic formatter suppresses unknown keys, raw values, injection, malformed and excessive output', () => {

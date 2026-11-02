@@ -28,6 +28,7 @@ try {
     if (!keys.has(key) || typeof value !== 'string' ||
       !(key === 'php_version' ? /^\d{1,2}\.\d{1,2}\.\d{1,3}$/.test(value) : values.has(value))) throw new Error()
   }
+  if (process.argv.includes('--require-cleanup') && report.fixture_cleanup !== 'pass') throw new Error()
   const lines = Object.entries(report).map(([key, value]) => `- \`${key}\`: \`${value}\``).join('\n')
   console.log(lines)
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines}\n\n`)

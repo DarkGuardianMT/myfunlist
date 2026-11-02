@@ -49,30 +49,16 @@ jobs:
           STAGING_PORT: ${{ secrets.STAGING_PORT }}
           STAGING_USER: ${{ secrets.STAGING_USER }}
           STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_HOST_KEY: ${{ secrets.STAGING_SSH_HOST_KEY }}
         run: |
           set -euo pipefail
           [[ "$EXPECTED_STAGING_SHA" =~ ^[a-f0-9]{40}$ ]]
           [[ "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+-[0-9]+$ ]]
-          test -n "$STAGING_HOST" && test -n "$STAGING_PORT"
-          test -n "$STAGING_USER" && test -n "$STAGING_SSH_KEY"
           umask 077
-          ssh_dir="$RUNNER_TEMP/staging-preflight"
-          mkdir -p "$ssh_dir"
-          printf '%s\n' "$STAGING_SSH_KEY" | tr -d '\r' > "$ssh_dir/key"
-          ssh-keyscan -T 10 -p "$STAGING_PORT" -H "$STAGING_HOST" > "$ssh_dir/known_hosts" 2>/dev/null
-          test -s "$ssh_dir/known_hosts"
-          printf '%s\n' \
-            'Host staging' \
-            "  HostName $STAGING_HOST" \
-            "  Port $STAGING_PORT" \
-            "  User $STAGING_USER" \
-            "  IdentityFile $ssh_dir/key" \
-            "  UserKnownHostsFile $ssh_dir/known_hosts" \
-            '  IdentitiesOnly yes' '  BatchMode yes' \
-            '  StrictHostKeyChecking yes' '  ConnectTimeout 15' \
-            '  ServerAliveInterval 10' '  ServerAliveCountMax 2' > "$ssh_dir/config"
+          node scripts/diagnostics/configure-preflight-ssh.mjs
 
       - name: Inspect staging without activation
+        id: inspection
         run: |
           set -euo pipefail
           remote="cd /home/u403470553/myfunlist-stage/backend && test \"\$(git rev-parse HEAD)\" = '$EXPECTED_STAGING_SHA' && timeout --kill-after=5s 40s php -d display_errors=0 -d log_errors=0 /dev/stdin '$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT' inspect '$TEST_DISPOSABLE_FLOCK'"
@@ -86,9 +72,21 @@ jobs:
 
       - name: Verify disposable-file cleanup
         if: always()
+        env:
+          INSPECTION_OUTCOME: ${{ steps.inspection.outcome }}
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_PORT: ${{ secrets.STAGING_PORT }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_HOST_KEY: ${{ secrets.STAGING_SSH_HOST_KEY }}
         run: |
           set -euo pipefail
-          test -s "$RUNNER_TEMP/staging-preflight/config"
+          umask 077
+          cleanup_needed=$(node scripts/diagnostics/configure-preflight-ssh.mjs cleanup)
+          if [ "$cleanup_needed" = false ]; then
+            echo 'Remote inspection was not started; no remote fixture cleanup is needed.'
+            exit 0
+          fi
           [[ "$EXPECTED_STAGING_SHA" =~ ^[a-f0-9]{40}$ ]]
           [[ "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" =~ ^[0-9]+-[0-9]+$ ]]
           remote="cd /home/u403470553/myfunlist-stage/backend && test \"\$(git rev-parse HEAD)\" = '$EXPECTED_STAGING_SHA' && timeout --kill-after=5s 20s php -d display_errors=0 -d log_errors=0 /dev/stdin '$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT' cleanup false"
@@ -97,7 +95,7 @@ jobs:
             < scripts/diagnostics/open-library-preflight.php \
             > "$RUNNER_TEMP/staging-preflight/cleanup.json" \
             2> "$RUNNER_TEMP/staging-preflight/cleanup-error" || result=$?
-          node scripts/diagnostics/print-preflight-report.mjs "$RUNNER_TEMP/staging-preflight/cleanup.json"
+          node scripts/diagnostics/print-preflight-report.mjs "$RUNNER_TEMP/staging-preflight/cleanup.json" --require-cleanup || result=1
           if [ "$result" -ne 0 ]; then echo 'Cleanup is unverified; owner follow-up is required. No raw output is printed.'; exit 1; fi
 
       - name: Remove runner credentials and private raw output
