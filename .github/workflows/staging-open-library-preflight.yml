@@ -12,7 +12,6 @@ on:
         description: Full approved deployed commit SHA; no checkout update is performed
         type: string
         required: true
-        default: f8480e8af6a9a734a2a7038f19d40c0806a8a09a
       test_disposable_flock:
         description: Approve the disposable private-file CLI lock test and cleanup
         type: boolean
