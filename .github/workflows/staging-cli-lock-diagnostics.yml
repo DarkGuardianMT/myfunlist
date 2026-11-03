@@ -1,0 +1,87 @@
+name: Staging CLI locking diagnostics (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_reviewed:
+        description: Explicit owner approval of disposable CLI locking diagnostics and cleanup
+        type: boolean
+        required: true
+        default: false
+      expected_staging_sha:
+        description: Full approved deployed SHA; no checkout update is performed
+        type: string
+        required: true
+      storage_parent:
+        description: Owner-reviewed existing private parent on the intended filesystem; no fallback
+        type: choice
+        required: true
+        default: configured_parent
+        options:
+          - configured_parent
+          - private
+          - local_state
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  locking:
+    if: github.ref == 'refs/heads/main' && inputs.confirm_reviewed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CONFIRM_CLI_LOCK_DIAGNOSTICS: ${{ inputs.confirm_reviewed }}
+      EXPECTED_STAGING_SHA: ${{ inputs.expected_staging_sha }}
+      STORAGE_PARENT: ${{ inputs.storage_parent }}
+    steps:
+      - name: Check out reviewed diagnostics
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up local fixture PHP
+        # Gebruik dezelfde vastgezette PHP-actie als de bestaande stagingworkflow.
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Validate isolated Linux fixtures before SSH
+        run: |
+          set -euo pipefail
+          php -r 'exit(PHP_OS_FAMILY === "Linux" && function_exists("posix_geteuid") && function_exists("fsync") ? 0 : 1);'
+          php -l scripts/diagnostics/cli-lock-worker.php
+          node --check scripts/diagnostics/run-cli-lock-diagnostics.mjs
+          node --test tests/cliLockDiagnostics.test.js tests/cliLockWorker.test.js tests/preflightReport.test.js tests/preflightSsh.test.js
+
+      - name: Run disposable CLI locking diagnostics
+        id: execution
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_PORT: ${{ secrets.STAGING_PORT }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_HOST_KEY: ${{ secrets.STAGING_SSH_HOST_KEY }}
+        run: node scripts/diagnostics/run-cli-lock-diagnostics.mjs
+
+      - name: Verify disposable fixture cleanup
+        if: always()
+        env:
+          EXECUTION_OUTCOME: ${{ steps.execution.outcome }}
+          INSPECTION_OUTCOME: ${{ steps.execution.outcome }}
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_PORT: ${{ secrets.STAGING_PORT }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+          STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          STAGING_SSH_HOST_KEY: ${{ secrets.STAGING_SSH_HOST_KEY }}
+        run: node scripts/diagnostics/run-cli-lock-diagnostics.mjs cleanup
+
+      - name: Remove runner credentials and private manifest
+        if: always()
+        run: rm -rf -- "$RUNNER_TEMP/staging-preflight"
