@@ -14,7 +14,7 @@ final class OpenLibraryClientLimiter
     {
     }
 
-    // De aanroeper houdt de gedeelde bestandsvergrendeling vast en schrijft toelating vóór verdere verwerking.
+    // De aanroeper houdt de gedeelde rijvergrendeling vast en commit toelating vóór provider-I/O.
     public function admit(array &$clients, mixed $remoteAddress, float $now): void
     {
         if (strlen($this->secret) < 32 || !is_finite($now) || $now < 0 || !is_string($remoteAddress)

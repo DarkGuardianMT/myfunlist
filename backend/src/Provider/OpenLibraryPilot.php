@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace MyFunList\Provider;
 
-use JsonException;
 use MyFunList\Http\ApiException;
 use MyFunList\RateLimit\OpenLibraryClientLimiter;
 use MyFunList\RateLimit\OpenLibraryClientLimitExceeded;
@@ -12,16 +11,17 @@ use Throwable;
 
 final class OpenLibraryPilot
 {
-    private const MAX_BYTES = 2097152;
+    private const FAILURE_COOLDOWN_SECONDS = 60;
+    // Acht seconden HTTP plus korte voltooiing; uitsluitend een hint voor handmatig opnieuw proberen.
+    private const RECENT_RESERVATION_SECONDS = 10;
 
     public function __construct(
         private readonly ProviderHttpClient $http,
         private readonly bool $enabled,
         private readonly bool $sharedBudgetConfirmed,
-        private readonly string $stateFile,
+        private readonly OpenLibraryStateStore $store,
         private readonly string $userAgent,
         private readonly string $clientSecret = '',
-        private readonly ?\Closure $clock = null,
     ) {
     }
 
@@ -33,7 +33,7 @@ final class OpenLibraryPilot
         };
         return new self($http, $value('OPEN_LIBRARY_PILOT_ENABLED') === 'true',
             $value('OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED') === 'true',
-            $value('OPEN_LIBRARY_STATE_FILE'), $value('OPEN_LIBRARY_USER_AGENT'), $value('RATE_LIMIT_SECRET'));
+            new OpenLibraryStateStore(), $value('OPEN_LIBRARY_USER_AGENT'), $value('RATE_LIMIT_SECRET'));
     }
 
     public function search(array $parameters): array
@@ -44,117 +44,67 @@ final class OpenLibraryPilot
             || preg_match('/^MyFunList[^\r\n]*\([A-Za-z0-9.!#$%&\x27*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\)$/D', $this->userAgent) !== 1) {
             throw self::unavailable();
         }
-        $path = realpath($this->stateFile);
-        if ($path === false || !is_file($path) || is_link($this->stateFile)
-            || $this->stateFile !== $path || !is_writable($path)) throw self::unavailable();
-        foreach ([dirname(__DIR__, 2) . '/public', $_SERVER['DOCUMENT_ROOT'] ?? ''] as $root) {
-            $root = $root !== '' ? realpath($root) : false;
-            if ($root !== false && str_starts_with(strtolower(str_replace('\\', '/', $path)),
-                strtolower(str_replace('\\', '/', $root)) . '/')) throw self::unavailable();
-        }
-        if (PHP_OS_FAMILY !== 'Windows' && (fileperms($path) & 0007) !== 0) throw self::unavailable();
-        $handle = @fopen($path, 'r+b');
-        if ($handle === false) throw self::unavailable();
-        try {
-            // Dezelfde inode blijft bestaan; vervang of verwijder dit bestand nooit tijdens gebruik.
-            // Wacht hoogstens 150 ms op korte cache-/schrijfcontentie, nooit op een onbeperkte wachtrij.
-            $deadline = hrtime(true) + 150000000;
-            while (!flock($handle, LOCK_EX | LOCK_NB)) {
-                if (hrtime(true) >= $deadline) throw self::busy();
-                usleep(10000);
-            }
-            $state = $this->readState($handle);
-            $now = $this->now();
+        $decision = $this->store->transaction(function (array &$state, float $now) use ($parameters): array {
             try {
                 (new OpenLibraryClientLimiter($this->clientSecret))->admit($state['clients'], $_SERVER['REMOTE_ADDR'] ?? null, $now);
-            } catch (OpenLibraryClientLimitExceeded $exception) {
-                $this->writeState($handle, $state);
-                throw $exception;
+                $query = OpenLibraryQuery::fromParameters($parameters);
+            } catch (ApiException|OpenLibraryClientLimitExceeded $exception) {
+                // Ook ongeldige zoekopdrachten verbruiken hun reeds toegekende clienttoelating.
+                return ['error' => $exception];
             }
-            $this->writeState($handle, $state);
-            $query = OpenLibraryQuery::fromParameters($parameters);
             $state['cache'] = array_filter($state['cache'], static fn (array $entry): bool => $entry['expiresAt'] > $now);
             $key = hash('sha256', 'v1:' . json_encode([$query->providerParameters(), $query->languageMode], JSON_THROW_ON_ERROR));
             if (isset($state['cache'][$key])) {
                 $entry = $state['cache'][$key];
                 unset($state['cache'][$key]);
                 $state['cache'][$key] = $entry;
-                $this->writeState($handle, $state);
-                return $entry['data'];
+                return ['data' => $entry['data']];
+            }
+            // Een verlopen tijdstip bewijst niet dat een gepauzeerde worker nooit meer HTTP start.
+            if ($state['reservation'] !== null) {
+                // De oorspronkelijke deadline blijft gelijk; nieuwe toelatingen verjongen de reservering niet.
+                $age = $now - ($state['nextRequestAt'] - self::FAILURE_COOLDOWN_SECONDS);
+                return ['error' => $age >= 0 && $age < self::RECENT_RESERVATION_SECONDS
+                    ? OpenLibraryStateStore::busy() : self::unavailable()];
             }
             if ($now < $state['nextRequestAt']) {
-                if ($state['nextRequestAt'] - $now <= 1.100001) throw self::busy();
-                throw self::unavailable();
+                return ['error' => $state['nextRequestAt'] - $now <= 1.100001
+                    ? OpenLibraryStateStore::busy() : self::unavailable()];
             }
+            $token = bin2hex(random_bytes(32));
+            $state['reservation'] = $token;
+            $state['nextRequestAt'] = $now + self::FAILURE_COOLDOWN_SECONDS;
+            return ['token' => $token, 'key' => $key, 'query' => $query];
+        });
+        if (isset($decision['error'])) throw $decision['error'];
+        if (isset($decision['data'])) return $decision['data'];
 
-            // Schrijf de reservering voor I/O: een gecrashte worker laat een veilige afkoelperiode achter.
-            $state['nextRequestAt'] = $this->now() + 60;
-            $this->writeState($handle, $state);
-            $startedAt = $this->now();
-            try {
-                $data = (new OpenLibraryAdapter($this->http, $this->userAgent))->search($query);
-            } catch (Throwable $exception) {
-                $state['nextRequestAt'] = $this->now() + 60;
-                $this->writeState($handle, $state);
-                throw $exception;
-            }
-            $state['nextRequestAt'] = max($startedAt + 1.1, $this->now());
-            $state['cache'][$key] = ['expiresAt' => $this->now() + 300, 'data' => $data];
-            $this->writeState($handle, $state);
-            return $data;
-        } finally {
-            flock($handle, LOCK_UN);
-            fclose($handle);
-        }
-    }
-
-    private function readState(mixed $handle): array
-    {
-        $raw = stream_get_contents($handle, self::MAX_BYTES + 1);
+        // De reservering is bevestigd; tijdens externe HTTP staat geen transactie open.
         try {
-            $state = is_string($raw) && strlen($raw) <= self::MAX_BYTES ? json_decode($raw, true, 64, JSON_THROW_ON_ERROR) : null;
-        } catch (JsonException) {
-            throw self::unavailable();
+            $data = (new OpenLibraryAdapter($this->http, $this->userAgent))->search($decision['query']);
+        } catch (Throwable $exception) {
+            $this->finish($decision, null);
+            throw $exception;
         }
-        if (!is_array($state) || ($state['version'] ?? null) !== 2 || !is_array($state['clients'] ?? null)
-            || !is_numeric($state['nextRequestAt'] ?? null) || !is_finite((float) $state['nextRequestAt'])
-            || $state['nextRequestAt'] < 0 || !is_array($state['cache'] ?? null) || count($state['cache']) > 20) {
-            throw self::unavailable();
-        }
-        foreach ($state['cache'] as $key => $entry) {
-            if (!is_string($key) || preg_match('/^[a-f0-9]{64}$/D', $key) !== 1 || !is_array($entry)
-                || !is_numeric($entry['expiresAt'] ?? null) || !is_array($entry['data'] ?? null)
-                || ($entry['data']['provider'] ?? null) !== 'open-library' || !is_array($entry['data']['items'] ?? null)) {
-                throw self::unavailable();
+        $this->finish($decision, $data);
+        return $data;
+    }
+
+    private function finish(array $decision, ?array $data): void
+    {
+        $this->store->transaction(static function (array &$state, float $now) use ($decision, $data): void {
+            if ($state['reservation'] !== $decision['token']) throw self::unavailable();
+            $state['reservation'] = null;
+            // Meten na voltooiing sluit ook de commit-naar-HTTP-pauze veilig uit.
+            $state['nextRequestAt'] = $now + ($data === null ? self::FAILURE_COOLDOWN_SECONDS : 1.1);
+            if ($data !== null) {
+                $state['cache'][$decision['key']] = ['expiresAt' => $now + 300, 'data' => $data];
             }
-        }
-        return $state;
-    }
-
-    private function writeState(mixed $handle, array &$state): void
-    {
-        $json = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        while (count($state['cache']) > 20 || strlen($json) > self::MAX_BYTES) {
-            if ($state['cache'] === []) throw self::unavailable();
-            unset($state['cache'][array_key_first($state['cache'])]);
-            $json = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        }
-        if (!rewind($handle) || fwrite($handle, $json) !== strlen($json) || !ftruncate($handle, strlen($json))
-            || !fflush($handle) || !fsync($handle)) throw self::unavailable();
-    }
-
-    private function now(): float
-    {
-        return ($this->clock ?? static fn (): float => microtime(true))();
+        }, completion: true);
     }
 
     private static function unavailable(): ProviderException
     {
-        return new ProviderException(503, 'provider_unavailable', 'Book search pilot is temporarily unavailable.');
-    }
-
-    private static function busy(): ProviderException
-    {
-        return new ProviderException(503, 'provider_busy', 'Book search is busy. Please wait before retrying.');
+        return OpenLibraryStateStore::unavailable();
     }
 }

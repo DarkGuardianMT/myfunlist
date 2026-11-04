@@ -19,7 +19,7 @@ final class Database
         }
     }
 
-    public function connect(): PDO
+    public function connect(?int $timeoutSeconds = null): PDO
     {
         $config = Config::database();
         $dsn = sprintf(
@@ -34,7 +34,7 @@ final class Database
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
-            ]);
+            ] + ($timeoutSeconds === null ? [] : [PDO::ATTR_TIMEOUT => $timeoutSeconds]));
             $connection->exec("SET time_zone = '+00:00'");
 
             return $connection;

@@ -90,17 +90,19 @@ test('invalid edition kinds, ISBNs, URLs, duplicated Works and malformed respons
 
 test('errors remain distinct, uncached, and never trigger fallback or automatic retries', async () => {
   let calls = 0
-  for (const [status, code, state] of [[404, 'not_found', 'unavailable'], [422, 'validation_error', 'invalid'],
-    [429, 'rate_limited', 'rate-limited'], [503, 'provider_busy', 'busy'], [503, 'provider_unavailable', 'unavailable'], [502, 'provider_error', 'error']]) {
+  for (const [status, code, state, seconds = 2] of [[404, 'not_found', 'unavailable'], [422, 'validation_error', 'invalid'],
+    [429, 'rate_limited', 'rate-limited'], [503, 'provider_busy', 'busy'], [503, 'provider_unavailable', 'unavailable', 60], [502, 'provider_error', 'error']]) {
     globalThis.fetch = async path => {
       calls++
       assert.ok(path.startsWith('/api/v1/pilot/open-library/search?'))
-      return { ok: false, status, headers: new Headers({ 'Retry-After': '2' }), json: async () => ({ error: { code } }) }
+      return { ok: false, status, headers: new Headers({ 'Retry-After': String(seconds) }), json: async () => ({ error: { code } }) }
     }
     const before = calls
     for (let i = 0; i < 2; i++) {
       await assert.rejects(searchOpenLibrary('same query'), error => {
-        assert.equal(error.retryAfter, 2)
+        assert.equal(error.retryAfter, seconds)
+        assert.equal(error.status, status)
+        assert.equal(error.code, code)
         return openLibraryError(error).state === state
       })
     }

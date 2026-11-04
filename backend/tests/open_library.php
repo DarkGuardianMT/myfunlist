@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 namespace {
     require dirname(__DIR__) . '/vendor/autoload.php';
+    require __DIR__ . '/support/open_library_pdo.php';
 }
 
 namespace MyFunList\Infrastructure {
-    // Elke databaseverbinding is verboden in deze pilot-API-tests, inclusief Library- en List-opslag.
+    // Alleen pilot-SQL is toegestaan; Library- en List-opslag blijven verboden.
     final class Database
     {
         public static int $calls = 0;
         public function connect(): \PDO
         {
             self::$calls++;
-            throw new \RuntimeException('Unexpected database access.');
+            return $GLOBALS['db'];
         }
         public function check(): void { $this->connect(); }
     }
@@ -68,24 +69,18 @@ namespace {
         }
         throw new RuntimeException('Expected failure.');
     }
-    function resetOpenLibraryState(string $file, array $cache = [], float $next = 0): void
-    {
-        file_put_contents($file, json_encode(['version' => 2, 'nextRequestAt' => $next, 'cache' => $cache, 'clients' => []], JSON_THROW_ON_ERROR));
-    }
+    function resetOpenLibraryState(OpenLibraryTestPDO $db): void { $db->reset(); }
 
     $originalEnvironment = $_ENV;
     $originalServer = $_SERVER;
     $originalGet = $_GET;
     $originalFlag = getenv('OPEN_LIBRARY_PILOT_ENABLED');
-    $stateFile = tempnam(sys_get_temp_dir(), 'mfl-ol-');
-    $marker = tempnam(sys_get_temp_dir(), 'mfl-ol-worker-');
-    if ($stateFile === false || $marker === false) throw new RuntimeException('Temporary files unavailable.');
-    $stateFile = realpath($stateFile);
-    chmod($stateFile, 0600);
+    $db = new OpenLibraryTestPDO();
+    $store = new \MyFunList\Provider\OpenLibraryStateStore(static fn (): PDO => $db);
     $fixture = json_decode(file_get_contents(__DIR__ . '/fixtures/open_library.json'), true, 512, JSON_THROW_ON_ERROR);
     $http = new Http();
     $adapter = new OpenLibraryAdapter($http, 'MyFunList (fixture@example.test)');
-    $pilot = new OpenLibraryPilot($http, true, true, $stateFile, 'MyFunList (fixture@example.test)', str_repeat('fixture-', 8));
+    $pilot = new OpenLibraryPilot($http, true, true, $store, 'MyFunList (fixture@example.test)', str_repeat('fixture-', 8));
     $_SERVER['REMOTE_ADDR'] = '192.0.2.10';
     try {
         Http::$payload = $fixture;
@@ -166,31 +161,31 @@ namespace {
         verifyOpenLibrary(count($bounded['items']) === 1 && $bounded['omitted']['duplicateWork'] === 1, 'Bounds or work deduplication failed.');
         Http::$payload = $fixture;
 
-        resetOpenLibraryState($stateFile);
+        resetOpenLibraryState($db);
         $before = Http::$calls;
         $first = $pilot->search(['q' => 'Hobbit']);
-        $otherWorker = new OpenLibraryPilot($http, true, true, $stateFile, 'MyFunList (fixture@example.test)', str_repeat('fixture-', 8));
+        $otherWorker = new OpenLibraryPilot($http, true, true, $store, 'MyFunList (fixture@example.test)', str_repeat('fixture-', 8));
         verifyOpenLibrary($otherWorker->search(['q' => 'Hobbit']) === $first && Http::$calls === $before + 1,
             'Separate pilot instances must share cached results and suppress duplicate provider calls.');
         expectOpenLibrary(static fn () => $otherWorker->search(['q' => 'Dune']), 503);
         verifyOpenLibrary(Http::$calls === $before + 1, 'Shared request budget permitted an immediate second request.');
-        $state = json_decode(file_get_contents($stateFile), true);
-        verifyOpenLibrary(!str_contains(file_get_contents($stateFile), 'fixture@example.test')
-            && !str_contains(file_get_contents($stateFile), 'private-fixture'), 'Cache must contain public normalized data only.');
+        $state = json_decode($db->raw, true);
+        verifyOpenLibrary(!str_contains($db->raw, 'fixture@example.test')
+            && !str_contains($db->raw, 'private-fixture'), 'Cache must contain public normalized data only.');
         $state['cache'][array_key_first($state['cache'])]['expiresAt'] = 0;
         $state['nextRequestAt'] = 0;
-        file_put_contents($stateFile, json_encode($state));
+        $db->raw = json_encode($state);
         $pilot->search(['q' => 'Hobbit']);
         verifyOpenLibrary(Http::$calls === $before + 2, 'Expired cache must not be served.');
         for ($i = 0; $i < 22; $i++) {
             $_SERVER['REMOTE_ADDR'] = '192.0.2.' . (20 + $i);
-            $state = json_decode(file_get_contents($stateFile), true);
+            $state = json_decode($db->raw, true);
             $state['nextRequestAt'] = 0;
-            file_put_contents($stateFile, json_encode($state));
+            $db->raw = json_encode($state);
             $pilot->search(['q' => 'fixture ' . $i]);
         }
-        verifyOpenLibrary(count(json_decode(file_get_contents($stateFile), true)['cache']) === 20, 'Shared cache must remain bounded.');
-        resetOpenLibraryState($stateFile);
+        verifyOpenLibrary(count(json_decode($db->raw, true)['cache']) === 20, 'Shared cache must remain bounded.');
+        resetOpenLibraryState($db);
         $largeDoc = $fixture['docs'][0];
         $largeDoc['author_name'] = $largeDoc['editions']['docs'][0]['publish_date'] =
             array_map(static fn (int $i): string => str_repeat('x', 490) . $i, range(1, 30));
@@ -199,15 +194,14 @@ namespace {
         }, range(1, 10))];
         for ($i = 0; $i < 8; $i++) {
             $_SERVER['REMOTE_ADDR'] = '192.0.2.' . (50 + $i);
-            $state = json_decode(file_get_contents($stateFile), true);
+            $state = json_decode($db->raw, true);
             $state['nextRequestAt'] = 0;
-            file_put_contents($stateFile, json_encode($state));
+            $db->raw = json_encode($state);
             $pilot->search(['q' => 'large fixture ' . $i]);
         }
-        clearstatcache(true, $stateFile);
-        verifyOpenLibrary(filesize($stateFile) <= 2097152 && count(json_decode(file_get_contents($stateFile), true)['cache']) < 8,
+        verifyOpenLibrary(strlen($db->raw) <= 2097152 && count(json_decode($db->raw, true)['cache']) < 8,
             'Cache byte bound must evict entries independently of the entry limit.');
-        resetOpenLibraryState($stateFile);
+        resetOpenLibraryState($db);
         Http::$payload = ['numFound' => 0, 'docs' => []];
         $before = Http::$calls;
         $pilot->search(['q' => 'none']);
@@ -216,37 +210,30 @@ namespace {
 
         $controller = new OpenLibraryController($pilot);
         foreach ([429, 503, 502] as $failure) {
-            resetOpenLibraryState($stateFile);
+            resetOpenLibraryState($db);
             Http::$failure = new ProviderException($failure, 'unsafe', 'secret@example.test fixture-secret');
             $response = $controller->search(['q' => 'failure']);
             verifyOpenLibrary($response->status === ($failure === 502 ? 502 : 503)
                 && !str_contains($response->body(), 'fixture-secret') && !str_contains($response->body(), '@'), 'Error responses must be safe and distinct from empty results.');
             $before = Http::$calls;
             expectOpenLibrary(static fn () => $pilot->search(['q' => 'failure']), 503);
-            verifyOpenLibrary(Http::$calls === $before && json_decode(file_get_contents($stateFile), true)['nextRequestAt'] > microtime(true) + 58,
+            verifyOpenLibrary(Http::$calls === $before && json_decode($db->raw, true)['nextRequestAt'] > microtime(true) + 58,
                 'Failures must consume the shared budget and impose a cooldown.');
         }
         Http::$failure = null;
-        resetOpenLibraryState($stateFile);
+        resetOpenLibraryState($db);
         Http::$payload = ['numFound' => 1, 'docs' => 'malformed'];
         verifyOpenLibrary($controller->search(['q' => 'bad-payload'])->status === 502, 'Malformed payloads must not become cached empty responses.');
-        verifyOpenLibrary(json_decode(file_get_contents($stateFile), true)['cache'] === [], 'Malformed responses must not enter the cache.');
+        verifyOpenLibrary(json_decode($db->raw, true)['cache'] === [], 'Malformed responses must not enter the cache.');
         Http::$payload = $fixture;
         foreach (['', '{}', '{broken', str_repeat('x', 2097153)] as $broken) {
-            file_put_contents($stateFile, $broken);
+            $db->raw = $broken;
             expectOpenLibrary(static fn () => $pilot->search(['q' => 'Hobbit']), 503);
         }
-        expectOpenLibrary(static fn () => (new OpenLibraryPilot($http, true, true, $stateFile . '.missing', 'MyFunList (fixture@example.test)'))->search(['q' => 'Hobbit']), 503);
-        expectOpenLibrary(static fn () => (new OpenLibraryPilot($http, true, false, $stateFile, 'MyFunList (fixture@example.test)'))->search(['q' => 'Hobbit']), 503);
+        expectOpenLibrary(static fn () => (new OpenLibraryPilot($http, true, false, $store, 'MyFunList (fixture@example.test)'))->search(['q' => 'Hobbit']), 503);
         foreach (['MyFunList', "MyFunList\r\nX-Injected: yes (fixture@example.test)"] as $agent) {
-            expectOpenLibrary(static fn () => (new OpenLibraryPilot($http, true, true, $stateFile, $agent))->search(['q' => 'Hobbit']), 503);
+            expectOpenLibrary(static fn () => (new OpenLibraryPilot($http, true, true, $store, $agent))->search(['q' => 'Hobbit']), 503);
         }
-        resetOpenLibraryState($stateFile);
-        $_SERVER['DOCUMENT_ROOT'] = dirname($stateFile);
-        expectOpenLibrary(static fn () => $pilot->search(['q' => 'Hobbit']), 503);
-        $_SERVER['DOCUMENT_ROOT'] = $originalServer['DOCUMENT_ROOT'] ?? '';
-
-        $_ENV['OPEN_LIBRARY_STATE_FILE'] = $stateFile;
         $_ENV['OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED'] = 'true';
         $_ENV['OPEN_LIBRARY_USER_AGENT'] = 'MyFunList (fixture@example.test)';
         $_ENV['RATE_LIMIT_SECRET'] = str_repeat('fixture-', 8);
@@ -261,57 +248,22 @@ namespace {
             verifyOpenLibrary($app->handle('GET', '/api/v1/pilot/open-library/search')->status === 404
                 && Http::$calls === $before, 'The actual bootstrap must disable the pilot unless explicitly true.');
         }
+        verifyOpenLibrary(Database::$calls === 0, 'Disabled pilot touched the database.');
         $_ENV['OPEN_LIBRARY_PILOT_ENABLED'] = 'true';
-        resetOpenLibraryState($stateFile);
+        resetOpenLibraryState($db);
         $app = require dirname(__DIR__) . '/config/bootstrap.php';
         verifyOpenLibrary($app->handle('GET', '/api/v1/pilot/open-library/search')->status === 200, 'Pilot route failed.');
         verifyOpenLibrary($app->handle('POST', '/api/v1/pilot/open-library/search')->status === 405
             && $app->handle('GET', '/api/v1/discover/book')->status === 404
             && $app->handle('GET', '/api/v1/media/book/open-library/OL27482W')->status === 404,
             'Pilot must stay read-only and outside canonical media routes.');
-        verifyOpenLibrary(Database::$calls === 0 && session_status() === PHP_SESSION_NONE, 'Pilot touched database or session state.');
+        verifyOpenLibrary(Database::$calls === 2 && session_status() === PHP_SESSION_NONE, 'Pilot must use only admission and completion transactions, without sessions.');
 
-        resetOpenLibraryState($stateFile);
-        $command = [PHP_BINARY, __DIR__ . '/support/open_library_worker.php', $stateFile, $marker];
-        $worker1 = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes1);
-        if (!is_resource($worker1)) throw new RuntimeException('Worker unavailable.');
-        fclose($pipes1[0]);
-        $deadline = microtime(true) + 5;
-        while (filesize($marker) === 0 && microtime(true) < $deadline) { usleep(10000); clearstatcache(true, $marker); }
-        verifyOpenLibrary(filesize($marker) > 0, 'First worker did not reserve the shared request.');
-        $worker2 = proc_open($command, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes2);
-        if (!is_resource($worker2)) throw new RuntimeException('Second worker unavailable.');
-        fclose($pipes2[0]);
-        $secondStatus = stream_get_contents($pipes2[1]);
-        $firstStatus = stream_get_contents($pipes1[1]);
-        $errors = stream_get_contents($pipes1[2]) . stream_get_contents($pipes2[2]);
-        foreach ([$pipes1, $pipes2] as $pipes) { fclose($pipes[1]); fclose($pipes[2]); }
-        $exit1 = proc_close($worker1);
-        $exit2 = proc_close($worker2);
-        verifyOpenLibrary($firstStatus === '200' && $secondStatus === '503' && $errors === '' && $exit1 === 0 && $exit2 === 0
-            && file_get_contents($marker) === "fixture-call\n", 'Concurrent PHP workers exceeded the shared budget.');
-        $before = Http::$calls;
-        $pilot->search(['q' => 'Hobbit']);
-        verifyOpenLibrary(Http::$calls === $before, 'Worker cache was not reusable across processes.');
-        resetOpenLibraryState($stateFile);
-        $crash = proc_open([...$command, 'crash'], [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $crashPipes);
-        if (!is_resource($crash)) throw new RuntimeException('Crash worker unavailable.');
-        fclose($crashPipes[0]);
-        $crashOutput = stream_get_contents($crashPipes[1]) . stream_get_contents($crashPipes[2]);
-        fclose($crashPipes[1]);
-        fclose($crashPipes[2]);
-        $crashExit = proc_close($crash);
-        $reservation = json_decode(file_get_contents($stateFile), true);
-        verifyOpenLibrary($crashExit === 0 && $crashOutput === '' && $reservation['cache'] === []
-            && $reservation['nextRequestAt'] > microtime(true) + 58,
-            'Abrupt worker exit during provider I/O must preserve the durable reservation.');
     } finally {
         $_ENV = $originalEnvironment;
         $_SERVER = $originalServer;
         $_GET = $originalGet;
         putenv($originalFlag === false ? 'OPEN_LIBRARY_PILOT_ENABLED' : 'OPEN_LIBRARY_PILOT_ENABLED=' . $originalFlag);
-        unlink($stateFile);
-        unlink($marker);
     }
     echo 'Open Library checks passed (', $checks, " assertions; fixture I/O only, no database/network requests).\n";
 }
