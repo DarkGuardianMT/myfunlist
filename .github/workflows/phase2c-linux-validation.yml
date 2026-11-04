@@ -1,0 +1,132 @@
+name: Phase 2C Linux validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  linux-validation:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'review/fix-web-worker-readiness-test'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      OPEN_LIBRARY_PILOT_ENABLED: 'false'
+      VITE_OPEN_LIBRARY_DISCOVER_ENABLED: 'false'
+      TESTED_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Check out exact PR head
+        uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify reviewed fix and tested SHA
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$TESTED_SHA"
+          fix=c16ac13a23fb9a5d8d66ab30ffff7df64f1b181d
+          git merge-base --is-ancestor "$fix" HEAD
+          git diff --exit-code "$fix" HEAD -- . ':!.github/workflows/phase2c-linux-validation.yml'
+          test ! -e .env
+          test ! -e .env.local
+          test ! -e .env.production
+          test ! -e .env.production.local
+          test ! -e backend/.env
+          printf 'Tested SHA: %s\nReviewed fix: %s\n' "$TESTED_SHA" "$fix"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.15.0'
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.2'
+          extensions: curl, pdo_mysql, posix
+          coverage: none
+          tools: composer:v2
+
+      - name: Verify Linux prerequisites
+        run: |
+          set -euo pipefail
+          source /etc/os-release
+          test "$ID" = ubuntu
+          printf 'Linux environment: %s\n' "$PRETTY_NAME"
+          node --version
+          node -e 'if (process.platform !== "linux") process.exit(1)'
+          php -r 'exit(PHP_OS_FAMILY === "Linux" && PHP_VERSION_ID >= 80200 && function_exists("posix_geteuid") && function_exists("flock") && function_exists("fsync") ? 0 : 1);'
+          php -r 'echo "PHP ", PHP_VERSION, " with POSIX/flock/fsync", PHP_EOL;'
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          npm ci
+          composer --working-dir=backend validate --strict
+          composer --working-dir=backend install --no-interaction --prefer-dist --no-progress --no-scripts --no-plugins
+
+      - name: Repeat focused Linux tests ten times and run complete suite
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import { spawnSync } from 'node:child_process'
+
+          const focused = ['tests/webWorkerDiagnostics.test.js', 'tests/webWorkerFixture.test.js', 'tests/cliLockWorker.test.js']
+          function verify(label, command, args, expected) {
+            const result = spawnSync(command, args, {
+              encoding: 'utf8', timeout: 120000, maxBuffer: 8 * 1024 * 1024,
+            })
+            try {
+              assert.equal(result.status, 0)
+              assert.equal(result.signal, null)
+              const counts = {}
+              for (const name of ['tests', 'pass', 'fail', 'cancelled', 'skipped', 'todo']) {
+                const matches = [...result.stdout.matchAll(new RegExp(`^(?:#|ℹ) ${name} (\\d+)\\r?$`, 'gm'))]
+                assert.equal(matches.length, 1)
+                counts[name] = Number(matches[0][1])
+              }
+              assert.deepEqual(counts, { tests: expected, pass: expected, fail: 0, cancelled: 0, skipped: 0, todo: 0 })
+              console.log(JSON.stringify({ label, sha: process.env.TESTED_SHA, ...counts }))
+            } catch (error) {
+              process.stdout.write(result.stdout ?? '')
+              process.stderr.write(result.stderr ?? '')
+              throw new Error(`${label} did not meet the zero-failure/zero-skip gate`, { cause: error })
+            }
+          }
+          for (let attempt = 1; attempt <= 10; attempt++) {
+            verify(`focused-${attempt}`, process.execPath, ['--test', '--test-reporter=tap', ...focused], 45)
+          }
+          verify('complete-suite', 'npm', ['test'], 346)
+          NODE
+
+      - name: Build frontend without private configuration
+        run: |
+          set -euo pipefail
+          npm run build
+          test -z "$(find dist -type f \( -name '*.php' -o -name '*web-worker*' -o -name 'private-config*' -o -name 'private-client*' \) -print -quit)"
+
+      - name: Validate PHP and Node syntax
+        run: |
+          set -euo pipefail
+          find backend/src backend/config backend/public backend/bin backend/tests diagnostics/web-worker scripts/diagnostics tests/support \
+            -type f -name '*.php' -print0 | xargs -0 -n 1 php -l
+          node --check diagnostics/web-worker/runner.mjs
+          node --check tests/webWorkerFixture.test.js
+
+      - name: Run database-independent backend checks
+        run: |
+          set -euo pipefail
+          php backend/tests/database_safety.php
+          composer --working-dir=backend run test:providers
+          composer --working-dir=backend run test:api
