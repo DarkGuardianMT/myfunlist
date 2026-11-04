@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn, spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { flags, runPlan } from '../diagnostics/web-worker/runner.mjs'
+import { flags, runPlan, validateResult } from '../diagnostics/web-worker/runner.mjs'
 
 const helper = fileURLToPath(new URL('./support/web-worker-fixture.php', import.meta.url))
 const available = spawnSync('php', ['-r', 'exit(PHP_OS_FAMILY === "Linux" && function_exists("posix_geteuid") ? 0 : 1);'])
@@ -80,18 +80,36 @@ test('sequential worker requests cannot establish concurrency or a cross-worker 
 })
 
 test('HTTP-path cleanup refuses an active lease; offline cleanup succeeds only after processes finish', linux, async () => {
-  await fixture(async ({ invoke, send, root }) => {
-    passed(invoke('prepare'))
-    passed(invoke('attest'))
-    const holding = send('holder', 5000)
-    passed(invoke('ready'))
-    failed(invoke('cleanup'))
-    assert.equal(existsSync(root), true)
-    assert.equal((await holding).code, 503)
-    const result = passed(invoke('offline-cleanup'))
-    assert.equal(result.cleanup, true)
-    assert.equal(result.concurrency_confirmed, false)
-  })
+  for (const order of [['holder', 'ready'], ['ready', 'holder']]) {
+    await fixture(async ({ invoke, send, root }) => {
+      passed(invoke('prepare'))
+      passed(invoke('attest'))
+      // Houd de eventloop vrij voor stdin en processtart, ongeacht de startvolgorde.
+      const pending = Object.fromEntries(order.map(action => [action, send(action, 5000)]))
+      let holderClosed = false
+      const holding = pending.holder.then(result => { holderClosed = true; return result })
+      let held
+      try {
+        assert.equal(validateResult(await pending.ready).status, 'pass')
+        assert.equal(holderClosed, false)
+        const cleanup = await send('cleanup', 5000)
+        assert.equal(cleanup.code, 503)
+        assert.equal(validateResult(cleanup).status, 'inconclusive')
+        assert.equal(holderClosed, false)
+        assert.equal(existsSync(root), true)
+        assert.equal(JSON.parse(readFileSync(join(root, 'ledger'), 'utf8')).stage, 'closing')
+      } finally {
+        // Ook bij een mislukte assertie eerst de worker sluiten, dan pas de sandbox opruimen.
+        held = await holding
+      }
+      assert.equal(held.code, 503)
+      assert.equal(validateResult(held).status, 'inconclusive')
+      const result = passed(invoke('offline-cleanup'))
+      assert.equal(result.cleanup, true)
+      assert.equal(result.concurrency_confirmed, false)
+      assert.equal(existsSync(root), false)
+    })
+  }
 })
 
 test('wrong inode, hardlink, symlink, unknown content or extra files block cleanup without deletion', linux, async () => {
