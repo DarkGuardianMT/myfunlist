@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "owner_approved": false,
+  "armed": false,
+  "issued_at": 0,
+  "expires_at": 0,
+  "expected_sapi": "",
+  "endpoint_path": "",
+  "basic_user_hash": "",
+  "boundary_secret": "",
+  "request_key_hash": "",
+  "run_nonce": "",
+  "package_hash": "",
+  "fixture_parent": "",
+  "excluded_roots": [],
+  "verified": {
+    "basic_missing_denied": false,
+    "basic_wrong_denied": false,
+    "unauthenticated_php_not_reached": false,
+    "same_staging_pool": false,
+    "server_wall_timeout": false,
+    "redacted_logging": false
+  }
+}

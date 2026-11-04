@@ -41,6 +41,8 @@ dist-ssr
 /backups/
 /backend/backups/
 /backend/uploads/
+/diagnostics/web-worker/private-config.*
+/diagnostics/web-worker/private-client.json
 
 # Editor directories and files
 .vscode/*
