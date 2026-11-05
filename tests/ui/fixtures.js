@@ -30,7 +30,7 @@ export const test = base.extend({
   sandbox: [async ({ context, page }, use) => {
     const events = { unexpectedRequests: 0, failedRequests: 0, badResponses: 0, consoleErrors: 0, pageErrors: 0 }
     const state = { offline: false, expectedFailures: 0, authChecks: 0, googleRequests: 0, pilotRequests: 0,
-      openLibraryHarness: false, pilotRespond: null, pilotSearches: [] }
+      openLibraryHarness: false, pilotRespond: null, pilotSearches: [], googleItems: null, artwork: {} }
     const expectedNetworkFailures = new Set()
     const expectedHttpFailures = new Set()
     const expectedStatuses = new Set()
@@ -88,11 +88,13 @@ export const test = base.extend({
           expectedNetworkFailures.add(request)
           return route.abort('failed')
         }
-        return route.fulfill({ json: { items: url.searchParams.get('q') === 'empty-fixture' ? [] : [{
+        return route.fulfill({ json: { items: url.searchParams.get('q') === 'empty-fixture' ? [] : state.googleItems || [{
           id: 'qa-volume-1', volumeInfo: { title: bookTitle, authors: detail.details.authors,
             language: 'en', publishedDate: '2025-03', imageLinks: { thumbnail: detail.artworkImage } },
         }] } })
       }
+      if (Object.hasOwn(state.artwork, url.href)) return route.fulfill(typeof state.artwork[url.href] === 'string'
+        ? { contentType: 'image/svg+xml', body: state.artwork[url.href] } : state.artwork[url.href])
       if (url.href === 'https://ui-fixtures.invalid/cover.svg') return route.fulfill({ contentType: 'image/svg+xml', body: cover })
       if (state.openLibraryHarness && url.href === openLibraryWork.cover.url) return route.fulfill({ contentType: 'image/svg+xml', body: cover })
       if (url.href === 'https://books.google.com/googlebooks/images/poweredby.png') return route.fulfill({ contentType: 'image/svg+xml', body: attribution })

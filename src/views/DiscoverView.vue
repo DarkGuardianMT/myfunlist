@@ -17,7 +17,7 @@ const discoveryTypes = [
     id: 'book',
     label: 'Books',
     heading: 'Discover books',
-    intro: 'Choose a book catalogue to discover books and inspect publication information.',
+    intro: 'A familiar favourite. An unexpected find. Your next chapter starts here.',
     searchTitle: 'Search books',
     searchLabel: 'Title, author, or ISBN',
     placeholder: 'For example: The Hobbit',
@@ -154,79 +154,87 @@ function cardProps(media) {
 </script>
 
 <template>
-  <div class="discover-page">
+  <div class="discover-page" :class="{ 'discover-page--books': activeMediaType === 'book' }">
     <section class="page-intro" aria-labelledby="page-title">
+      <p v-if="activeMediaType === 'book'" class="discover-eyebrow">A little curiosity goes a long way</p>
       <h1 id="page-title">{{ activeType.heading }}</h1>
       <p>{{ activeType.intro }}</p>
     </section>
 
-    <div class="discover-type-switcher" role="group" aria-label="Choose a discovery type">
-      <button
-        v-for="type in discoveryTypes"
-        :key="type.id"
-        class="discover-type-switcher__button"
-        :class="{ 'discover-type-switcher__button--active': activeMediaType === type.id }"
-        type="button"
-        :aria-pressed="activeMediaType === type.id"
-        @click="selectMediaType(type.id)"
-      >
-        {{ type.label }}
-      </button>
-    </div>
+    <div class="discover-toolbar">
+      <div class="discover-type-switcher" role="group" aria-label="Choose a discovery type">
+        <button
+          v-for="type in discoveryTypes"
+          :key="type.id"
+          class="discover-type-switcher__button"
+          :class="{ 'discover-type-switcher__button--active': activeMediaType === type.id }"
+          type="button"
+          :aria-pressed="activeMediaType === type.id"
+          @click="selectMediaType(type.id)"
+        >
+          {{ type.label }}
+        </button>
+      </div>
 
-    <div v-if="activeMediaType === 'book'" class="book-provider-choice">
-      <label for="book-provider">Book catalogue</label>
-      <select id="book-provider" :value="bookProvider" @change="setBookProvider($event.target.value)">
-        <option value="open-library">Open Library</option>
-        <option value="google-books">Google Books (secondary option)</option>
-      </select>
+      <div v-if="activeMediaType === 'book'" class="book-provider-choice">
+        <label for="book-provider">Book catalogue</label>
+        <select id="book-provider" :value="bookProvider" @change="setBookProvider($event.target.value)">
+          <option value="google-books">Google Books</option>
+          <option value="open-library">Open Library · tester pilot</option>
+        </select>
+      </div>
     </div>
     <OpenLibraryDiscover v-if="activeMediaType === 'book' && bookProvider === 'open-library'" />
-    <section v-else class="discovery-search" :aria-labelledby="`${activeMediaType}-search-title`">
-      <h2 :id="`${activeMediaType}-search-title`">{{ activeType.searchTitle }}</h2>
+    <section v-else class="discovery-search" :class="{ 'book-discovery': activeMediaType === 'book' }" :aria-labelledby="`${activeMediaType}-search-title`">
+      <div :class="{ 'book-search-panel': activeMediaType === 'book' }">
+        <div :class="{ 'book-search-heading': activeMediaType === 'book' }">
+          <h2 :id="`${activeMediaType}-search-title`">{{ activeType.searchTitle }}</h2>
 
-      <p v-if="activeMediaType === 'book'" class="google-attribution"><a href="https://books.google.com" target="_blank" rel="noopener noreferrer"><img src="https://books.google.com/googlebooks/images/poweredby.png" alt="Powered by Google" /></a></p>
-      <form class="discovery-search__form" role="search" @submit.prevent="handleSearch">
-        <label :for="`${activeMediaType}-query`">{{ activeMediaType === 'book' ? bookSearchLabel : activeType.searchLabel }}</label>
-        <div class="discovery-search__controls">
-          <input
-            :id="`${activeMediaType}-query`"
-            v-model="activeQuery"
-            type="search"
-            :name="`${activeMediaType}-query`"
-            :placeholder="activeMediaType === 'book' && bookFilters.field === 'author' ? 'For example: Ursula Le Guin' : activeType.placeholder"
-            maxlength="200"
-            autocomplete="off"
-          />
-          <button
-            type="submit"
-            :disabled="activeSearch.status === 'loading' || !activeSearch.query.trim()"
-          >
-            {{ activeSearch.status === 'loading' ? 'Searching…' : 'Search' }}
-          </button>
+          <p v-if="activeMediaType === 'book'" class="google-attribution"><a href="https://books.google.com" target="_blank" rel="noopener noreferrer"><img src="https://books.google.com/googlebooks/images/poweredby.png" alt="Powered by Google" /></a></p>
         </div>
-        <div v-if="activeMediaType === 'book'" class="book-search-filters">
-          <div>
-            <label for="book-search-field">Search in</label>
-            <select id="book-search-field" :value="bookFilters.field" @change="setBookFilter('field', $event.target.value)">
-              <option value="all">All fields</option>
-              <option value="title">Title</option>
-              <option value="author">Author</option>
-            </select>
+        <form class="discovery-search__form" role="search" @submit.prevent="handleSearch">
+          <label :for="`${activeMediaType}-query`">{{ activeMediaType === 'book' ? bookSearchLabel : activeType.searchLabel }}</label>
+          <div class="discovery-search__controls">
+            <input
+              :id="`${activeMediaType}-query`"
+              v-model="activeQuery"
+              type="search"
+              :name="`${activeMediaType}-query`"
+              :placeholder="activeMediaType === 'book' && bookFilters.field === 'author' ? 'For example: Ursula Le Guin' : activeType.placeholder"
+              maxlength="200"
+              autocomplete="off"
+            />
+            <button
+              type="submit"
+              :disabled="activeSearch.status === 'loading' || !activeSearch.query.trim()"
+            >
+              {{ activeSearch.status === 'loading' ? 'Searching…' : 'Search' }}
+            </button>
           </div>
-          <div>
-            <label for="book-search-language">Language</label>
-            <select id="book-search-language" :value="bookFilters.language" @change="setBookFilter('language', $event.target.value)">
-              <option value="any">Any language</option>
-              <option value="en">English</option>
-              <option value="nl">Dutch</option>
-              <option value="tr">Turkish</option>
-            </select>
+          <div v-if="activeMediaType === 'book'" class="book-search-filters">
+            <div>
+              <label for="book-search-field">Search in</label>
+              <select id="book-search-field" :value="bookFilters.field" @change="setBookFilter('field', $event.target.value)">
+                <option value="all">All fields</option>
+                <option value="title">Title</option>
+                <option value="author">Author</option>
+              </select>
+            </div>
+            <div>
+              <label for="book-search-language">Language</label>
+              <select id="book-search-language" :value="bookFilters.language" @change="setBookFilter('language', $event.target.value)">
+                <option value="any">Any language</option>
+                <option value="en">English</option>
+                <option value="nl">Dutch</option>
+                <option value="tr">Turkish</option>
+              </select>
+            </div>
           </div>
-        </div>
-      </form>
+        </form>
+      </div>
 
-      <div class="discovery-search__feedback" aria-live="polite" aria-atomic="true">
+      <div class="discovery-search__feedback" :class="{ 'catalogue-summary': activeMediaType === 'book', 'catalogue-state': activeMediaType === 'book' && activeSearch.status !== 'success', 'catalogue-state--error': activeSearch.status === 'error' }" aria-live="polite" aria-atomic="true">
+        <span v-if="activeMediaType === 'book' && activeSearch.status === 'success'" class="result-source">Google Books search results</span>
         <p v-if="activeSearch.status === 'idle'">{{ activeType.idleMessage }}</p>
         <p v-else-if="activeSearch.status === 'loading'" role="status">
           Searching {{ activeType.provider }} for “{{ activeSearch.searchedQuery }}”…
@@ -246,6 +254,10 @@ function cardProps(media) {
         <p v-if="activeMediaType === 'book' && bookLanguageLabel" class="book-language-notice">
           Requested {{ bookLanguageLabel }} from Google Books. Its language restriction can be unreliable; all returned results remain visible in provider order. Check each book's metadata.
         </p>
+      </div>
+
+      <div v-if="activeMediaType === 'book' && activeSearch.status === 'loading'" class="catalogue-skeletons" aria-hidden="true">
+        <div v-for="index in 4" :key="index" class="catalogue-skeleton"><span /><div><i /><i /><i /></div></div>
       </div>
 
       <p
@@ -273,8 +285,7 @@ function cardProps(media) {
         <button class="text-button" type="button" @click="loadLibrary()">Try again</button>
       </p>
 
-      <button v-if="activeSearch.status === 'error'" type="button" @click="handleSearch">Retry search</button>
-      <p v-if="activeMediaType === 'book' && activeSearch.status === 'success'">Google Books search results</p>
+      <button v-if="activeSearch.status === 'error'" class="catalogue-retry" type="button" @click="handleSearch">Retry search</button>
       <div
         v-if="activeSearch.status === 'success'"
         :class="activeResultPresentation.grid"
@@ -304,21 +315,3 @@ function cardProps(media) {
     </section>
   </div>
 </template>
-
-<style scoped>
-.book-provider-choice { margin: 1rem 0; }
-.book-provider-choice label { display: block; margin-bottom: 0.5rem; }
-.book-provider-choice select { width: 100%; min-height: 44px; padding: 0.6rem; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-control-border); border-radius: 0.5rem; font: inherit; }
-.book-provider-choice select:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
-.google-attribution img { background: white; padding: 0.5rem; max-width: 100%; }
-
-.book-search-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1rem; }
-.book-search-filters > div { min-width: 0; }
-.book-search-filters label { font-size: 0.85rem; }
-.book-search-filters select { width: 100%; min-width: 0; min-height: 44px; padding: 0.5rem; border: 1px solid var(--color-control-border); border-radius: 0.55rem; background: var(--color-surface); color: var(--color-text); font: inherit; }
-.book-search-filters select:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
-@media (max-width: 400px) {
-  .book-search-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .book-search-filters > div:last-child { grid-column: 1 / -1; }
-}
-</style>
