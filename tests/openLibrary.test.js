@@ -88,7 +88,8 @@ test('invalid edition kinds, ISBNs, URLs, duplicated Works and malformed respons
   assert.equal((await searchOpenLibrary('book')).items[0].selectedEdition, null)
 })
 
-test('errors remain distinct, uncached, and never trigger fallback or automatic retries', async () => {
+test('errors remain distinct, uncached, and never trigger fallback or automatic retries', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1000000 })
   let calls = 0
   for (const [status, code, state, seconds = 2] of [[404, 'not_found', 'unavailable'], [422, 'validation_error', 'invalid'],
     [429, 'rate_limited', 'rate-limited'], [503, 'provider_busy', 'busy'], [503, 'provider_unavailable', 'unavailable', 60], [502, 'provider_error', 'error']]) {
@@ -105,6 +106,7 @@ test('errors remain distinct, uncached, and never trigger fallback or automatic 
         assert.equal(error.code, code)
         return openLibraryError(error).state === state
       })
+      t.mock.timers.tick(Math.max(code === 'provider_busy' ? 2 : 60, seconds) * 1000)
     }
     assert.equal(calls, before + 2)
   }
@@ -132,4 +134,46 @@ test('cache expires after five minutes and evicts the oldest beyond twenty entri
   t.mock.timers.tick(300001)
   await searchOpenLibrary('book 20')
   assert.equal(calls, 23)
+})
+
+test('shared cooldown blocks changed queries and cached searches until the deadline', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: 1000000 })
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return ok(result([])) }
+  await searchOpenLibrary('cached')
+  globalThis.fetch = async () => {
+    calls++
+    return { ok: false, status: 503, headers: new Headers({ 'Retry-After': '5' }), json: async () => ({ error: { code: 'provider_busy' } }) }
+  }
+  await assert.rejects(searchOpenLibrary('busy'), error => error.code === 'provider_busy')
+  for (const query of ['changed', 'cached']) {
+    await assert.rejects(searchOpenLibrary(query), error => error.code === 'provider_busy')
+  }
+  assert.equal(calls, 2)
+  t.mock.timers.tick(4999)
+  await assert.rejects(searchOpenLibrary('changed'), error => error.code === 'provider_busy')
+  t.mock.timers.tick(1)
+  assert.equal(calls, 2)
+  await searchOpenLibrary('cached')
+  assert.equal(calls, 2)
+  globalThis.fetch = async () => { calls++; return ok(result([])) }
+  await searchOpenLibrary('busy')
+  assert.equal(calls, 3)
+})
+
+test('clearing the cache rejects late cache writes and cooldowns from the previous generation', async () => {
+  let finish
+  let calls = 0
+  globalThis.fetch = () => { calls++; return new Promise(resolve => { finish = resolve }) }
+  const first = searchOpenLibrary('same')
+  clearOpenLibraryCache()
+  finish({ ok: false, status: 429, headers: new Headers({ 'Retry-After': '90' }), json: async () => ({ error: { code: 'rate_limited' } }) })
+  await assert.rejects(first, error => error.status === 429)
+  const second = searchOpenLibrary('same')
+  clearOpenLibraryCache()
+  finish(ok(result([])))
+  await second
+  globalThis.fetch = async () => { calls++; return ok(result()) }
+  assert.equal((await searchOpenLibrary('same')).items.length, 1)
+  assert.equal(calls, 3)
 })
