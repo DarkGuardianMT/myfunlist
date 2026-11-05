@@ -1,12 +1,12 @@
 # MyFunList project context
 
-Current-state reference: tester-only Open Library staging is released; Google Books remains the default. Phase 1 of the visual redesign prepares an editorial Discover Books experience on a review branch. Use the actual HEAD; earlier architecture and verification records remain linked below.
+Current-state reference: tester-only Open Library staging is released; Google Books remains the default. The owner-approved Phase 1 visual redesign provides an editorial Discover Books experience. Use the actual HEAD; earlier architecture and verification records remain linked below.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
 PR #4 was squash merged as `96139a1eb1f4a9bd666419f9ddd870770312f155`; its [staging workflow](https://github.com/DarkGuardianMT/myfunlist/actions/runs/42116549760) passed. Read-only release verification confirmed health 200, anonymous pilot 401 and an enabled, manually selectable Open Library frontend with Google Books as default. The owner reported valid private configuration, tester IDs, a successful authenticated Work/Edition search and registration-form submission. Tester-only sessions and the private allowlist remain mandatory. This redesign changes no backend or activation configuration. The [activation review](docs/OPEN_LIBRARY_FRONTEND_ACTIVATION.md) retains historical preparation evidence.
 
-The Phase 1 design uses paper/ink theme tokens, serif display type, a unified search/filter panel and two-column artwork-led book results, with compact native disclosures for complete metadata. Google Library actions and read-only Open Library previews retain existing contracts. See the [design system](docs/UI_DESIGN_SYSTEM.md) and [mocked visual QA report](qa/reviews/ui-redesign-phase1/report.md).
+The Phase 1 design uses paper/ink theme tokens, serif display type, a unified search/filter panel and two-column artwork-led book results, with compact native disclosures for complete metadata. Google Library actions and read-only Open Library previews retain existing contracts. See the [design system](docs/UI_DESIGN_SYSTEM.md) and [retained mocked visual QA findings](docs/UI_DESIGN_SYSTEM.md#retained-phase-1-qa).
 
 ## Project overview and product vision
 
@@ -25,7 +25,7 @@ The staging host is [lightcyan-snake-955164.hostingersite.com](https://lightcyan
 | UI audit Batch 1 (A1/A2) | Discover context/return navigation and Library filters/Back behavior | Complete: automated tests and live Work browser QA passed |
 | UI audit Batch 2 (B1/B2/B3/B7) | Responsive detail layout, actions before synopsis, authors near title, concise book labels/full classifications disclosure, improved action targets | Media Detail complete: automated tests and live Work browser QA passed; Library residual B3-L1 remains open |
 | UI audit Batch 3 (A3/D2) | Compact Discover book metadata, accessible Full info disclosure, action alignment, mobile 2×2 type switcher | Complete: automated tests and live Work browser QA passed across requested viewports and both themes |
-| Discover Books | Google default and manually selectable tester-only Open Library; Phase 1 editorial layout under review | 342 unit tests passed, 12 platform skips; build passed; 18 mocked headless tests passed with inspected before/after evidence |
+| Discover Books | Google default and manually selectable tester-only Open Library; owner-approved Phase 1 editorial layout | 342 unit tests passed, 12 platform skips; build passed; 18 mocked headless tests passed with inspected before/after evidence |
 
 Batch 1–3 Work QA completion is the project owner's confirmation supplied for the documentation refresh. Original Work reports/screenshots are not tracked here; preserve them wherever they are held. The external Search V1 live QA report was subsequently reviewed for this follow-up; it has not been overwritten or re-run as new browser evidence. Initial Search V1 staging success is recorded in [workflow run 40751645647](https://github.com/DarkGuardianMT/myfunlist/actions/runs/40751645647). See [QA follow-up](docs/DISCOVER_SEARCH_V1_QA_FOLLOWUP.md) for direct provider evidence, fixes and unresolved checks. These records do not establish complete production readiness.
 

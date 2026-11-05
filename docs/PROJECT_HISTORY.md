@@ -2,7 +2,7 @@
 
 ## Discover Books visual redesign, Phase 1 — 6 November 2026
 
-The `review/ui-redesign-phase1` candidate adds the paper/ink design foundation, an editorial Discover Books layout and compact artwork-led Google/Open Library cards. Detailed Work/Edition metadata moves into keyboard-accessible disclosures; Google remains the default and Open Library remains read-only and tester-only. Unit/build and mocked headless checks pass. See the [design direction](UI_DESIGN_SYSTEM.md) and [temporary visual review evidence](../qa/reviews/ui-redesign-phase1/report.md). No merge, deployment, backend or activation change accompanies this review.
+The `review/ui-redesign-phase1` candidate adds the paper/ink design foundation, an editorial Discover Books layout and compact artwork-led Google/Open Library cards. Detailed Work/Edition metadata moves into keyboard-accessible disclosures; Google remains the default and Open Library remains read-only and tester-only. Unit/build and mocked headless checks pass. See the [design direction](UI_DESIGN_SYSTEM.md) and [retained visual QA findings](UI_DESIGN_SYSTEM.md#retained-phase-1-qa). The owner subsequently approved the design, merge and staging deployment. Final merge preparation removes only this task's temporary report and eighteen screenshots, retaining its findings in the design documentation and preserving historical evidence. No backend or activation setting is changed.
 
 ## Open Library tester-only staging release — 5 November 2026
 
