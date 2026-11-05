@@ -22,18 +22,23 @@ npm run test:ui
 
 The two projects are Chromium headless at 1440×900 (desktop) and 390×844 (mobile viewport/touch emulation, not a physical phone). Each test has a new ephemeral browser context without real sessions or accounts. Service workers and downloads are disabled. A browser-context allowlist serves synthetic session/detail/provider/artwork responses, blocks all non-GET requests, unexpected API paths and unknown external traffic, and permits only the dedicated loopback Vite WebSocket. It never forwards a provider/API request. Keep new tests on the shared fixture: do not use `route.fetch`, direct API clients or unmocked providers. This is test-harness isolation, not an OS network sandbox.
 
+`tests/ui/open-library.html` is a separate test entry, excluded from the normal production build. Its harness injects the existing Open Library component's `enabled` prop before mounting the real application, then restores the ordinary `/discover` route. The test-server build flag remains `false`; ordinary application smoke tests still require zero pilot requests. Only tests explicitly opting into `sandbox.openLibraryHarness` and providing `pilotRespond` may receive synthetic pilot responses. No pilot/API request reaches the server or provider. This permits read-only component acceptance without activating deployment.
+
 ## Smoke coverage and failure detection
 
 - Home/Discover/Login navigation, visible desktop/mobile navigation, discovery-type controls and theme switching.
 - Synthetic Google Books search, keyboard-operated full-information disclosure, language selection/caveat, public detail route and return context.
 - Empty results, one deliberately aborted provider request, explicit Retry and the disabled Open Library gate with zero pilot requests.
+- Enabled-component fixtures: distinct Work/Edition identities and read-only preview, keyboard disclosure/selection, all fields and language modes, cache/history/provider isolation, stale responses, invalid/empty/malformed/404 states, and busy/429/503 cooldowns across catalogue remounts with manual-only retry. Narrow-layout checks also exercise 320px and 768px widths.
 - No horizontal page overflow, search controls within the viewport, unexpected console errors, uncaught page errors, HTTP error responses, failed requests or disallowed network requests.
 
-Only the mocked anonymous-session 401 and the deliberately induced network-failure console message are expected. Other failures fail the test; diagnostics report counts rather than raw URLs, response bodies, credentials or console text. Playwright failure context stays in ignored `test-results/`; review and sanitize any useful reproduction before sharing. An expected error state is not evidence of a live provider outage.
+Only the mocked anonymous-session 401, deliberately induced network-failure message and explicitly supplied pilot error statuses are expected. HTTP expectations are tied to the exact mocked requests. Other failures fail the test; diagnostics report counts rather than raw URLs, response bodies, credentials or console text. Playwright failure context stays in ignored `test-results/`; review and sanitize any useful reproduction before sharing. An expected error state is not evidence of a live provider outage.
 
 ## Review evidence
 
-Ordinary runs place selected screenshots under ignored `test-results/ui/`. To export the same four selected images into a fresh temporary review directory, set `QA_REVIEW_TASK` to a new lowercase hyphenated task slug:
+Open Library component tests additionally capture `desktop-open-library-light.png`, `desktop-open-library-dark.png`, `mobile-open-library-light.png` and `mobile-open-library-dark.png`. Their catalogue metadata and artwork are synthetic; screenshots do not validate real provider quality, actual branding delivery or language accuracy.
+
+Ordinary runs place selected screenshots under ignored `test-results/ui/`. To export the eight selected images into a fresh temporary review directory, set `QA_REVIEW_TASK` to a new lowercase hyphenated task slug:
 
 ```powershell
 $env:QA_REVIEW_TASK = 'your-task-name'

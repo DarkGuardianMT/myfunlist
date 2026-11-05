@@ -205,3 +205,28 @@ test('late search responses cannot replace a newer language selection or a dispo
   assert.doesNotMatch(view.text(), /Stale result/)
   assert.ok(calls.every(path => path.startsWith('/api/v1/pilot/open-library/search?')))
 })
+
+test('cooldown survives provider unmounts and honors a longer Retry-After without automatic requests', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000000 })
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return { ok: false, status: 429, headers: new Headers({ 'Retry-After': '90' }), json: async () => ({ error: { code: 'rate_limited' } }) }
+  }
+  const first = await page()
+  first.view.unmount()
+  const { view } = await page()
+  assert.equal(calls, 1)
+  assert.equal(view.get('button[type="submit"]').attributes('disabled'), '')
+  t.mock.timers.tick(89999)
+  await flushPromises()
+  assert.equal(view.findAll('button').at(-1).attributes('disabled'), '')
+  t.mock.timers.tick(1)
+  await flushPromises()
+  assert.equal(view.findAll('button').at(-1).attributes('disabled'), undefined)
+  assert.equal(calls, 1)
+  globalThis.fetch = async () => { calls++; return ok(response()) }
+  await view.findAll('button').at(-1).trigger('click')
+  await flushPromises()
+  assert.equal(calls, 2)
+})

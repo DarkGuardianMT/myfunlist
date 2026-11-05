@@ -3,10 +3,16 @@ import { ApiError, request } from './apiClient.js'
 const cache = new Map()
 const pending = new Map()
 let generation = 0
+let cooldown = null
+export function getOpenLibraryCooldown() {
+  if (cooldown && cooldown.retryAt <= Date.now()) cooldown = null
+  return cooldown
+}
 export function clearOpenLibraryCache() {
   generation++
   cache.clear()
   pending.clear()
+  cooldown = null
 }
 
 export function normalizeOpenLibraryOptions(options = {}) {
@@ -56,6 +62,8 @@ export function validateOpenLibraryResponse(data) {
 }
 
 export async function searchOpenLibrary(query, options = {}) {
+  const activeCooldown = getOpenLibraryCooldown()
+  if (activeCooldown) throw activeCooldown.error
   const normalized = normalizeOpenLibraryOptions(options)
   let q = typeof query === 'string' ? query.trim() : ''
   if (normalized.field === 'isbn') q = q.replace(/[ -]/g, '').toUpperCase()
@@ -88,6 +96,13 @@ export async function searchOpenLibrary(query, options = {}) {
         while (cache.size > 20) cache.delete(cache.keys().next().value)
       }
       return data
+    }).catch(error => {
+      if (version === generation && [429, 503].includes(error.status)) {
+        const seconds = Math.max(error.code === 'provider_busy' ? 2 : 60, error.retryAfter || 0)
+        const retryAt = Date.now() + seconds * 1000
+        if (!cooldown || retryAt > cooldown.retryAt) cooldown = { retryAt, error }
+      }
+      throw error
     }).finally(() => { if (pending.get(key) === promise) pending.delete(key) })
   pending.set(key, promise)
   return promise

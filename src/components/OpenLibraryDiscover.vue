@@ -2,7 +2,7 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { openLibraryDiscoverEnabled, resolveBookProvider } from '../domain/bookProviders.js'
-import { normalizeOpenLibraryOptions, openLibraryError, searchOpenLibrary } from '../services/openLibrary.js'
+import { getOpenLibraryCooldown, normalizeOpenLibraryOptions, openLibraryError, searchOpenLibrary } from '../services/openLibrary.js'
 import { useBrowsingReady } from '../router/browsingContext.js'
 import OpenLibraryWorkCard from './OpenLibraryWorkCard.vue'
 
@@ -16,11 +16,17 @@ const status = ref('idle')
 const message = ref('')
 const data = ref(null)
 const waiting = ref(false)
-let retryAt = 0
 let timer
 let generation = 0
-let lastError
 const labels = { general: 'Title, author, or ISBN', title: 'Book title', author: 'Author name', isbn: 'ISBN-10 or ISBN-13' }
+
+function syncCooldown() {
+  const cooldown = getOpenLibraryCooldown()
+  clearTimeout(timer)
+  waiting.value = Boolean(cooldown)
+  if (cooldown) timer = setTimeout(() => { waiting.value = false }, cooldown.retryAt - Date.now())
+  return cooldown
+}
 
 function location(q = submitted.value, filters = options.value) {
   return { path: '/discover', query: { provider: 'open-library', ...(q ? { q } : {}),
@@ -35,8 +41,14 @@ async function load() {
   if (route.path !== '/discover' || route.query.type && route.query.type !== 'book' ||
     resolveBookProvider(route.query.provider, props.enabled) !== 'open-library') return
   if (!props.enabled) { status.value = 'blocked'; return }
+  const cooldown = syncCooldown()
   if (!submitted.value) { status.value = 'idle'; return }
-  if (Date.now() < retryAt) { status.value = lastError.state; message.value = lastError.message; return }
+  if (cooldown) {
+    const error = openLibraryError(cooldown.error)
+    status.value = error.state
+    message.value = error.message
+    return
+  }
   status.value = 'loading'
   try {
     const result = await searchOpenLibrary(submitted.value, options.value)
@@ -45,16 +57,10 @@ async function load() {
     status.value = result.items.length ? 'success' : 'empty'
   } catch (error) {
     if (version !== generation) return
-    lastError = openLibraryError(error)
+    const lastError = openLibraryError(error)
     status.value = lastError.state
     message.value = lastError.message
-    if ([429, 503].includes(error.status)) {
-      const seconds = Math.max(error.code === 'provider_busy' ? 2 : 60, error.retryAfter || 0)
-      retryAt = Date.now() + seconds * 1000
-      waiting.value = true
-      clearTimeout(timer)
-      timer = setTimeout(() => { waiting.value = false }, seconds * 1000)
-    }
+    syncCooldown()
   }
 }
 watch(() => [route.path, route.query.type, route.query.provider, submitted.value, route.query.field, route.query.lang, route.query.mode, props.enabled], () => { query.value = submitted.value; load() }, { immediate: true })

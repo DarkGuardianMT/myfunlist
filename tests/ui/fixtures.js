@@ -4,6 +4,16 @@ import { resolve } from 'node:path'
 
 const origin = 'http://127.0.0.1:4179'
 export const bookTitle = 'The Lantern Atlas: A Synthetic Journey Across Imaginary Worlds'
+export const openLibraryWork = {
+  provider: 'open-library', workId: 'OL101W', workTitle: bookTitle,
+  authors: ['Example Author'], firstPublicationYear: 2024, editionCount: 3,
+  cover: { id: 100, url: 'https://covers.openlibrary.org/b/id/100-M.jpg?default=false' },
+  provenance: { cover: { field: 'editions.docs[0].cover_i' } },
+  selectedEdition: { editionId: 'OL202M', title: 'The Lantern Atlas — selected edition',
+    languages: ['dut'], languageStatus: 'match', publicationDates: ['2025-03'], isbns: ['9780261103344'] },
+}
+export const openLibraryResult = (items = [openLibraryWork]) => ({ provider: 'open-library', items,
+  providerTotal: items.length, omitted: { invalid: 0, duplicateWork: 0, language: 0, isbn: 0 } })
 const cover = '<svg xmlns="http://www.w3.org/2000/svg" width="240" height="340" viewBox="0 0 240 340"><rect width="240" height="340" fill="#26375c"/><circle cx="120" cy="125" r="55" fill="#f3c975"/><path d="M45 255L120 180L195 255" fill="none" stroke="#f3c975" stroke-width="8"/><text x="120" y="300" text-anchor="middle" fill="white" font-family="sans-serif" font-size="16">SYNTHETIC COVER</text></svg>'
 const attribution = '<svg xmlns="http://www.w3.org/2000/svg" width="170" height="30"><rect width="170" height="30" fill="white"/><text x="6" y="20" fill="#444" font-family="sans-serif" font-size="12">Attribution image (mock)</text></svg>'
 
@@ -19,13 +29,17 @@ const detail = {
 export const test = base.extend({
   sandbox: [async ({ context, page }, use) => {
     const events = { unexpectedRequests: 0, failedRequests: 0, badResponses: 0, consoleErrors: 0, pageErrors: 0 }
-    const state = { offline: false, expectedFailures: 0, authChecks: 0, googleRequests: 0, pilotRequests: 0 }
+    const state = { offline: false, expectedFailures: 0, authChecks: 0, googleRequests: 0, pilotRequests: 0,
+      openLibraryHarness: false, pilotRespond: null, pilotSearches: [] }
     const expectedNetworkFailures = new Set()
+    const expectedHttpFailures = new Set()
+    const expectedStatuses = new Set()
     page.on('pageerror', () => events.pageErrors++)
     page.on('console', message => {
       if (message.type() !== 'error') return
       if (state.expectedFailures && message.text() === 'Failed to load resource: net::ERR_FAILED') return
-      if (state.authChecks && /^Failed to load resource: the server responded with a status of 401 \([^)]*\)$/.test(message.text())) return
+      const status = message.text().match(/^Failed to load resource: the server responded with a status of (\d+) \([^)]*\)$/)
+      if (status && expectedStatuses.has(Number(status[1]))) return
       events.consoleErrors++
     })
     page.on('requestfailed', request => {
@@ -33,7 +47,7 @@ export const test = base.extend({
     })
     page.on('response', response => {
       // De anonieme sessiecontrole krijgt bewust een synthetische 401.
-      if (response.status() >= 400 && !(response.url() === `${origin}/api/v1/auth/me` && response.status() === 401)) events.badResponses++
+      if (response.status() >= 400 && !expectedHttpFailures.has(response.request())) events.badResponses++
     })
     await context.route('**/*', async route => {
       const request = route.request()
@@ -45,7 +59,19 @@ export const test = base.extend({
       if (url.origin === origin) {
         if (url.pathname === '/api/v1/auth/me') {
           state.authChecks++
+          expectedHttpFailures.add(request)
+          expectedStatuses.add(401)
           return route.fulfill({ status: 401, json: { error: { code: 'unauthenticated', message: 'Login required.' } } })
+        }
+        if (url.pathname === '/api/v1/pilot/open-library/search' && state.openLibraryHarness && state.pilotRespond) {
+          state.pilotRequests++
+          state.pilotSearches.push(Object.fromEntries(url.searchParams))
+          const reply = await state.pilotRespond(url)
+          if (reply.status >= 400) {
+            expectedHttpFailures.add(request)
+            expectedStatuses.add(reply.status)
+          }
+          return route.fulfill(reply)
         }
         if (url.pathname === '/api/v1/media/book/google-books/qa-volume-1') return route.fulfill({ json: { data: detail } })
         if (url.pathname.startsWith('/api/')) {
@@ -68,6 +94,7 @@ export const test = base.extend({
         }] } })
       }
       if (url.href === 'https://ui-fixtures.invalid/cover.svg') return route.fulfill({ contentType: 'image/svg+xml', body: cover })
+      if (state.openLibraryHarness && url.href === openLibraryWork.cover.url) return route.fulfill({ contentType: 'image/svg+xml', body: cover })
       if (url.href === 'https://books.google.com/googlebooks/images/poweredby.png') return route.fulfill({ contentType: 'image/svg+xml', body: attribution })
       // Onbekend verkeer wordt geblokkeerd; ruwe URL's en foutteksten worden niet opgeslagen.
       events.unexpectedRequests++
@@ -85,7 +112,7 @@ export const test = base.extend({
     expect(events, 'Unexpected browser/network events (counts only)').toEqual({
       unexpectedRequests: 0, failedRequests: 0, badResponses: 0, consoleErrors: 0, pageErrors: 0,
     })
-    expect(state.pilotRequests, 'Open Library remains disabled').toBe(0)
+    if (!state.openLibraryHarness) expect(state.pilotRequests, 'Open Library remains disabled').toBe(0)
   }, { auto: true }],
 })
 export { expect }
