@@ -15,6 +15,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      VITE_OPEN_LIBRARY_DISCOVER_ENABLED: 'true'
     defaults:
       run:
         shell: bash
@@ -155,24 +157,13 @@ jobs:
           }
           NODE
 
-      - name: Verify Open Library pilot stays disabled
+      - name: Verify expected Open Library pilot state
         run: |
           status=$(curl --silent --show-error \
             --connect-timeout 10 --max-time 30 \
             --output "$RUNNER_TEMP/staging-pilot.json" --write-out '%{http_code}' \
             https://lightcyan-snake-955164.hostingersite.com/api/v1/pilot/open-library/search)
-          test "$status" = '404'
-          node --input-type=module <<'NODE'
-          import { readFileSync } from 'node:fs'
-
-          try {
-            const pilot = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/staging-pilot.json`, 'utf8'))
-            if (pilot.error?.code !== 'not_found') throw new Error()
-          } catch {
-            console.error('Open Library pilot must remain disabled on staging.')
-            process.exit(1)
-          }
-          NODE
+          node scripts/verifyOpenLibraryPilot.mjs "$status" "$RUNNER_TEMP/staging-pilot.json"
 
       - name: Remove SSH credentials
         if: always()
