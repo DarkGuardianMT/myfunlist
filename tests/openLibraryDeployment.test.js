@@ -8,15 +8,15 @@ import { verifyOpenLibraryPilot } from '../scripts/verifyOpenLibraryPilot.mjs'
 
 test('staging pilot verification accepts only the response for its explicit build flag', () => {
   const disabled = { error: { code: 'not_found' } }
-  const enabled = { error: { code: 'validation_error' } }
+  const enabled = { error: { code: 'unauthenticated' } }
   assert.doesNotThrow(() => verifyOpenLibraryPilot('404', disabled, 'false'))
-  assert.doesNotThrow(() => verifyOpenLibraryPilot('422', enabled, 'true'))
+  assert.doesNotThrow(() => verifyOpenLibraryPilot('401', enabled, 'true'))
   assert.throws(() => verifyOpenLibraryPilot('404', disabled, 'true'))
-  assert.throws(() => verifyOpenLibraryPilot('422', enabled, 'false'))
+  assert.throws(() => verifyOpenLibraryPilot('401', enabled, 'false'))
   for (const flag of [undefined, '', 'TRUE', '1']) assert.throws(() => verifyOpenLibraryPilot('404', disabled, flag))
-  for (const status of ['200', '429', '503']) assert.throws(() => verifyOpenLibraryPilot(status, enabled, 'true'))
+  for (const status of ['200', '403', '422', '429', '503']) assert.throws(() => verifyOpenLibraryPilot(status, enabled, 'true'))
   for (const payload of [null, {}, disabled, { error: { code: 'provider_unavailable' } }]) {
-    assert.throws(() => verifyOpenLibraryPilot('422', payload, 'true'))
+    assert.throws(() => verifyOpenLibraryPilot('401', payload, 'true'))
   }
 })
 
@@ -25,9 +25,9 @@ test('staging verifier CLI fails safely on malformed responses without logging t
   const file = join(directory, 'response.json')
   try {
     for (const [body, status, expected] of [
-      ['{"error":{"code":"validation_error"}}', '422', 0],
+      ['{"error":{"code":"unauthenticated"}}', '401', 0],
       ['{"error":{"code":"not_found"}}', '404', 1],
-      ['synthetic-private-marker', '422', 1],
+      ['synthetic-private-marker', '401', 1],
     ]) {
       writeFileSync(file, body)
       const result = spawnSync(process.execPath, ['scripts/verifyOpenLibraryPilot.mjs', status, file], {

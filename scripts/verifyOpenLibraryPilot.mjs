@@ -3,8 +3,8 @@ import { pathToFileURL } from 'node:url'
 
 export function verifyOpenLibraryPilot(status, payload, enabled) {
   if (!['true', 'false'].includes(enabled)) throw new Error('An explicit Open Library build flag is required.')
-  const expectedStatus = enabled === 'true' ? '422' : '404'
-  const expectedCode = enabled === 'true' ? 'validation_error' : 'not_found'
+  const expectedStatus = enabled === 'true' ? '401' : '404'
+  const expectedCode = enabled === 'true' ? 'unauthenticated' : 'not_found'
   if (status !== expectedStatus || payload?.error?.code !== expectedCode) {
     throw new Error('Open Library pilot does not match the expected staging build state.')
   }
