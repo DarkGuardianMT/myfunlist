@@ -28,6 +28,7 @@ Store the generated value only in the ignored backend configuration. Never commi
 | `GOOGLE_BOOKS_API_KEY` | Optional backend key for book Library metadata resolution and public Media Detail resolution |
 | `SESSION_SAVE_PATH` | Optional private PHP-writable session directory; local HTTP defaults to `backend/var/sessions` |
 | `OPEN_LIBRARY_PILOT_ENABLED` | Disabled unless exactly `true`; separate read-only pilot, no frontend integration |
+| `OPEN_LIBRARY_TESTER_USER_IDS` | Private backend-only allowlist of at most 20 exact account IDs, comma-separated without spaces; empty/malformed denies everyone. Enabled pilot requires the existing logged-in session; no passwords or bearer tokens are added. |
 | `OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED`, `OPEN_LIBRARY_USER_AGENT` | Backend-only assertion that all workers share the authoritative MySQL budget, plus application/contact identification; requires migration 005 and the [current MySQL activation requirements](OPEN_LIBRARY_MYSQL_BUDGET.md#migration-and-activation-requirements) before configuring |
 
 Google Books discovery runs in the browser and works locally without a key, subject to provider quotas.

@@ -23,6 +23,12 @@ Database migrations remain manual. Apply required migrations deliberately before
 
 ## Configuration
 
+Open Library tester access uses only private backend `OPEN_LIBRARY_TESTER_USER_IDS`. Log in normally, read your own `data.user.id` from the existing authenticated `GET /api/v1/profile` response, and put that exact numeric ID in the staging backend environment. For multiple approved accounts, use comma-separated IDs without spaces (maximum 20; each 1–20 digits with no leading zero). Do not use email addresses, passwords, browser variables, request headers or URL parameters as authorization. Never commit the actual allowlist. Empty, malformed or nonmatching lists deny access. Removing an ID takes effect on subsequent requests once the effective backend environment has refreshed; existing sessions do not retain tester membership.
+
+Keep both activation flags off until separately approved. Disabled pilot requests still return 404 before sessions/storage/providers. Once enabled, anonymous requests return 401, signed-in non-testers return 403, and only allowlisted sessions reach query validation, existing IP admission, public cache and provider execution. Denied callers never touch the coordinator/cache. Google Books and the rest of MyFunList retain their existing access rules. In-flight authorized calls may finish after removal; use the existing emergency disable/quiescence procedure when an immediate stop is needed.
+
+Activation PR #4 is a separate, unmerged candidate. Its enabled anonymous 422 deployment probe is incompatible with tester-only authorization and must be revised before activation: an unauthenticated enabled probe must require exactly 401/unauthenticated, a disabled probe still requires 404/not_found, and a separately authenticated allowlisted tester can verify queryless 422/validation_error without provider I/O. Do not bypass authentication for CI or add a secret query/header bypass. This access-control branch does not change PR #4, deployment configuration or Hostinger settings.
+
 Set backend values through private server environment or an unreadable-from-web `backend/.env` based on `backend/.env.example`:
 
 | Variable | Production requirement |

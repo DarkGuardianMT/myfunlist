@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Open Library tester access - 5 November 2026
+
+The separate `review/open-library-tester-access` candidate restricts the enabled pilot API to existing sessions and a private, bounded account-ID allowlist. Disabled behavior, other routes and MySQL/provider protections remain unchanged. Provider/API suites, affected PHP syntax and nine focused frontend regressions pass. Activation PR #4 remains separate and must reconcile its anonymous probe with tester-only authentication before activation; no settings, flags, merge or deployment changed. See [tester configuration](DEPLOYMENT.md#configuration).
+
 Historical milestones and verification records moved out of the current-state reference during the 2026-10-28 documentation refresh. Use [PROJECT_CONTEXT.md](../PROJECT_CONTEXT.md) for present behavior and [AGENTS.md](../AGENTS.md) for mandatory working rules. Original UI/Work reports, screenshots, measurements and recovery archives must remain unchanged outside this summary.
 
 The [pre-refresh context at 8d1aa53](https://github.com/DarkGuardianMT/myfunlist/blob/8d1aa53cc6cc9add893c6f834a75f484bcd70479/PROJECT_CONTEXT.md) retains the full earlier implementation narrative in Git. It is a historical snapshot: its pending Batch 1–3 browser-QA statements and publication/deployment status are superseded below.

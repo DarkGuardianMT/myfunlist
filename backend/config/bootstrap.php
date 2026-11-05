@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use MyFunList\Http\Application;
 use MyFunList\Auth\AuthService;
+use MyFunList\Auth\AuthenticatedUser;
 use MyFunList\Auth\PasswordHasher;
 use MyFunList\Auth\ProfileService;
 use MyFunList\Domain\MediaRules;
@@ -52,10 +53,21 @@ $lists = new ListController(new ListService($database));
 $discover = new DiscoverController($providers);
 $media = new MediaController($providers);
 $openLibrary = new OpenLibraryController(OpenLibraryPilot::fromEnvironment(new CurlProviderHttpClient()));
+$openLibraryEnabled = ($_ENV['OPEN_LIBRARY_PILOT_ENABLED'] ?? $_SERVER['OPEN_LIBRARY_PILOT_ENABLED'] ?? getenv('OPEN_LIBRARY_PILOT_ENABLED')) === 'true';
+$testerSearch = $middleware->requireUser(static function (AuthenticatedUser $identity) use ($openLibrary): JsonResponse {
+    $testers = $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] ?? $_SERVER['OPEN_LIBRARY_TESTER_USER_IDS'] ?? getenv('OPEN_LIBRARY_TESTER_USER_IDS');
+    // Alleen exacte account-ID's; ontbrekende of ongeldige configuratie weigert alle testers.
+    if (!is_string($testers) || strlen($testers) > 419
+        || preg_match('/^[1-9][0-9]{0,19}(?:,[1-9][0-9]{0,19}){0,19}$/D', $testers) !== 1
+        || !in_array($identity->id, explode(',', $testers), true)) {
+        return JsonResponse::error(403, 'forbidden', 'Open Library pilot access is restricted.', ['Cache-Control' => 'no-store']);
+    }
+    return $openLibrary->search($_GET);
+});
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
 $router->add('GET', '/api/v1/pilot/open-library/search',
-    static fn (): JsonResponse => $openLibrary->search($_GET));
+    static fn (): JsonResponse => $openLibraryEnabled ? $testerSearch() : $openLibrary->search($_GET));
 foreach (['movie', 'tv', 'game'] as $mediaType) {
     $router->add('GET', '/api/v1/discover/' . $mediaType,
         $limits->ip('discover_ip', static fn (): JsonResponse => $discover->search($mediaType, $_GET)));
