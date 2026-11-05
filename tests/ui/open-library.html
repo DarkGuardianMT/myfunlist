@@ -3,6 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      try {
+        if (localStorage.getItem('myfunlist_theme') === 'dark') document.documentElement.dataset.theme = 'dark'
+      } catch { /* Het testharnas volgt dezelfde themastart als de gewone applicatie. */ }
+    </script>
     <title>MyFunList isolated Open Library QA</title>
   </head>
   <body>

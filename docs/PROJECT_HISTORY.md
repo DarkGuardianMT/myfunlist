@@ -1,5 +1,13 @@
 # MyFunList project history
 
+## Discover Books visual redesign, Phase 1 — 6 November 2026
+
+The `review/ui-redesign-phase1` candidate adds the paper/ink design foundation, an editorial Discover Books layout and compact artwork-led Google/Open Library cards. Detailed Work/Edition metadata moves into keyboard-accessible disclosures; Google remains the default and Open Library remains read-only and tester-only. Unit/build and mocked headless checks pass. See the [design direction](UI_DESIGN_SYSTEM.md) and [temporary visual review evidence](../qa/reviews/ui-redesign-phase1/report.md). No merge, deployment, backend or activation change accompanies this review.
+
+## Open Library tester-only staging release — 5 November 2026
+
+PR #4 was squash merged as `96139a1eb1f4a9bd666419f9ddd870770312f155`, and [Deploy staging](https://github.com/DarkGuardianMT/myfunlist/actions/runs/42116549760) succeeded. Independent read-only HTTPS checks confirmed health 200, anonymous pilot 401 and the enabled manual Open Library selector with Google as default. The owner supplied the authenticated real-search and private configuration confirmation. Review branches were retained; no extra provider search or private configuration change accompanied release verification.
+
 ## Open Library tester access - 5 November 2026
 
 The separate `review/open-library-tester-access` candidate restricts the enabled pilot API to existing sessions and a private, bounded account-ID allowlist. Disabled behavior, other routes and MySQL/provider protections remain unchanged. Provider/API suites, affected PHP syntax and nine focused frontend regressions pass. Activation PR #4 remains separate and must reconcile its anonymous probe with tester-only authentication before activation; no settings, flags, merge or deployment changed. See [tester configuration](DEPLOYMENT.md#configuration).
