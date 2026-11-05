@@ -2,6 +2,7 @@
 
 Reviewed 5 November 2026 from `e640958`, on `review/open-library-frontend-qa`. Recommendation: **NOT READY to activate**. The mocked frontend checks pass after fixing cooldown loss on catalogue remount. This is a plan only; deployment configuration and private flags remain unchanged.
 
+<<<<<<< HEAD
 ## Staging activation handoff
 
 The later `review/open-library-staging-activation` candidate starts from deployed main `fe6f193`. The owner authorizes a limited staging activation, squash merge and deployment only after the essential backend checks pass. Completed migration 005, CLI/HTTP smoke tests, frontend/headless QA and Google regression checks remain credited; this handoff does not require repeating historical tests.
@@ -17,6 +18,15 @@ Once those prerequisites are confirmed, keep the deployed frontend off while ena
 Only after backend success, squash merge the reviewed activation PR and monitor the exact staging workflow commit. Verify the deployed Open Library default, book results, separate Google option and absence of console-breaking errors without Library mutations. On a critical failure, disable the backend immediately; restore the staging job flag to `false` and its strict 404 assertion through approved rollback deployment. Preserve MySQL state and reservations. No real-provider availability or completed activation is claimed by this candidate.
 
 Preparation checks on Node 24.15.0 passed: `npm test` 340 passed, 12 existing platform skips, zero failures (352 total); `npm run build` with the staging flag true passed (95 modules); database-independent `test:providers` and `test:api` passed, including Open Library adapter/admission/storage coverage. Three deployment regressions check strict flag/status/code matching, safe CLI failure and the single shared workflow flag/queryless probe. Static analysis of the built asset confirms the enabled component/default and explicit Google override; existing mocked Google view/service tests remain functional. No headless QA rerun, live metadata search, backend flag change or deployment was performed. Normal example/headless flags remain false, and backend/provider/Library source is unchanged.
+=======
+## Tester-only access follow-up
+
+The separate `review/open-library-tester-access` branch adds a private `OPEN_LIBRARY_TESTER_USER_IDS` allowlist and reuses session authentication only for the enabled Open Library search route. Disabled stays 404 before session access. Enabled requires a session (401 otherwise) and exact allowlisted account ID (403 otherwise), before admission/cache/provider access. Empty or malformed configuration denies everyone. Google Books, Library and other routes, provider budgets and MySQL coordination remain unchanged. See [configuration and own-account instructions](DEPLOYMENT.md#configuration).
+
+PR #4 remains unmerged and unchanged. Its proposed anonymous enabled 422 assertion must be reconciled with the new 401 authentication boundary before any activation merge/deployment. An authenticated allowlisted tester still receives queryless 422. Do not introduce a CI authorization bypass. Registration/use-case confirmation and a supported private backend-operation path remain activation prerequisites; this branch changes no actual settings or flags and performs no live searches.
+
+Essential validation: PHP syntax passed for the bootstrap and two affected suites; database-independent provider/API suites passed, including 87 adapter checks, 101 admission/access checks and 55 storage checks. The focused nine-test frontend suite passed, including separate Google functionality. No database-writing tests, live providers, full frontend/headless rerun or build were needed for this backend-only change.
+>>>>>>> origin/main
 
 ## Evidence boundaries
 

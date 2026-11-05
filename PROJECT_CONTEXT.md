@@ -4,7 +4,11 @@ Current-state reference including the Open Library MySQL budget (4 November 2026
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
+<<<<<<< HEAD
 The `review/open-library-staging-activation` candidate prepares one explicit staging build flag and a strict state-specific pilot check (enabled: 422/validation_error; disabled: 404/not_found). Deployed main `fe6f193` remains disabled until backend verification and the authorized activation merge. Registration/use-case confirmation, safe anonymous-traffic control and a supported private backend-operation path are currently unconfirmed. See the [activation handoff](docs/OPEN_LIBRARY_FRONTEND_ACTIVATION.md#staging-activation-handoff); no Hostinger setting, migration, request budget or Library behavior changes with this preparation.
+=======
+The `review/open-library-tester-access` candidate restricts only enabled Open Library search to existing sessions and exact account IDs in private backend `OPEN_LIBRARY_TESTER_USER_IDS` (maximum 20; empty/malformed denies all). Disabled remains 404 before session/storage access; enabled anonymous/non-tester requests return 401/403 before coordinator/cache/provider access. Google Books and other routes are unchanged. Activation PR #4 remains separate and requires its proposed anonymous 422 probe to be updated for this authentication boundary before activation. No flag, Hostinger setting or deployment is changed here. See [tester configuration](docs/DEPLOYMENT.md#configuration).
+>>>>>>> origin/main
 
 ## Project overview and product vision
 

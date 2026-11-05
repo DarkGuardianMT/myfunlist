@@ -251,11 +251,54 @@ namespace {
         $_ENV['OPEN_LIBRARY_SHARED_BUDGET_CONFIRMED'] = 'true';
         $_ENV['OPEN_LIBRARY_USER_AGENT'] = 'MyFunList (fixture@example.test)';
         $_ENV['RATE_LIMIT_SECRET'] = $secret;
+        $_ENV['APP_ENV'] = 'testing';
+        $_ENV['SESSION_SAVE_PATH'] = sys_get_temp_dir();
+        $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = '10';
+        $_SERVER['HTTP_HOST'] = '127.0.0.1';
+        unset($_SERVER['HTTPS'], $_SERVER['HTTP_COOKIE']);
         $bootstrap = require dirname(__DIR__) . '/config/bootstrap.php';
+        $beforeDb = Database::$calls;
+        $beforeHttp = Http::$calls;
+        $beforeState = $db->raw;
+        $response = admissionRequest($bootstrap);
+        verifyAdmission($response->status === 401 && json_decode($response->body(), true)['error']['code'] === 'unauthenticated',
+            'Anonymous pilot access must require the existing session.');
+        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer fixture-tester';
+        $_SERVER['HTTP_X_USER_ID'] = '10';
+        verifyAdmission(admissionRequest($bootstrap, ['q' => 'Hobbit', 'userId' => '10'])->status === 401,
+            'Headers and query IDs must not replace session authentication.');
+        $_SESSION['user_id'] = '20';
+        $response = admissionRequest($bootstrap);
+        verifyAdmission($response->status === 403 && admissionHeaders($response)['Cache-Control'] === 'no-store',
+            'Ordinary authenticated users must not access the pilot.');
+        $_SESSION['user_id'] = '10';
+        foreach ([false, ['10'], '', '20', '110', '010', '10,', '10,,20', '10, 20', 'fixture@example.test', str_repeat('1', 420), implode(',', range(1, 21))] as $invalid) {
+            $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = $invalid;
+            verifyAdmission(admissionRequest($bootstrap)->status === 403, 'Missing, malformed or nonmatching allowlists must fail closed.');
+        }
+        verifyAdmission(Database::$calls === $beforeDb && Http::$calls === $beforeHttp && $db->raw === $beforeState,
+            'Rejected callers must not read or mutate coordinator/cache/client state or call providers.');
+        $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = '10,20';
+        verifyAdmission(admissionRequest($bootstrap, [])->status === 422 && Http::$calls === $beforeHttp,
+            'An authorized queryless probe must reach validation without provider I/O.');
+        $_SESSION['user_id'] = '20';
+        seedAdmission($db);
+        verifyAdmission(admissionRequest($bootstrap)->status === 200, 'A second explicitly allowlisted session account must be authorized.');
+        $_SESSION['user_id'] = '10';
+        seedAdmission($db);
         for ($i = 0; $i < Limiter::LIMIT; $i++) verifyAdmission(admissionRequest($bootstrap)->status === 200, 'Actual bootstrap did not admit/cache valid requests.');
-        verifyAdmission(admissionRequest($bootstrap)->status === 429 && Database::$calls > 0 && session_status() === PHP_SESSION_NONE,
-            'Actual bootstrap bypassed admission or touched database/Library/List/session state.');
+        verifyAdmission(admissionRequest($bootstrap)->status === 429 && Database::$calls > 0 && session_status() === PHP_SESSION_ACTIVE,
+            'Authorized bootstrap requests must preserve admission with the existing session.');
+        $beforeDb = Database::$calls;
+        $beforeState = $db->raw;
+        $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = '20';
+        verifyAdmission(admissionRequest($bootstrap)->status === 403 && Database::$calls === $beforeDb && $db->raw === $beforeState,
+            'Revoking a tester must deny access even when public results are cached.');
+        (new \MyFunList\Infrastructure\PhpSession())->logout();
+        verifyAdmission(admissionRequest($bootstrap)->status === 401 && Database::$calls === $beforeDb,
+            'Logging out must revoke pilot access without coordinator I/O.');
     } finally {
+        if (session_status() === PHP_SESSION_ACTIVE) { $_SESSION = []; session_destroy(); }
         $_ENV = $originalEnvironment;
         $_SERVER = $originalServer;
         $_GET = $originalGet;
