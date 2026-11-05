@@ -246,10 +246,18 @@ namespace {
             $app = require dirname(__DIR__) . '/config/bootstrap.php';
             $before = Http::$calls;
             verifyOpenLibrary($app->handle('GET', '/api/v1/pilot/open-library/search')->status === 404
-                && Http::$calls === $before, 'The actual bootstrap must disable the pilot unless explicitly true.');
+                && Http::$calls === $before && session_status() === PHP_SESSION_NONE,
+                'The actual bootstrap must disable the pilot before session/provider access unless explicitly true.');
         }
         verifyOpenLibrary(Database::$calls === 0, 'Disabled pilot touched the database.');
         $_ENV['OPEN_LIBRARY_PILOT_ENABLED'] = 'true';
+        $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = '10';
+        $_ENV['APP_ENV'] = 'testing';
+        $_ENV['SESSION_SAVE_PATH'] = sys_get_temp_dir();
+        $_SERVER['HTTP_HOST'] = '127.0.0.1';
+        unset($_SERVER['HTTPS']);
+        (new \MyFunList\Infrastructure\PhpSession())->start();
+        $_SESSION = ['user_id' => '10'];
         resetOpenLibraryState($db);
         $app = require dirname(__DIR__) . '/config/bootstrap.php';
         verifyOpenLibrary($app->handle('GET', '/api/v1/pilot/open-library/search')->status === 200, 'Pilot route failed.');
@@ -257,9 +265,10 @@ namespace {
             && $app->handle('GET', '/api/v1/discover/book')->status === 404
             && $app->handle('GET', '/api/v1/media/book/open-library/OL27482W')->status === 404,
             'Pilot must stay read-only and outside canonical media routes.');
-        verifyOpenLibrary(Database::$calls === 2 && session_status() === PHP_SESSION_NONE, 'Pilot must use only admission and completion transactions, without sessions.');
+        verifyOpenLibrary(Database::$calls === 2 && session_status() === PHP_SESSION_ACTIVE, 'Authorized pilot must use only admission and completion transactions with the existing session.');
 
     } finally {
+        if (session_status() === PHP_SESSION_ACTIVE) { $_SESSION = []; session_destroy(); }
         $_ENV = $originalEnvironment;
         $_SERVER = $originalServer;
         $_GET = $originalGet;

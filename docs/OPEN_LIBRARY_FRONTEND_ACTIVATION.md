@@ -2,6 +2,14 @@
 
 Reviewed 5 November 2026 from `e640958`, on `review/open-library-frontend-qa`. Recommendation: **NOT READY to activate**. The mocked frontend checks pass after fixing cooldown loss on catalogue remount. This is a plan only; deployment configuration and private flags remain unchanged.
 
+## Tester-only access follow-up
+
+The separate `review/open-library-tester-access` branch adds a private `OPEN_LIBRARY_TESTER_USER_IDS` allowlist and reuses session authentication only for the enabled Open Library search route. Disabled stays 404 before session access. Enabled requires a session (401 otherwise) and exact allowlisted account ID (403 otherwise), before admission/cache/provider access. Empty or malformed configuration denies everyone. Google Books, Library and other routes, provider budgets and MySQL coordination remain unchanged. See [configuration and own-account instructions](DEPLOYMENT.md#configuration).
+
+PR #4 remains unmerged and unchanged. Its proposed anonymous enabled 422 assertion must be reconciled with the new 401 authentication boundary before any activation merge/deployment. An authenticated allowlisted tester still receives queryless 422. Do not introduce a CI authorization bypass. Registration/use-case confirmation and a supported private backend-operation path remain activation prerequisites; this branch changes no actual settings or flags and performs no live searches.
+
+Essential validation: PHP syntax passed for the bootstrap and two affected suites; database-independent provider/API suites passed, including 87 adapter checks, 101 admission/access checks and 55 storage checks. The focused nine-test frontend suite passed, including separate Google functionality. No database-writing tests, live providers, full frontend/headless rerun or build were needed for this backend-only change.
+
 ## Evidence boundaries
 
 The owner reports successful real Hostinger CLI/HTTP backend smoke tests, migration 005 applied, disabled backend pilot flags and working Google Books on staging. Accept these as supplied context; this task did not repeat or independently inspect those host tests. The older MySQL implementation report's unverified-host statements describe its historical execution, not a rejection of the owner's later results.
