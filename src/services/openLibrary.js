@@ -109,6 +109,8 @@ export async function searchOpenLibrary(query, options = {}) {
 }
 
 export function openLibraryError(error) {
+  if (error.status === 401) return { state: 'unauthenticated', message: 'Sign in to test Open Library.' }
+  if (error.status === 403) return { state: 'forbidden', message: 'Your account is not authorized for this pilot.' }
   if (error.status === 404) return { state: 'unavailable', message: 'Open Library discovery has not been activated. You can choose Google Books separately.' }
   if (error.status === 429) return { state: 'rate-limited', message: 'Too many searches. Wait before trying again.' }
   if (error.code === 'provider_busy') return { state: 'busy', message: 'Book search is busy protecting the shared provider budget. Wait before trying again.' }

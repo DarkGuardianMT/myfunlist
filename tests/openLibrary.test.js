@@ -15,9 +15,9 @@ const ok = (data) => ({ ok: true, json: async () => ({ data }) })
 beforeEach(clearOpenLibraryCache)
 afterEach(() => { globalThis.fetch = originalFetch })
 
-test('activation changes only the implicit default; explicit Google and Open Library remain isolated', () => {
+test('Google remains the default during the pilot; explicit providers remain isolated', () => {
   assert.equal(resolveBookProvider(undefined, false), 'google-books')
-  assert.equal(resolveBookProvider(undefined, true), 'open-library')
+  assert.equal(resolveBookProvider(undefined, true), 'google-books')
   assert.equal(resolveBookProvider('google-books', true), 'google-books')
   assert.equal(resolveBookProvider('open-library', false), 'open-library')
   assert.equal(resolveBookProvider(['google-books'], false), 'google-books')

@@ -11,6 +11,7 @@ const { createRouter, createMemoryHistory } = await import('vue-router')
 const { clearOpenLibraryCache } = await import('../src/services/openLibrary.js')
 const { clearDiscoverCache } = await import('../src/composables/useDiscoverSearch.js')
 const { currentUser, isAuthLoading } = await import('../src/composables/authState.js')
+const { setSessionExpiredHandler } = await import('../src/services/apiClient.js')
 const OpenLibraryDiscover = await loadVueComponent(new URL('../src/components/OpenLibraryDiscover.vue', import.meta.url))
 OpenLibraryDiscover.name = 'OpenLibraryDiscover'
 const DiscoverView = await loadVueComponent(new URL('../src/views/DiscoverView.vue', import.meta.url))
@@ -42,6 +43,57 @@ beforeEach(() => {
 })
 afterEach(() => { mounted.splice(0).forEach(view => view.unmount()); globalThis.fetch = originalFetch })
 after(() => dom.window.close())
+
+test('enabled pilot keeps Google as default and allows manual Open Library selection', async () => {
+  const calls = []
+  globalThis.fetch = async path => {
+    calls.push(path)
+    if (path.startsWith('https://www.googleapis.com/')) return { ok: true, json: async () => ({ items: [{ id: 'volume1', volumeInfo: { title: 'Google volume' } }] }) }
+    assert.ok(path.startsWith('/api/v1/pilot/open-library/search?'))
+    return ok(response())
+  }
+  const enabledComponent = { ...OpenLibraryDiscover, props: { enabled: { type: Boolean, default: true } } }
+  const { view } = await page('/discover?q=modern', DiscoverView, {}, { OpenLibraryDiscover: enabledComponent })
+  assert.equal(view.get('#book-provider').element.value, 'google-books')
+  assert.match(view.text(), /Google volume/)
+  assert.equal(calls.length, 1)
+  await view.get('#book-provider').setValue('open-library')
+  await flushPromises()
+  assert.match(view.text(), /A modern book/)
+  assert.equal(calls.length, 2)
+  await view.get('#book-provider').setValue('google-books')
+  await flushPromises()
+  assert.match(view.text(), /Google volume/)
+  assert.equal(calls.length, 2)
+})
+
+test('pilot 401 and 403 explain access without expiring the session or automatically retrying', async () => {
+  let expirations = 0
+  let calls = 0
+  setSessionExpiredHandler(() => { expirations++; currentUser.value = null })
+  const user = { id: '10', email: 'fixture@example.test' }
+  currentUser.value = user
+  try {
+    for (const [status, code, message] of [
+      [401, 'unauthenticated', 'Sign in to test Open Library.'],
+      [403, 'forbidden', 'Your account is not authorized for this pilot.'],
+    ]) {
+      clearOpenLibraryCache()
+      globalThis.fetch = async () => {
+        calls++
+        return { ok: false, status, json: async () => ({ error: { code } }) }
+      }
+      const { view } = await page()
+      assert.equal(view.get('[role="alert"]').text(), message)
+      assert.equal(currentUser.value.id, user.id)
+      view.unmount()
+    }
+    assert.equal(calls, 2)
+    assert.equal(expirations, 0)
+  } finally {
+    setSessionExpiredHandler(null)
+  }
+})
 
 test('blocked Open Library sends zero requests and Google remains separately functional', async () => {
   const calls = []
