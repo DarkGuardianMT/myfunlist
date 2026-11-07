@@ -1,6 +1,6 @@
 # Discover navigation and RAWG diagnosis
 
-Review branch: `review/discover-navigation-fixes`, based on main `d4f61b2a80142c76ead913eec9833d93196472c8` (PR #9). This focused follow-up changes search restoration, category routing and Detail return context. It does not redesign the UI, change backend runtime code/configuration, or authorize a merge/deployment.
+Review branch: `review/discover-navigation-fixes`, based on main `d4f61b2a80142c76ead913eec9833d93196472c8` (PR #9). This focused follow-up changes search restoration, category routing and Detail return context. It does not redesign the UI or change backend runtime code/configuration. The owner reviewed and approved PR #10 for squash merge and its automatic staging deployment; production release and branch deletion remain unauthorized.
 
 ## Repeated-request cause and fix
 
@@ -50,6 +50,6 @@ The integration remains unchanged. RAWG failures retain a clear unavailable mess
 
 ## Verification and delivery
 
-The [temporary review report](../qa/reviews/discover-navigation-fixes/report.md) records executed unit/build/headless/PHP checks and selected desktop/mobile screenshots. Existing historical QA/design records remain unchanged. The PHP discovery fixture now explicitly checks missing RAWG configuration without upstream I/O; runtime backend/API contracts remain untouched.
+The isolated review on Node 24.15.0 and Playwright 1.64.1 reported **357 passing unit tests** (12 existing platform skips), a passing production build (116 modules), **64 passing headless browser tests** with zero retries, two final visual flow reruns, six PHP provider suites, four non-destructive PHP API suites, passing syntax and documentation-link checks and `git diff --check`. Ten selected synthetic desktop/mobile screenshots were inspected: Discover/Library/List return links, explicit/legacy Books URLs and the honest RAWG error/manual Retry. Review found no obvious clipping in these fixtures; actual-device, account, live-provider and screen-reader acceptance remain separate. The new task-specific QA screenshots and temporary report were removed after owner approval, preserving these findings and all older historical evidence. The PHP discovery fixture explicitly checks missing RAWG configuration without upstream I/O; runtime backend/API contracts remain untouched.
 
-The owner permitted direct-main delivery only for narrow, low-risk changes. This fix affects shared search lifecycle, cross-provider routing and account-scoped private return navigation, so it is delivered through one review PR. Main is not pushed, merged or deployed by this task. Mocked browser QA is separate from the single staging HTTP observation and does not establish deployment or live-provider recovery.
+The owner permitted direct-main delivery only for narrow, low-risk changes. This fix affects shared search lifecycle, cross-provider routing and account-scoped private return navigation, so it was developed in a review PR. The owner subsequently approved squash merge and automatic staging deployment. Mocked browser QA and a single staging HTTP observation are separate from deployment checks and do not establish live-provider recovery.
