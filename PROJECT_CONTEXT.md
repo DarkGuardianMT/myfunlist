@@ -1,6 +1,6 @@
 # MyFunList project context
 
-Current-state reference: the complete Cinematic redesign was squash merged in PR #8 as `fe52f5ad1cd07af1db95de90860d7e7d87499ef5`; its [staging workflow](https://github.com/DarkGuardianMT/myfunlist/actions/runs/42412230226) succeeded. Google Books remains the default and Open Library remains tester-only. The follow-up `review/cinematic-ux-refinements` candidate refines game artwork, category ordering, Discover result filters and compact Library controls. This candidate is for review only: no merge or deployment is authorized. Preserve all review branches. Use the actual HEAD; earlier architecture and verification records remain linked below.
+Current-state reference: the complete Cinematic redesign was squash merged in PR #8 as `fe52f5ad1cd07af1db95de90860d7e7d87499ef5`; its [staging workflow](https://github.com/DarkGuardianMT/myfunlist/actions/runs/42412230226) succeeded. Google Books remains the default and Open Library remains tester-only. The owner approved the follow-up `review/cinematic-ux-refinements` (PR #9) for squash merge and automatic staging deployment. It refines game artwork, category ordering, Discover result filters and compact Library controls. Verify workflow results separately from automated QA; production release and review-branch deletion are not authorized. Use the actual HEAD; earlier architecture and verification records remain linked below.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
@@ -20,7 +20,7 @@ The staging host is [lightcyan-snake-955164.hostingersite.com](https://lightcyan
 
 | Area | Implemented state | Verification status |
 | --- | --- | --- |
-| Cinematic UX refinement candidate | Full game foreground art, Movies/TV/Games/Books ordering, local returned-result filters, compact Library tracking/menu and category buttons | 345 unit tests passed, 12 existing skips; build and 58 mocked headless tests passed; additional four visual captures passed; review only, not merged/deployed |
+| Cinematic UX refinement (PR #9) | Full game foreground art, Movies/TV/Games/Books ordering, local returned-result filters, compact Library tracking/menu and category buttons | 345 unit tests passed, 12 existing skips; build and 58 mocked headless tests passed; additional four visual captures passed. Staging deployment must be confirmed from GitHub Actions; real-account acceptance remains separate |
 | Accounts and persistence | Sessions, registration/login/logout, private Profile/password changes, Library, legacy import, private Custom Lists | Automated coverage exists; full public-launch checks remain open |
 | Media Detail | Public metadata for all four types, card links, account Library controls, lazy Add to List | Implemented through phases 1–6 |
 | UI audit Batch 5 (B6) | Shared eight-second deferred Library removal with title-specific Undo, accessible notices, navigation continuity and account/interruption guards | All 256 frontend tests and production build pass; fresh responsive/theme browser QA remains required |

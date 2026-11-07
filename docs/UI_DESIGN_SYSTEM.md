@@ -1,6 +1,6 @@
 # MyFunList visual direction — Cinematic
 
-The owner-selected Cinematic concept defines the shared foundation and every major frontend surface. See the [complete implementation and prototype adaptation](CINEMATIC_COMPLETE.md) and the current [UX refinement candidate](CINEMATIC_UX_REFINEMENTS.md). The [Phase 1 archive comparison](CINEMATIC_PHASE1.md) remains a historical scope record.
+The owner-selected Cinematic concept defines the shared foundation and every major frontend surface. See the [complete implementation and prototype adaptation](CINEMATIC_COMPLETE.md) and the [UX refinement implementation](CINEMATIC_UX_REFINEMENTS.md). The [Phase 1 archive comparison](CINEMATIC_PHASE1.md) remains a historical scope record.
 
 ## Theme and typography
 

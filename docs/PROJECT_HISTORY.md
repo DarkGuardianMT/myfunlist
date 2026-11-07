@@ -2,7 +2,7 @@
 
 ## Cinematic UX refinement candidate — 7 November 2026
 
-Following the PR #8 release, `review/cinematic-ux-refinements` refines uncropped game artwork, shared media ordering, local Discover result filters, compact editable Library tracking/menu controls and a keyboard-operated Library category bar. No backend/provider contracts change. Unit checks pass 345 tests with 12 existing platform skips; build and 58 isolated headless tests pass. See the [implementation and limitations](CINEMATIC_UX_REFINEMENTS.md) and temporary [review evidence](../qa/reviews/cinematic-ux-refinements/report.md). This follow-up is not merged or deployed.
+Following the PR #8 release, `review/cinematic-ux-refinements` refines uncropped game artwork, shared media ordering, local Discover result filters, compact editable Library tracking/menu controls and a keyboard-operated Library category bar. No backend/provider contracts change. Unit checks pass 345 tests with 12 existing platform skips; build and 58 isolated headless tests pass. See the [implementation, limitations and retained QA summary](CINEMATIC_UX_REFINEMENTS.md). The owner reviewed the temporary screenshots and approved their task-specific removal and the squash merge to staging. Production release and deletion of the review branch are not authorized; actual staging deployment success must be verified separately.
 
 ## Complete Cinematic frontend candidate — 7 November 2026
 

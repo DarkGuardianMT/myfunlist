@@ -1,6 +1,6 @@
 # Cinematic UX refinements
 
-Review branch: `review/cinematic-ux-refinements`, based on released main `fe52f5ad1cd07af1db95de90860d7e7d87499ef5`. This follow-up changes frontend presentation and local filtering. It does not authorize a merge or staging deployment.
+Review branch: `review/cinematic-ux-refinements`, based on released main `fe52f5ad1cd07af1db95de90860d7e7d87499ef5`. This follow-up changes frontend presentation and local filtering. The owner approved squash merging PR #9 into main with automatic Hostinger staging deployment. Production release and review-branch deletion remain unauthorized.
 
 ## Artwork and collection cards
 
@@ -37,4 +37,4 @@ Genre filtering is intentionally absent: normalized search responses do not supp
 
 ## Verification and limits
 
-See the temporary [review report](../qa/reviews/cinematic-ux-refinements/report.md) for commands, results and inspected before/after desktop/mobile evidence. Tests use isolated synthetic responses and artwork; they do not establish live provider quality, real-account persistence, physical-device behavior, screen-reader acceptance or staging availability. No backend, database, provider limits, authentication, hosting configuration or deployment workflow changes accompany this work.
+The isolated review on Node 24.15.0 and Playwright 1.64.1 reported **345 passing unit tests**, **12 existing platform skips**, a passing production build (115 modules), **58 passing mocked headless browser tests**, four successful final visual checks and passing documentation/diff checks. The approved review included 44 selected synthetic before/after screenshots covering desktop/mobile, game artwork, category tabs, book/movie/TV/game filters, compact Library cards, rating editor and management menus. The temporary screenshots and QA report were removed at owner-approved staging merge preparation, preserving these verification findings and historical evidence. A keyboard/Undo focus regression found during review was corrected before the passing full run. Tests used isolated synthetic responses and artwork; they do not establish live provider quality, real-account persistence, physical-device behavior, screen-reader acceptance or staging availability. No backend, database, provider limits, authentication, hosting configuration or deployment workflow changes accompany this work.
