@@ -1,6 +1,6 @@
-# MyFunList visual direction — Cinematic Phase 1
+# MyFunList visual direction — Cinematic
 
-The owner-selected Cinematic concept now defines the shared foundation, top/mobile navigation, Home and all four Discover types. Library, Lists, Detail and account pages retain their working layouts. See the [archive comparison and implementation scope](CINEMATIC_PHASE1.md).
+The owner-selected Cinematic concept defines the shared foundation and every major frontend surface in the complete redesign candidate. See the [current implementation and prototype adaptation](CINEMATIC_COMPLETE.md). The [Phase 1 archive comparison](CINEMATIC_PHASE1.md) remains a historical scope record.
 
 ## Theme and typography
 
@@ -12,23 +12,27 @@ The owner-selected Cinematic concept now defines the shared foundation, top/mobi
 | Muted | `#616B5C` | `#ACB6A7` |
 | Primary | `#41612B` | `#CFEF8A` |
 
-Tokens live in [global styles](../src/style.css); [Cinematic styles](../src/styles/cinematic.css) compose the shell, Home and scoped Discover presentation. Dark is the first-visit default, with explicit saved light/dark preferences honored before paint. Local Segoe UI Variable/Segoe UI/system stacks provide display and body typography without font downloads. Exact metrics depend on local fonts.
+Tokens live in [global styles](../src/style.css). [Cinematic styles](../src/styles/cinematic.css) compose the shell and Home, [discovery styles](../src/styles/bookDiscovery.css) compose all provider searches, [collection styles](../src/styles/collections.css) compose Library/Lists and [account styles](../src/styles/account.css) compose security forms. Card and Detail components own their scoped presentation. Dark is the first-visit default, with saved preferences honored before paint. Local Segoe UI Variable/Segoe UI/system stacks avoid font downloads; exact metrics depend on local fonts.
 
 Spacing follows the existing 4/8/12/16/24/32/48px scale. Cards and controls use 8px corners. Discover artwork uses contain-fit, with book inset and native landscape game frames. The fallback explicitly says when artwork is missing. Titles/authors remain complete in the DOM; compact book previews retain Full info.
 
 ## Composition and interaction
 
-The desktop shell uses top navigation within a 1344px maximum content width. Mobile keeps five labeled bottom destinations, safe-area spacing, theme switching and a separate account menu with registration/settings/logout. Native menu disclosures close on route/account changes and Escape; Escape returns focus to their summary. The main content has a keyboard skip link.
+The desktop shell uses top navigation within a 1344px maximum content width. Mobile keeps five labeled bottom destinations, safe-area spacing, theme switching and a separate account menu with registration/settings/logout. Native menus close on route/account changes, outside clicks and Escape; Escape returns focus to their summary. Lists remains active on nested list pages. The main content has a keyboard skip link.
 
 Home pairs a large display introduction with actionable provider search. Four category entry points work without sample content. Signed-in users see a shelf derived from their shared Library, with honest loading/error/retry/empty states. There is no fake curation, progress percentage or recommendation feed.
 
-Discover shares a heading, media switcher, search panel and result rhythm. Books/Movies/TV use four desktop poster columns, three below 1100px, two below 850px and one at 360px or below. Phones above 360px retain two portrait columns. Games use three desktop columns, two below 1100px and one on phones. The separate Open Library presentation retains its existing Work/Edition disclosures and responsive rules.
+Discover shares a heading, icon category switcher, compact search panel and artwork-first results. Portrait grids fit columns with a 190px minimum on larger screens (six at 1440px), two on phones above 360px and one on narrower phones. Games use landscape wells with a 300px minimum and one mobile column. Google filters sit beside search on wide screens. Open Library uses the same cover-first rhythm; expanded Work/Edition disclosures span the grid with distinct metadata and read-only controls.
 
-Native search/filter controls, provider attribution, cache/history/return navigation, account actions and provider errors retain their existing contracts. Search buttons, selects, links, disclosure summaries and actions keep visible focus and 44px control heights. Hover movement is limited to pointer devices with no reduced-motion preference. Static loading skeletons are hidden from assistive technology. Full Library/Lists/Detail restructuring is deferred.
+Library uses a dedicated shared collection card rather than Discover cards with tracking forms appended. Comfortable grids use substantial 190px-minimum artwork wells; Compact uses 145px minimums; List uses a small jacket alongside identity and controls. Games use uncropped landscape artwork when filtered to Games. Native status/rating controls remain immediately available; Manage groups lazy list actions and removal. Undo reopens the restored menu before returning focus. Only density is persisted on the device; account data and title queries are not written to storage.
+
+Private list previews derive from existing Library records and guarded, paginated membership reads, without a per-list detail request. Detail combines prominent artwork, identity, tracking and full synopsis, followed by metadata rows. Login/Register share a compact mobile and split desktop shell; Profile separates identity and security forms.
+
+Native search/filter controls, attribution, cache/history/return navigation, account actions and provider errors retain their contracts. Inputs/actions/disclosure summaries use visible focus and at least 44px control heights. Hover movement is limited to pointer devices without reduced motion. Static skeletons are hidden from assistive technology. There are no fake feeds, progress figures, catalogue records or account statistics.
 
 ## Verification and review
 
-Current scope and [retained Cinematic QA](CINEMATIC_PHASE1.md#retained-cinematic-qa) document the approved design and verification. The owner authorized removing only the Cinematic task's temporary report and 23 screenshots, squash merging PR #7 and its automatic staging deployment. The following retained section records the earlier editorial Books release and its measurements, not the current Cinematic geometry.
+The [complete candidate](CINEMATIC_COMPLETE.md) links its separate review evidence and verification. The [retained Cinematic Phase 1 QA](CINEMATIC_PHASE1.md#retained-cinematic-qa) documents the earlier approved release and cleanup. The following retained section records the earlier editorial Books release and its measurements, not current geometry. Historical findings and evidence remain preserved.
 
 ## Retained Phase 1 QA
 
