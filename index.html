@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script>
       try {
-        if (localStorage.getItem('myfunlist_theme') === 'dark') document.documentElement.dataset.theme = 'dark'
-      } catch { /* De pagina gebruikt het lichte thema als opslag niet beschikbaar is. */ }
+        document.documentElement.dataset.theme = localStorage.getItem('myfunlist_theme') === 'light' ? 'light' : 'dark'
+      } catch { document.documentElement.dataset.theme = 'dark' /* Zonder opslag blijft Cinematic beschikbaar. */ }
     </script>
     <title>MyFunList</title>
   </head>

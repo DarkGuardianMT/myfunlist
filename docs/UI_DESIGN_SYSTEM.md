@@ -1,46 +1,34 @@
-# MyFunList visual direction — Phase 1
+# MyFunList visual direction — Cinematic Phase 1
 
-Phase 1 establishes an editorial identity and applies it to Discover Books. Shared theme tokens also recolor existing surfaces throughout the app; Library, Lists, detail and other media layouts retain their existing structure. No new framework, font download or dependency is introduced.
+The owner-selected Cinematic concept now defines the shared foundation, top/mobile navigation, Home and all four Discover types. Library, Lists, Detail and account pages retain their working layouts. See the [archive comparison and implementation scope](CINEMATIC_PHASE1.md).
 
-## Paper, ink and artwork
+## Theme and typography
 
-| Token | Light | Dark | Purpose |
-| --- | --- | --- | --- |
-| Background | `#F5F3ED` | `#131C19` | Quiet page canvas |
-| Surface | `#FFFDF9` | `#1B2722` | Search panels and cards |
-| Text | `#26332E` | `#F1F0E8` | Titles and primary content |
-| Muted text | `#626C64` | `#B0BBAF` | Supporting information |
-| Primary | `#28594C` | `#AACDB3` | Search and interactive emphasis |
+| Token | Light | Dark |
+| --- | --- | --- |
+| Background | `#F7F8F2` | `#101310` |
+| Surface | `#FFFFFF` | `#191E19` |
+| Text | `#242923` | `#F3F4E9` |
+| Muted | `#616B5C` | `#ACB6A7` |
+| Primary | `#41612B` | `#CFEF8A` |
 
-Tokens live in [global styles](../src/style.css). Display typography uses the local Iowan/Palatino/Georgia serif stack; controls and body text use Segoe UI/system sans-serif. The hierarchy is 44–72px page titles, 20–22.4px card titles, 16px body, 14px supporting text and 12px compact labels. Local font availability can change exact metrics. Display type stays out of form controls.
+Tokens live in [global styles](../src/style.css); [Cinematic styles](../src/styles/cinematic.css) compose the shell, Home and scoped Discover presentation. Dark is the first-visit default, with explicit saved light/dark preferences honored before paint. Local Segoe UI Variable/Segoe UI/system stacks provide display and body typography without font downloads. Exact metrics depend on local fonts.
 
-Spacing follows a 4/8/12/16/24/32/48px scale. Card radius is 14px; controls use 8px; covers have a small asymmetric radius and restrained shadow. Artwork remains unfiltered in both themes. Images use `object-fit: contain` to retain the complete supplied cover; missing art has an honest placeholder.
+Spacing follows the existing 4/8/12/16/24/32/48px scale. Cards and controls use 8px corners. Discover artwork uses contain-fit, with book inset and native landscape game frames. The fallback explicitly says when artwork is missing. Titles/authors remain complete in the DOM; compact book previews retain Full info.
 
-## Discover composition
+## Composition and interaction
 
-The page moves from an editorial introduction to a media/provider toolbar, a single search panel, then a compact results summary and artwork-led cards. The provider remains a labeled native select. Google Books stays the default; Open Library remains an explicit tester pilot.
+The desktop shell uses top navigation within a 1344px maximum content width. Mobile keeps five labeled bottom destinations, safe-area spacing, theme switching and a separate account menu with registration/settings/logout. Native menu disclosures close on route/account changes and Escape; Escape returns focus to their summary. The main content has a keyboard skip link.
 
-At widths above 850px, both catalogues use two horizontal-card columns. At 850px and below, cards form one column. The 640px breakpoint adjusts controls, spacing, cover size and navigation for phones. Four media-type controls fit in one mobile row; provider and filters remain separate, labeled controls. Existing app navigation keeps its own 640px breakpoint.
+Home pairs a large display introduction with actionable provider search. Four category entry points work without sample content. Signed-in users see a shelf derived from their shared Library, with honest loading/error/retry/empty states. There is no fake curation, progress percentage or recommendation feed.
 
-Desktop covers are 120×180px; phone covers are 96×144px. These are presentation slots, not invented artwork dimensions. Google titles/authors have two-line previews with complete text in Full info; Open Library titles have three-line previews with complete Work title/authors inside Edition details. Google compact styling is opt-in, preserving the existing shared card outside Discover.
+Discover shares a heading, media switcher, search panel and result rhythm. Books/Movies/TV use four desktop poster columns, three below 1100px, two below 850px and one at 360px or below. Phones above 360px retain two portrait columns. Games use three desktop columns, two below 1100px and one on phones. The separate Open Library presentation retains its existing Work/Edition disclosures and responsive rules.
 
-Work identity, selected Edition identity, source cover provenance and language caveats remain distinct. Identifiers and detailed catalogue metadata live in native disclosures. Publication precision is unchanged. Missing years, authors, languages and Editions are shown honestly. Edition selection remains transient preview only; it never adds Open Library data to the Library.
+Native search/filter controls, provider attribution, cache/history/return navigation, account actions and provider errors retain their existing contracts. Search buttons, selects, links, disclosure summaries and actions keep visible focus and 44px control heights. Hover movement is limited to pointer devices with no reduced-motion preference. Static loading skeletons are hidden from assistive technology. Full Library/Lists/Detail restructuring is deferred.
 
-## Interaction and accessibility
+## Verification and review
 
-- Search buttons, native selects, disclosure summaries, provider links and card actions retain keyboard operation, visible focus indicators and at least 44px height.
-- Selection uses more than color: pressed state, contrasting fill and explicit text. Links retain underlines, while disclosures expose their native expanded state.
-- Hover changes are subtle border/surface changes. No decorative entrance animation or glass effects are added; skeletons are static and hidden from assistive technology.
-- Live regions distinguish idle, loading, empty and failed searches. Existing auth messages, Retry-After cooldowns, manual retry and request protections are preserved.
-- Google attribution stays alongside its search interface and volume links stay prominent. Open Library attribution stays with its results.
-
-This is a visual and keyboard review, not WCAG certification. Physical devices, screen readers, zoom/accessibility preferences and broader account-page design still need dedicated acceptance.
-
-## Verification and next phases
-
-The owner approved the Phase 1 design, merge and automatic staging deployment. Only this task's temporary report and eighteen PNGs were removed for final merge preparation; existing historical QA evidence remains unchanged. Important findings and verification are retained below.
-
-Next phases can apply the same hierarchy to Library/Lists, film/TV/game discovery, and account/detail pages. An expanded Open Library card spans the desktop grid and places Work and Edition records side by side, avoiding a tall empty neighbouring column. Narrow screens retain a single flowing disclosure.
+Current scope and [retained Cinematic QA](CINEMATIC_PHASE1.md#retained-cinematic-qa) document the approved design and verification. The owner authorized removing only the Cinematic task's temporary report and 23 screenshots, squash merging PR #7 and its automatic staging deployment. The following retained section records the earlier editorial Books release and its measurements, not the current Cinematic geometry.
 
 ## Retained Phase 1 QA
 

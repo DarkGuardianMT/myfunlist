@@ -11,8 +11,23 @@ const { theme, toggleTheme } = useTheme()
 const listsActive = computed(() => route.path === '/lists' || route.path.startsWith('/lists/'))
 const logoutError = ref('')
 const isLoggingOut = ref(false)
+const desktopMenu = ref(null)
+const mobileMenu = ref(null)
 
-watch(currentUser, () => { logoutError.value = '' })
+function closeMenus() {
+  for (const menu of [desktopMenu.value, mobileMenu.value]) {
+    if (menu) menu.open = false
+  }
+}
+
+function dismissMenu(event) {
+  event.currentTarget.open = false
+  event.currentTarget.querySelector('summary')?.focus()
+}
+
+watch(() => route.fullPath, closeMenus)
+
+watch(currentUser, () => { logoutError.value = ''; closeMenus() })
 
 async function handleLogout() {
   isLoggingOut.value = true
@@ -31,7 +46,7 @@ async function handleLogout() {
 <template>
   <header class="site-header">
     <div class="header-inner">
-      <RouterLink class="brand" to="/">My<span>Fun</span>List</RouterLink>
+      <RouterLink class="brand" to="/" aria-label="MyFunList home"><span class="brand-mark" aria-hidden="true"><i /><i /><i /></span>MyFunList<span class="brand-dot" aria-hidden="true">.</span></RouterLink>
 
       <button type="button" class="theme-toggle mobile-theme-toggle"
         :aria-label="`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`"
@@ -51,10 +66,14 @@ async function handleLogout() {
         </button>
         <template v-if="!isAuthLoading">
           <template v-if="currentUser">
-            <span class="account-email">{{ currentUser.displayName || currentUser.email }}</span>
-            <button type="button" class="text-button" :disabled="isLoggingOut" @click="handleLogout">
+            <details ref="desktopMenu" class="account-menu" @keydown.esc.stop="dismissMenu">
+              <summary>Account <span aria-hidden="true">⌄</span></summary>
+              <div class="account-menu-panel"><span class="account-email">{{ currentUser.displayName || currentUser.email }}</span>
+              <RouterLink to="/profile">Account settings</RouterLink>
+              <button type="button" class="text-button" :disabled="isLoggingOut" @click="handleLogout">
               {{ isLoggingOut ? 'Logging out…' : 'Logout' }}
-            </button>
+              </button></div>
+            </details>
           </template>
           <template v-else>
             <RouterLink to="/login">Login</RouterLink>
@@ -62,6 +81,14 @@ async function handleLogout() {
           </template>
         </template>
       </nav>
+      <details ref="mobileMenu" class="account-menu mobile-account-menu" @keydown.esc.stop="dismissMenu">
+        <summary aria-label="Account menu"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" /></svg></summary>
+        <div class="account-menu-panel">
+          <p v-if="isAuthLoading" role="status">Loading account…</p>
+          <template v-else-if="currentUser"><span class="account-email">{{ currentUser.displayName || currentUser.email }}</span><RouterLink to="/profile">Account settings</RouterLink><button type="button" class="text-button" :disabled="isLoggingOut" @click="handleLogout">{{ isLoggingOut ? 'Logging out…' : 'Logout' }}</button></template>
+          <template v-else><RouterLink to="/login">Login</RouterLink><RouterLink to="/register">Create an account</RouterLink></template>
+        </div>
+      </details>
     </div>
     <p v-if="logoutError" class="header-error" role="alert">{{ logoutError }}</p>
   </header>
