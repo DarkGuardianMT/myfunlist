@@ -108,7 +108,7 @@ for (const [index, type] of ['book', 'movie', 'tv', 'game'].entries()) {
       throw new Error('Unexpected test request')
     }
     const { view, router } = await render(DiscoverView)
-    await view.findAll('.discover-type-switcher__button')[index].trigger('click')
+    await view.get(`.discover-type-switcher__button[value="${type}"]`).trigger('click')
     await flushPromises()
     await view.get(`#${type}-query`).setValue('Fixture')
     await view.get('form').trigger('submit')
@@ -149,7 +149,7 @@ test('Library artwork/title links coexist with status, rating, remove, and busy 
     const item = libraryItem(type)
     const { view, router } = await render(LibraryItemCard, { item, busy: false }, '/library')
     const links = assertLinks(view, item.media)
-    const controls = view.findAll('select')
+    const controls = [view.get('select[id^="status-"]'), view.get('select[id^="rating-"]')]
     const status = { book: 'finished', movie: 'want-to-watch', tv: 'completed', game: 'completed' }[type]
     await controls[0].setValue(status)
     await controls[1].setValue('7.5')

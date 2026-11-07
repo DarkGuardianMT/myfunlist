@@ -160,11 +160,11 @@ test('all four keyboard-focusable type selectors expose one active state and res
     }] }) }
   }
   const { view, router } = await render(Discover, {})
-  const types = ['book', 'movie', 'tv', 'game']
-  const queries = ['The Hobbit', 'Dune', 'Severance', 'Portal']
+  const types = ['movie', 'tv', 'game', 'book']
+  const queries = ['Dune', 'Severance', 'Portal', 'The Hobbit']
   function assertActive(index) {
     const buttons = view.findAll('.discover-type-switcher__button')
-    assert.deepEqual(buttons.map((button) => button.text()), ['Books', 'Movies', 'TV Shows', 'Games'])
+    assert.deepEqual(buttons.map((button) => button.text()), ['Movies', 'TV Shows', 'Games', 'Books'])
     assert.deepEqual(buttons.map((button) => button.attributes('aria-pressed')), types.map((_, i) => String(i === index)))
     buttons[index].element.focus()
     assert.equal(document.activeElement, buttons[index].element)

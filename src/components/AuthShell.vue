@@ -1,5 +1,6 @@
 <script setup>
 import MediaTypeIcon from './MediaTypeIcon.vue'
+import { MEDIA_CATEGORIES } from '../domain/mediaPresentation.js'
 defineProps({ title: { type: String, required: true }, intro: { type: String, required: true } })
 </script>
 
@@ -9,7 +10,7 @@ defineProps({ title: { type: String, required: true }, intro: { type: String, re
       <p class="cinematic-eyebrow">Your corner of culture</p>
       <p class="auth-story__title">Every story.<br /> One <em>home.</em></p>
       <p>Keep the books, films, shows and games that matter to you. Collected by you, enjoyed at your pace.</p>
-      <div class="auth-story__icons" aria-hidden="true"><MediaTypeIcon v-for="type in ['book', 'movie', 'tv', 'game']" :key="type" :type="type" /></div>
+      <div class="auth-story__icons" aria-hidden="true"><MediaTypeIcon v-for="type in MEDIA_CATEGORIES" :key="type.id" :type="type.id" /></div>
       <span class="auth-story__caption">Save it. Rate it. Make it yours.</span>
     </aside>
     <section class="auth-page" aria-labelledby="page-title">

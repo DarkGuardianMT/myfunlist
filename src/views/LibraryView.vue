@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import LibraryItemCard from '../components/LibraryItemCard.vue'
+import MediaTypeSelector from '../components/MediaTypeSelector.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useLibrary } from '../composables/useLibrary.js'
@@ -143,17 +144,9 @@ function handleRemove(item) {
         </div>
       </div>
 
+      <div class="library-filterbar"><MediaTypeSelector id="library-media-filter" v-model="mediaTypeFilter" label="Library media type" include-all />
+
       <div class="library-toolbar" role="group" aria-label="Library display options">
-        <div class="library-toolbar__field">
-          <label for="library-media-filter">Media type</label>
-          <select id="library-media-filter" v-model="mediaTypeFilter">
-            <option value="all">All</option>
-            <option value="book">Books</option>
-            <option value="movie">Movies</option>
-            <option value="tv">TV Shows</option>
-            <option value="game">Games</option>
-          </select>
-        </div>
 
         <div v-if="mediaTypeFilter !== 'all'" class="library-toolbar__field">
           <label for="library-status-filter">Filter by status</label>
@@ -176,6 +169,7 @@ function handleRemove(item) {
         </div>
       </div>
 
+      </div>
       <div class="collection-caption"><h2 id="saved-media-title">Saved media <span>{{ visibleLibraryItems.length }}</span></h2><p>Collected by you. Enjoyed at your pace.</p></div>
 
       <div v-if="!visibleLibraryItems.length" class="library-empty" role="status">

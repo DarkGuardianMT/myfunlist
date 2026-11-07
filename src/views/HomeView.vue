@@ -6,18 +6,19 @@ import { useLibrary } from '../composables/useLibrary.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
 import MediaTypeIcon from '../components/MediaTypeIcon.vue'
 import HomeShelfCard from '../components/HomeShelfCard.vue'
+import { orderMediaCategories } from '../domain/mediaPresentation.js'
 
 const router = useRouter()
 const { currentUser, isAuthLoading } = useAuth()
 const { displayLibraryItems, isLibraryLoading, isLibraryLoaded, libraryError, loadLibrary } = useLibrary()
 const query = ref('')
 const mediaType = ref('book')
-const worlds = [
+const worlds = orderMediaCategories([
   { id: 'book', name: 'Books', caption: 'One more chapter.', description: 'Find your next great read.', provider: 'Google Books' },
   { id: 'movie', name: 'Movies', caption: 'Make it a movie night.', description: 'Find a film that stays with you.', provider: 'TMDB' },
   { id: 'tv', name: 'TV Shows', caption: 'Your next obsession.', description: 'Find a series to settle into.', provider: 'TMDB' },
   { id: 'game', name: 'Games', caption: 'Another world awaits.', description: 'Find something worth playing.', provider: 'RAWG' },
-]
+])
 const recent = computed(() => getVisibleLibraryItems(displayLibraryItems.value, 'all', 'all', 'recent'))
 const inProgress = computed(() => recent.value.filter(item => ['reading', 'watching', 'playing'].includes(item.userMedia.status)))
 const shelf = computed(() => (inProgress.value.length ? inProgress.value : recent.value).slice(0, 6))

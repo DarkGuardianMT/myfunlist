@@ -21,9 +21,12 @@ watch(source, () => { failed.value = false })
 </script>
 
 <template>
-  <component :is="route ? RouterLink : 'div'" class="media-artwork" :class="{ 'media-artwork--landscape': landscape }"
+  <component :is="route ? RouterLink : 'div'" class="media-artwork" :class="{ 'media-artwork--landscape': landscape, 'media-artwork--game-portrait': media.mediaType === 'game' && !landscape }"
     :data-type="media.mediaType" :to="route || undefined" :aria-label="route ? `View details for ${media.title}` : undefined">
-    <img v-if="source && !failed" :src="source" :alt="alt || `Artwork for ${media.title}`" loading="lazy" decoding="async" @error="failed = true" />
+    <template v-if="source && !failed">
+      <span v-if="media.mediaType === 'game' && !landscape" class="media-artwork__backdrop" :style="{ backgroundImage: `url(${JSON.stringify(source)})` }" aria-hidden="true" />
+      <img class="media-artwork__image" :src="source" :alt="alt || `Artwork for ${media.title}`" loading="lazy" decoding="async" @error="failed = true" />
+    </template>
     <span v-else class="media-artwork__fallback"><MediaTypeIcon :type="media.mediaType" /><span>{{ fallback }}</span></span>
     <span v-if="badge" class="media-artwork__badge"><MediaTypeIcon :type="media.mediaType" />{{ typeLabel }}</span>
   </component>
@@ -34,6 +37,10 @@ watch(source, () => { failed.value = false })
 .media-artwork img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .media-artwork[data-type='book'] img { padding: 0.4rem; }
 .media-artwork--landscape { aspect-ratio: 16 / 9; }
+.media-artwork--game-portrait { isolation: isolate; }
+.media-artwork--game-portrait::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, #10131020, #10131005 50%, #10131080); z-index: -1; }
+.media-artwork .media-artwork__backdrop { position: absolute; inset: 0; z-index: -2; background-size: cover; background-position: center; filter: blur(18px); opacity: 0.6; transform: scale(1.18); }
+.media-artwork--game-portrait .media-artwork__image { height: auto; max-height: 100%; object-fit: contain; box-shadow: 0 4px 20px #0004; }
 .media-artwork__fallback { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.9rem; width: 100%; height: 100%; min-height: inherit; padding: 1rem; color: var(--color-text-muted); font-size: 0.875rem; text-align: center; background: radial-gradient(ellipse at 50% 75%, var(--color-primary-soft), transparent 80%); }
 .media-artwork__fallback .media-type-icon { width: 42px; height: 42px; opacity: 0.7; }
 .media-artwork__badge { position: absolute; bottom: 0.65rem; left: 0.65rem; display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.5rem; border: 1px solid #ffffff30; border-radius: 4px; background: #101810e8; color: #f3f4e9; font-size: 0.75rem; line-height: 1.2; }

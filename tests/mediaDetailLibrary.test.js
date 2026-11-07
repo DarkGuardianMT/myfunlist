@@ -92,8 +92,8 @@ async function page(type = 'movie', path = getMediaDetailPath(identities[type]))
   return { view, router }
 }
 const controls = (view) => view.get('.library-item-controls')
-const statusSelect = (view) => controls(view).findAll('select')[0]
-const ratingSelect = (view) => controls(view).findAll('select')[1]
+const statusSelect = (view) => controls(view).get('select[id^="status-"]')
+const ratingSelect = (view) => controls(view).get('select[id^="rating-"]')
 const libraryCalls = (state, method = 'GET') => state.calls.filter((call) => call.path === libraryPath && call.method === method)
 function assertPublic(view, type = 'movie') {
   assert.equal(view.get('h1').text(), `Fixture ${type}`)
@@ -440,7 +440,7 @@ test('Library page reuses extracted controls while filters, sorting, actions, an
   const state = backend([entry('book', '100'), entry('movie', '200')])
   const { view } = await page('movie', '/library')
   assert.equal(view.findAllComponents(LibraryItemControls).length, 2)
-  await view.get('#library-media-filter').setValue('book')
+  await view.get('#library-media-filter button[value="book"]').trigger('click')
   assert.equal(view.findAll('article').length, 1)
   assert.equal(view.get('article h3 a').attributes('href'), getMediaDetailPath(identities.book))
   await statusSelect(view).setValue('reading')
