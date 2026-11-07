@@ -128,7 +128,7 @@ after(() => dom.window.close())
 for (const [index, type] of Object.keys(identities).entries()) {
   test(`${type} query/results/type survive real view unmounts via Back and explicit Discover return without another search`, async () => {
     const { view, router } = await page()
-    await view.findAll('.discover-type-switcher__button')[index].trigger('click')
+    await view.get(`.discover-type-switcher__button[value="${type}"]`).trigger('click')
     await settle()
     await submit(view, 'The Hobbit')
     const originalInstance = view.getComponent(DiscoverView).vm
@@ -232,15 +232,15 @@ test('leaving and returning during a search deduplicates the pending request and
 test('switching types preserves unsubmitted input without treating it as a submitted search', async () => {
   const { view } = await page('/discover?q=The%20Hobbit')
   await view.get('#book-query').setValue('Unsubmitted draft')
-  await view.findAll('.discover-type-switcher__button')[3].trigger('click')
+  await view.get('.discover-type-switcher__button[value="game"]').trigger('click')
   await settle()
   await view.get('#game-query').setValue('Game draft')
-  await view.findAll('.discover-type-switcher__button')[0].trigger('click')
+  await view.get('.discover-type-switcher__button[value="book"]').trigger('click')
   await settle()
   assert.equal(view.get('#book-query').element.value, 'Unsubmitted draft')
   assert.equal(view.get('article h3').text(), 'The Hobbit')
   assert.equal(providerCalls().length, 1)
-  await view.findAll('.discover-type-switcher__button')[3].trigger('click')
+  await view.get('.discover-type-switcher__button[value="game"]').trigger('click')
   await settle()
   assert.equal(view.get('#game-query').element.value, 'Game draft')
   assert.equal(view.find('article').exists(), false)
@@ -359,14 +359,14 @@ test('filter choices without a query stay idle; query encoding and type-specific
   const bookLocation = router.currentRoute.value.fullPath
   assert.equal(router.currentRoute.value.query.q, query)
   assert.match(bookLocation, /%22Le\+Guin%22/)
-  for (const index of [1, 2, 3]) {
-    await view.findAll('.discover-type-switcher__button')[index].trigger('click')
+  for (const type of ['movie', 'tv', 'game']) {
+    await view.get(`.discover-type-switcher__button[value="${type}"]`).trigger('click')
     await settle()
     assert.equal(view.find('#book-search-field').exists(), false)
     assert.equal(router.currentRoute.value.query.field, undefined)
     await submit(view, 'Independent')
   }
-  await view.findAll('.discover-type-switcher__button')[0].trigger('click')
+  await view.get('.discover-type-switcher__button[value="book"]').trigger('click')
   await settle()
   assert.equal(router.currentRoute.value.fullPath, bookLocation)
   assert.equal(view.get('#book-search-field').element.value, 'author')
@@ -522,19 +522,19 @@ test('Google language selection retains unknown and mismatched metadata without 
 test('Library type, valid status and sort survive detail Back, and switching types resets only status', async () => {
   currentUser.value = { id: '1', email: 'first@example.test' }
   const { view, router } = await page('/library')
-  await view.get('#library-media-filter').setValue('game')
+  await view.get('#library-media-filter button[value="game"]').trigger('click')
   await view.get('#library-status-filter').setValue('playing')
   await view.get('#library-sort-order').setValue('title')
   window.scrollY = 460
   await view.get('article h3 a').trigger('click')
   await settle()
   await back(router)
-  assert.equal(view.get('#library-media-filter').element.value, 'game')
+  assert.equal(view.get('#library-media-filter button[value="game"]').attributes('aria-pressed'), 'true')
   assert.equal(view.get('#library-status-filter').element.value, 'playing')
   assert.equal(view.get('#library-sort-order').element.value, 'title')
   assert.equal(view.get('article h3').text(), 'Hollow Knight')
   assert.deepEqual(scrolls.at(-1), { left: 0, top: 460 })
-  await view.get('#library-media-filter').setValue('book')
+  await view.get('#library-media-filter button[value="book"]').trigger('click')
   assert.equal(view.get('#library-status-filter').element.value, 'all')
   assert.equal(view.get('#library-sort-order').element.value, 'title')
   await view.get('#library-status-filter').setValue('reading')
@@ -542,7 +542,7 @@ test('Library type, valid status and sort survive detail Back, and switching typ
   await settle()
   await back(router)
   assert.equal(view.get('#library-status-filter').element.value, 'reading')
-  await view.get('#library-media-filter').setValue('all')
+  await view.get('#library-media-filter button[value="all"]').trigger('click')
   assert.equal(view.find('#library-status-filter').exists(), false)
   assert.equal(view.findAll('article').length, 2)
 })
@@ -550,7 +550,7 @@ test('Library type, valid status and sort survive detail Back, and switching typ
 test('logout and account switching while off Library clear private browsing context and data', async () => {
   currentUser.value = { id: '1', email: 'first@example.test' }
   const { view, router } = await page('/library')
-  await view.get('#library-media-filter').setValue('game')
+  await view.get('#library-media-filter button[value="game"]').trigger('click')
   await view.get('#library-status-filter').setValue('playing')
   await view.get('#library-sort-order').setValue('title')
   await view.get('article h3 a').trigger('click')
@@ -561,11 +561,11 @@ test('logout and account switching while off Library clear private browsing cont
   assert.doesNotMatch(view.text(), /Hollow Knight|The Hobbit/)
   await useAuth().login('second@example.test', 'long-fixture-password')
   await settle()
-  assert.equal(view.get('#library-media-filter').element.value, 'all')
+  assert.equal(view.get('#library-media-filter button[value="all"]').attributes('aria-pressed'), 'true')
   assert.equal(view.get('#library-sort-order').element.value, 'recent')
   assert.equal(view.find('#library-status-filter').exists(), false)
   assert.equal(view.get('article h3').text(), 'Game of Thrones')
-  await view.get('#library-media-filter').setValue('tv')
+  await view.get('#library-media-filter button[value="tv"]').trigger('click')
   await view.get('#library-status-filter').setValue('watching')
   await view.get('#library-sort-order').setValue('rating-high-low')
   await router.push('/media/game/rawg/9767')
@@ -574,7 +574,7 @@ test('logout and account switching while off Library clear private browsing cont
   currentUser.value = { id: '3', email: 'third@example.test' }
   resetLibrary()
   await back(router)
-  assert.equal(view.get('#library-media-filter').element.value, 'all')
+  assert.equal(view.get('#library-media-filter button[value="all"]').attributes('aria-pressed'), 'true')
   assert.equal(view.get('#library-sort-order').element.value, 'recent')
 })
 

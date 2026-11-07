@@ -1,8 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { JSDOM } from 'jsdom'
-import { parse, compileScript } from '@vue/compiler-sfc'
+import { loadVueComponent } from './support/vueComponent.js'
 
 test('Discover keeps search, switching, loading, stale-result, and error behavior', async () => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' })
@@ -15,15 +14,7 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
   let view
 
   try {
-    const componentUrl = new URL('../src/views/DiscoverView.vue', import.meta.url)
-    const { descriptor } = parse(readFileSync(componentUrl, 'utf8'))
-    let code = compileScript(descriptor, { id: 'discover-test', inlineTemplate: true }).content
-    code = code.replace(/from ['"]vue['"]/g, `from '${import.meta.resolve('vue')}'`)
-    code = code.replace(/import (\w+) from ['"]\.\.\/components\/[^'"]+\.vue['"]/g,
-      "const $1 = { props: ['book', 'movie', 'show', 'game', 'compactMetadata'], render() { return this.book?.title || this.movie?.title || this.show?.title || this.game?.title || null } }")
-    code = code.replace(/from ['"](\.\.\/(?:composables|services)\/[^'"]+\.js)['"]/g,
-      (_match, path) => `from '${new URL(path, componentUrl).href}'`)
-    const { default: DiscoverView } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+    const DiscoverView = await loadVueComponent(new URL('../src/views/DiscoverView.vue', import.meta.url))
     const state = await import('../src/composables/authState.js')
     state.currentUser.value = null
     state.isAuthLoading.value = false
@@ -56,11 +47,12 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
       throw new Error(`Unexpected request: ${path}`)
     }
 
-    const router = createRouter({ history: createMemoryHistory(), routes:
-      ['/', '/discover', '/library', '/login', '/register'].map((path) => ({
+    const router = createRouter({ history: createMemoryHistory(), routes: [
+      ...['/', '/discover', '/library', '/login', '/register'].map((path) => ({
         path, component: { render: () => null },
       })),
-    })
+      { path: '/media/:mediaType/:source/:sourceId', name: 'media-detail', component: { render: () => null } },
+    ] })
     await router.push('/discover')
     view = mount(DiscoverView, { global: { plugins: [router] } })
 
@@ -70,7 +62,7 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
     assert.match(view.text(), /The Hobbit/)
     assert.ok(calls.some((path) => path.startsWith('https://www.googleapis.com/books/')))
 
-    await view.findAll('.discover-type-switcher__button')[1].trigger('click')
+    await view.get('.discover-type-switcher__button[value="movie"]').trigger('click')
     await flushPromises()
     await view.get('#movie-query').setValue('The Matrix')
     await view.get('form').trigger('submit')
@@ -80,7 +72,7 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
     await view.get('form').trigger('submit')
     assert.equal(calls.filter((path) => path.startsWith('/api/v1/discover/movie?')).length, 1)
 
-    await view.findAll('.discover-type-switcher__button')[3].trigger('click')
+    await view.get('.discover-type-switcher__button[value="game"]').trigger('click')
     await flushPromises()
     await view.get('#game-query').setValue('Portal')
     await view.get('form').trigger('submit')
@@ -94,18 +86,18 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
     await flushPromises()
     assert.match(view.text(), /Portal/)
     assert.doesNotMatch(view.text(), /The Matrix/)
-    await view.findAll('.discover-type-switcher__button')[1].trigger('click')
+    await view.get('.discover-type-switcher__button[value="movie"]').trigger('click')
     await flushPromises()
     assert.match(view.text(), /The Matrix/)
 
-    await view.findAll('.discover-type-switcher__button')[2].trigger('click')
+    await view.get('.discover-type-switcher__button[value="tv"]').trigger('click')
     await flushPromises()
     await view.get('#tv-query').setValue('unknown')
     await view.get('form').trigger('submit')
     await flushPromises()
     assert.match(view.text(), /No TV shows found/)
 
-    await view.findAll('.discover-type-switcher__button')[3].trigger('click')
+    await view.get('.discover-type-switcher__button[value="game"]').trigger('click')
     await flushPromises()
     await view.get('#game-query').setValue('fail')
     await view.get('form').trigger('submit')

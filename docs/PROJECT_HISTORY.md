@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Cinematic UX refinement candidate — 7 November 2026
+
+Following the PR #8 release, `review/cinematic-ux-refinements` refines uncropped game artwork, shared media ordering, local Discover result filters, compact editable Library tracking/menu controls and a keyboard-operated Library category bar. No backend/provider contracts change. Unit checks pass 345 tests with 12 existing platform skips; build and 58 isolated headless tests pass. See the [implementation, limitations and retained QA summary](CINEMATIC_UX_REFINEMENTS.md). The owner reviewed the temporary screenshots and approved their task-specific removal and the squash merge to staging. Production release and deletion of the review branch are not authorized; actual staging deployment success must be verified separately.
+
 ## Complete Cinematic frontend candidate — 7 November 2026
 
 The owner requested the remaining redesign in one branch/PR. `review/cinematic-complete-redesign` rebuilds Library around substantial artwork and Comfortable/Compact/List modes, recomposes all four Discover types and read-only Open Library, and completes Detail, private Lists and account forms with shared artwork and collection components. Home/mobile navigation are refined without changing provider, account, persistence or API contracts. Node verification passes 343 tests with 12 existing platform skips; build and all 48 isolated headless tests pass. An additional two-test responsive run explicitly verifies actual dark/light themes at 320/768px. See the [complete adaptation](CINEMATIC_COMPLETE.md) and [retained QA findings](CINEMATIC_COMPLETE.md#retained-complete-cinematic-qa). The owner subsequently approved removing only this task's temporary report and 39 screenshots, squash merging PR #8 and its existing automatic staging deployment. Historical Phase 1 records remain intact. Workflow and HTTP verification determine release success; the review branch must not be deleted.

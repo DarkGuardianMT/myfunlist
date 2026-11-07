@@ -9,11 +9,14 @@ import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
 import MediaTypeIcon from '../components/MediaTypeIcon.vue'
+import MediaTypeSelector from '../components/MediaTypeSelector.vue'
+import { orderMediaCategories } from '../domain/mediaPresentation.js'
+import { resultLanguageLabel } from '../domain/resultFilters.js'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useDiscoverSearch } from '../composables/useDiscoverSearch.js'
 
-const discoveryTypes = [
+const discoveryTypes = orderMediaCategories([
   {
     id: 'book',
     label: 'Books',
@@ -66,10 +69,10 @@ const discoveryTypes = [
     singular: 'game',
     plural: 'games',
   },
-]
+])
 
 const { bookProvider, setBookProvider, activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice,
-  setBookFilter, selectMediaType, handleSearch } = useDiscoverSearch()
+  setBookFilter, selectMediaType, handleSearch, resultFilters, resultOptions, visibleResults, hasResultFilters, setResultFilter, clearResultFilters } = useDiscoverSearch()
 const bookSearchLabel = computed(() => ({ all: 'Title, author, or ISBN', title: 'Book title', author: 'Author name' })[bookFilters.value.field])
 const bookLanguageLabel = computed(() => ({ en: 'English', nl: 'Dutch', tr: 'Turkish' })[bookFilters.value.language])
 const resultPresentation = {
@@ -163,19 +166,7 @@ function cardProps(media) {
     </section>
 
     <div class="discover-toolbar">
-      <div class="discover-type-switcher" role="group" aria-label="Choose a discovery type">
-        <button
-          v-for="type in discoveryTypes"
-          :key="type.id"
-          class="discover-type-switcher__button"
-          :class="{ 'discover-type-switcher__button--active': activeMediaType === type.id }"
-          type="button"
-          :aria-pressed="activeMediaType === type.id"
-          @click="selectMediaType(type.id)"
-        >
-          <MediaTypeIcon :type="type.id" />{{ type.label }}
-        </button>
-      </div>
+      <MediaTypeSelector :model-value="activeMediaType" label="Choose a discovery type" @update:model-value="selectMediaType" />
 
       <div v-if="activeMediaType === 'book'" class="book-provider-choice">
         <label for="book-provider">Book catalogue</label>
@@ -233,6 +224,36 @@ function cardProps(media) {
             </div>
           </div>
         </form>
+        <div v-if="activeMediaType !== 'book'" class="returned-result-filters">
+          <div class="result-filter-heading"><span>Filter returned results</span><button v-if="hasResultFilters" type="button" class="text-button" @click="clearResultFilters">Clear result filters</button></div>
+          <div class="book-search-filters">
+            <div>
+              <label :for="`${activeMediaType}-result-year`">{{ activeMediaType === 'tv' ? 'First aired' : 'Release year' }}</label>
+              <select :id="`${activeMediaType}-result-year`" :value="resultFilters.year" @change="setResultFilter('year', $event.target.value)">
+                <option value="any">Any year</option>
+                <option v-if="resultFilters.year !== 'any' && !resultOptions.years.includes(resultFilters.year)" :value="resultFilters.year">{{ resultFilters.year === 'unknown' ? 'Not supplied' : resultFilters.year }} (selected)</option>
+                <option v-for="value in resultOptions.years" :key="value" :value="value">{{ value === 'unknown' ? 'Not supplied' : value }}</option>
+              </select>
+            </div>
+            <div v-if="activeMediaType === 'game'">
+              <label for="game-result-platform">Platform</label>
+              <select id="game-result-platform" :value="resultFilters.platform" @change="setResultFilter('platform', $event.target.value)">
+                <option value="any">Any platform</option>
+                <option v-if="resultFilters.platform !== 'any' && !resultOptions.platforms.includes(resultFilters.platform)" :value="resultFilters.platform">{{ resultFilters.platform === 'unknown' ? 'Not supplied' : resultFilters.platform }} (selected)</option>
+                <option v-for="value in resultOptions.platforms" :key="value" :value="value">{{ value === 'unknown' ? 'Not supplied' : value }}</option>
+              </select>
+            </div>
+            <div v-else>
+              <label :for="`${activeMediaType}-result-language`">Original language</label>
+              <select :id="`${activeMediaType}-result-language`" :value="resultFilters.language" @change="setResultFilter('language', $event.target.value)">
+                <option value="any">Any language</option>
+                <option v-if="resultFilters.language !== 'any' && !resultOptions.languages.includes(resultFilters.language)" :value="resultFilters.language">{{ resultLanguageLabel(resultFilters.language) }} (selected)</option>
+                <option v-for="value in resultOptions.languages" :key="value" :value="value">{{ resultLanguageLabel(value) }}</option>
+              </select>
+            </div>
+          </div>
+          <p>Filters apply only to this search's returned results (up to 20), keeping provider order. They do not send another search. A new search query clears them.</p>
+        </div>
       </div>
 
       <div v-if="activeSearch.status === 'idle'" class="discovery-welcome" aria-hidden="true"><MediaTypeIcon :type="activeMediaType" /><span>A little curiosity.<br /><strong>A whole new world.</strong></span></div>
@@ -251,7 +272,7 @@ function cardProps(media) {
           {{ activeSearch.errorMessage }}
         </p>
         <p v-else>
-          {{ activeSearch.results.length }}
+          <template v-if="activeMediaType !== 'book' && hasResultFilters">Showing {{ visibleResults.length }} of </template>{{ activeSearch.results.length }}
           {{ activeSearch.results.length === 1 ? activeType.singular : activeType.plural }} found for
           “{{ activeSearch.searchedQuery }}”.
         </p>
@@ -290,6 +311,7 @@ function cardProps(media) {
       </p>
 
       <button v-if="activeSearch.status === 'error'" class="catalogue-retry" type="button" @click="handleSearch">Retry search</button>
+      <div v-if="activeSearch.status === 'success' && !visibleResults.length" class="catalogue-state" role="status"><p>No returned results match these filters. Clear them or try a different search.</p><button class="text-button" type="button" @click="clearResultFilters">Show all returned results</button></div>
       <div
         v-if="activeSearch.status === 'success'"
         :class="activeResultPresentation.grid"
@@ -297,7 +319,7 @@ function cardProps(media) {
       >
         <component
           :is="activeResultPresentation.component"
-          v-for="(media, index) in activeSearch.results"
+          v-for="(media, index) in visibleResults"
           :key="getMediaKey(media) || index"
           v-bind="cardProps(media)"
         >
