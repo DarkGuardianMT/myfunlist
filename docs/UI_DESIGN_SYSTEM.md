@@ -32,7 +32,7 @@ Native search/filter controls, attribution, cache/history/return navigation, acc
 
 ## Verification and review
 
-The [complete candidate](CINEMATIC_COMPLETE.md) links its separate review evidence and verification. The [retained Cinematic Phase 1 QA](CINEMATIC_PHASE1.md#retained-cinematic-qa) documents the earlier approved release and cleanup. The following retained section records the earlier editorial Books release and its measurements, not current geometry. Historical findings and evidence remain preserved.
+The [complete redesign](CINEMATIC_COMPLETE.md#retained-complete-cinematic-qa) retains its review findings and verification after owner-approved temporary-evidence cleanup. The [retained Cinematic Phase 1 QA](CINEMATIC_PHASE1.md#retained-cinematic-qa) documents the earlier approved release and cleanup. The following retained section records the earlier editorial Books release and its measurements, not current geometry. Historical findings and evidence remain preserved.
 
 ## Retained Phase 1 QA
 
