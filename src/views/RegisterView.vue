@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
+import AuthShell from '../components/AuthShell.vue'
 
 const router = useRouter()
 const { register, currentUser, isAuthLoading } = useAuth()
@@ -27,8 +28,7 @@ async function submit() {
 </script>
 
 <template>
-  <section class="auth-page" aria-labelledby="page-title">
-    <h1 id="page-title">Register</h1>
+  <AuthShell title="Register" intro="A Library for everything you love. Start your own collection.">
     <p v-if="isAuthLoading" role="status">Checking your session…</p>
     <template v-else-if="currentUser">
       <p>You are logged in as {{ currentUser.email }}.</p>
@@ -36,13 +36,13 @@ async function submit() {
     </template>
     <form v-else @submit.prevent="submit">
       <label for="register-email">Email</label>
-      <input id="register-email" v-model="email" type="email" autocomplete="email" required />
+      <input id="register-email" v-model="email" type="email" autocomplete="email" required :disabled="isSubmitting" :aria-invalid="Boolean(errorMessage)" :aria-describedby="errorMessage ? 'register-error' : undefined" />
       <label for="register-password">Password</label>
-      <input id="register-password" v-model="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required />
-      <p class="form-hint">Use 12 to 128 characters.</p>
-      <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
+      <input id="register-password" v-model="password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required :disabled="isSubmitting" :aria-invalid="Boolean(errorMessage)" :aria-describedby="errorMessage ? 'register-password-hint register-error' : 'register-password-hint'" />
+      <p id="register-password-hint" class="form-hint">Use 12 to 128 characters.</p>
+      <p v-if="errorMessage" id="register-error" role="alert">{{ errorMessage }}</p>
       <button type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Creating account…' : 'Register' }}</button>
     </form>
     <p v-if="!currentUser && !isAuthLoading">Have an account? <RouterLink to="/login">Login</RouterLink></p>
-  </section>
+  </AuthShell>
 </template>

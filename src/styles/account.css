@@ -1,0 +1,27 @@
+﻿/* Formulieren delen dezelfde rustige hiërarchie zonder accountlogica te wijzigen. */
+.profile-page { max-width: none; }
+.profile-page > .page-intro { max-width: none; margin-bottom: 2rem; }
+.profile-page > .page-intro p:last-child { font-size: 1rem; }
+.profile-grid { display: grid; grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.5fr); gap: 1.5rem; align-items: start; max-width: 1140px; }
+.profile-card { padding: 2rem; margin: 0; box-shadow: none; }
+.profile-card--account { grid-row: span 2; background: radial-gradient(ellipse at 0 0, var(--color-primary-soft), transparent 70%), var(--color-surface); }
+.profile-identity { display: flex; align-items: center; gap: 1rem; padding-bottom: 1.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--color-border); }
+.profile-avatar { flex: 0 0 56px; display: grid; place-items: center; height: 56px; border-radius: 50%; background: var(--color-primary-soft); color: var(--color-primary-ink); border: 1px solid var(--color-control-border); font-size: 1.5rem; }
+.profile-identity p { font-size: 1.125rem; font-weight: 650; overflow-wrap: anywhere; }
+.profile-card h2 { font-size: 1.3rem; letter-spacing: -0.025em; }
+.profile-details > div { grid-template-columns: minmax(0, 1fr); gap: 0.3rem; padding-block: 0.75rem; }
+.profile-details dt { font-size: 0.75rem; font-weight: 500; }
+.profile-details dd { font-size: 0.9375rem; }
+.profile-card .form-hint, .profile-description, .auth-page .form-hint { color: var(--color-text-muted); font-size: 0.8125rem; line-height: 1.7; }
+.profile-card form, .auth-page form { gap: 0.65rem; }
+.profile-card label, .auth-page label { font-size: 0.875rem; font-weight: 600; }
+.profile-card input, .auth-page input { min-height: 48px; font-size: 1rem; border-radius: var(--radius-control); padding: 0.75rem 0.9rem; }
+.profile-card button, .auth-page button { min-height: 48px; font-size: 0.875rem; border-radius: var(--radius-control); padding: 0.8rem 1.25rem; }
+.profile-card button[type='submit'] { margin-top: 0.5rem; }
+.profile-card .mobile-profile-logout { display: inline-flex; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-control-border); margin-top: 1.25rem; }
+.profile-card .mobile-profile-logout:hover:not(:disabled) { background: var(--color-primary-soft); color: var(--color-primary-ink); }
+.auth-page > p:last-child { margin-top: 1.5rem; color: var(--color-text-muted); font-size: 0.875rem; }
+.auth-page a { color: var(--color-primary-ink); text-underline-offset: 0.25em; }
+.auth-page input[aria-invalid='true'] { border-color: var(--color-danger-ink); }
+@media (max-width: 768px) { .profile-grid { grid-template-columns: minmax(0, 1fr); } .profile-card { padding: 1.5rem; } .profile-card--account { grid-row: auto; } }
+@media (max-width: 640px) { .profile-page > .page-intro { margin-bottom: 1.5rem; } .profile-card { padding: 1.25rem; } .profile-card button[type='submit'] { width: 100%; } }

@@ -207,6 +207,7 @@ test('Cinematic Discover add, detail return, Library status, rating and removal 
   await rating.selectOption('9')
   await expect(rating).toBeEnabled()
   await expect(rating).toHaveValue('9')
+  await page.getByLabel(`Manage ${media.title}`, { exact: true }).click()
   await page.getByRole('button', { name: `Remove ${media.title} from Library`, exact: true }).click()
   await page.getByRole('button', { name: `Undo removal of ${media.title}`, exact: true }).click()
   await expect(status).toHaveValue('watched')

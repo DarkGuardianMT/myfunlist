@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
+import AuthShell from '../components/AuthShell.vue'
 
 const router = useRouter()
 const { login, currentUser, isAuthLoading } = useAuth()
@@ -26,8 +27,7 @@ async function submit() {
 </script>
 
 <template>
-  <section class="auth-page" aria-labelledby="page-title">
-    <h1 id="page-title">Login</h1>
+  <AuthShell title="Login" intro="Welcome back. Your next chapter is right where you left it.">
     <p v-if="isAuthLoading" role="status">Checking your session…</p>
     <template v-else-if="currentUser">
       <p>You are logged in as {{ currentUser.email }}.</p>
@@ -35,12 +35,12 @@ async function submit() {
     </template>
     <form v-else @submit.prevent="submit">
       <label for="login-email">Email</label>
-      <input id="login-email" v-model="email" type="email" autocomplete="email" required />
+      <input id="login-email" v-model="email" type="email" autocomplete="email" required :disabled="isSubmitting" :aria-invalid="Boolean(errorMessage)" :aria-describedby="errorMessage ? 'login-error' : undefined" />
       <label for="login-password">Password</label>
-      <input id="login-password" v-model="password" type="password" autocomplete="current-password" required />
-      <p v-if="errorMessage" role="alert">{{ errorMessage }}</p>
+      <input id="login-password" v-model="password" type="password" autocomplete="current-password" required :disabled="isSubmitting" :aria-invalid="Boolean(errorMessage)" :aria-describedby="errorMessage ? 'login-error' : undefined" />
+      <p v-if="errorMessage" id="login-error" role="alert">{{ errorMessage }}</p>
       <button type="submit" :disabled="isSubmitting">{{ isSubmitting ? 'Logging in…' : 'Login' }}</button>
     </form>
     <p v-if="!currentUser && !isAuthLoading">New here? <RouterLink to="/register">Register</RouterLink></p>
-  </section>
+  </AuthShell>
 </template>

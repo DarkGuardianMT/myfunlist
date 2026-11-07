@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { getMediaDetailRoute } from '../domain/mediaIdentity.js'
 
 const props = defineProps({
+  poster: { type: Boolean, default: false },
   game: {
     type: Object,
     required: true,
@@ -59,3 +60,15 @@ watch(
     </div>
   </article>
 </template>
+
+<style scoped>
+.game-card { display: flex; flex-direction: column; min-width: 0; overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.game-card__image { overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid var(--color-border); border-radius: var(--radius-card); }
+.game-card__image img { object-fit: contain; }
+.game-card__details { padding: 0.9rem 0 0.5rem; }
+.game-card h3 { font: 650 1rem/1.4 var(--font-body); letter-spacing: -0.015em; min-height: 2.8em; }
+.game-card h3 a { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.game-card p { font-size: 0.8125rem; }
+.game-card__actions { margin-top: auto; padding: 0.5rem 0 0; }
+.game-card:hover { transform: none; }
+</style>

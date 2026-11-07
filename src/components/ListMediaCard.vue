@@ -1,8 +1,6 @@
 <script setup>
-import BookCard from './BookCard.vue'
-import GameCard from './GameCard.vue'
-import MovieCard from './MovieCard.vue'
-import TvCard from './TvCard.vue'
+import CollectionMediaCard from './CollectionMediaCard.vue'
+import { getStatusOptions } from '../domain/libraryMedia.js'
 
 defineProps({
   item: { type: Object, required: true },
@@ -10,19 +8,13 @@ defineProps({
 })
 defineEmits(['remove'])
 
-const cards = { book: BookCard, movie: MovieCard, tv: TvCard, game: GameCard }
-const typeLabels = { book: 'Book', movie: 'Movie', tv: 'TV show', game: 'Game' }
-
-function cardProps(item) {
-  return { [item.media.mediaType === 'tv' ? 'show' : item.media.mediaType]: item.media }
-}
+const statusLabel = item => getStatusOptions(item.media.mediaType).find(option => option.value === item.userMedia.status)?.label || item.userMedia.status.replaceAll('-', ' ')
 </script>
 
 <template>
-  <component :is="cards[item.media.mediaType]" v-bind="cardProps(item)">
-    <p class="library-media-badge" :data-media-type="item.media.mediaType">{{ typeLabels[item.media.mediaType] }}</p>
+  <CollectionMediaCard :item="item">
     <p class="personal-rating">Personal rating: <strong>{{ item.userMedia.rating === null ? 'Unrated' : `${item.userMedia.rating} / 10` }}</strong></p>
-    <p class="list-item-status">Library status: {{ item.userMedia.status.replaceAll('-', ' ') }}</p>
+    <p class="list-item-status">Library status: {{ statusLabel(item) }}</p>
     <button
       class="remove-button"
       type="button"
@@ -30,5 +22,5 @@ function cardProps(item) {
       :aria-label="`Remove ${item.media.title} from this list`"
       @click="$emit('remove', item)"
     >Remove from list</button>
-  </component>
+  </CollectionMediaCard>
 </template>

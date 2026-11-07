@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth.js'
 import { useTheme } from '../composables/useTheme.js'
@@ -24,6 +24,14 @@ function dismissMenu(event) {
   event.currentTarget.open = false
   event.currentTarget.querySelector('summary')?.focus()
 }
+
+function closeOutside(event) {
+  for (const menu of [desktopMenu.value, mobileMenu.value]) {
+    if (menu?.open && !menu.contains(event.target)) menu.open = false
+  }
+}
+onMounted(() => document.addEventListener('click', closeOutside))
+onUnmounted(() => document.removeEventListener('click', closeOutside))
 
 watch(() => route.fullPath, closeMenus)
 
@@ -58,7 +66,7 @@ async function handleLogout() {
         <RouterLink to="/">Home</RouterLink>
         <RouterLink to="/discover">Discover</RouterLink>
         <RouterLink to="/library">Library</RouterLink>
-        <RouterLink to="/lists">Lists</RouterLink>
+        <RouterLink to="/lists" :class="{ 'nav-section-active': listsActive }">Lists</RouterLink>
         <RouterLink to="/profile">Profile</RouterLink>
         <button type="button" class="theme-toggle" :aria-label="`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`"
           :aria-pressed="theme === 'dark'" @click="toggleTheme">

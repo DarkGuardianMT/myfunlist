@@ -95,13 +95,14 @@ async function savePassword() {
 
 <template>
   <section class="profile-page" aria-labelledby="page-title">
-    <h1 id="page-title">Profile</h1>
+    <header class="page-intro"><p class="cinematic-eyebrow">Your space</p><h1 id="page-title">Profile</h1><p>A little about you. A place to keep your account in order.</p></header>
     <p v-if="isAuthLoading" role="status">Checking your session…</p>
     <div v-else-if="!currentUser" class="library-empty">
       <p><RouterLink to="/login">Login</RouterLink> or <RouterLink to="/register">register</RouterLink> to view your account.</p>
     </div>
-    <template v-else>
-      <section class="profile-card" aria-labelledby="account-heading">
+    <div v-else class="profile-grid">
+      <section class="profile-card profile-card--account" aria-labelledby="account-heading">
+        <div class="profile-identity"><span class="profile-avatar" aria-hidden="true">{{ (currentUser.displayName || currentUser.email).trim().slice(0, 1).toUpperCase() }}</span><p>{{ currentUser.displayName || 'Your account' }}</p></div>
         <h2 id="account-heading">Account</h2>
         <dl class="profile-details">
           <div><dt>Display name</dt><dd>{{ currentUser.displayName || 'Not set' }}</dd></div>
@@ -143,6 +144,6 @@ async function savePassword() {
           <button type="submit" :disabled="isSavingPassword">{{ isSavingPassword ? 'Changing…' : 'Change password' }}</button>
         </form>
       </section>
-    </template>
+    </div>
   </section>
 </template>

@@ -2,6 +2,7 @@
 import MediaCard from './MediaCard.vue'
 
 defineProps({
+  poster: { type: Boolean, default: false },
   movie: {
     type: Object,
     required: true,
@@ -11,6 +12,7 @@ defineProps({
 
 <template>
   <MediaCard
+    :poster="poster"
     :media="movie"
     :title="movie.title"
     :image="movie.posterImage"
