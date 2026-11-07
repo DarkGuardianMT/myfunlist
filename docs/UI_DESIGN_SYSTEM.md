@@ -28,7 +28,7 @@ Native search/filter controls, provider attribution, cache/history/return naviga
 
 ## Verification and review
 
-Current scope and temporary evidence are linked from [Cinematic Phase 1](CINEMATIC_PHASE1.md#verification). This branch is for review only; no merge or deployment is authorized. The following retained section records the earlier editorial Books release and its measurements, not the current Cinematic geometry.
+Current scope and [retained Cinematic QA](CINEMATIC_PHASE1.md#retained-cinematic-qa) document the approved design and verification. The owner authorized removing only the Cinematic task's temporary report and 23 screenshots, squash merging PR #7 and its automatic staging deployment. The following retained section records the earlier editorial Books release and its measurements, not the current Cinematic geometry.
 
 ## Retained Phase 1 QA
 

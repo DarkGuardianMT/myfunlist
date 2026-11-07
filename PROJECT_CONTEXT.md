@@ -1,6 +1,6 @@
 # MyFunList project context
 
-Current-state reference: tester-only Open Library staging is released; Google Books remains the default. The review candidate on `review/cinematic-redesign-phase1` applies the owner-selected Cinematic foundation, navigation, Home and all four Discover types. It is not merged or deployed. Use the actual HEAD; earlier architecture and verification records remain linked below.
+Current-state reference: tester-only Open Library staging is released; Google Books remains the default. The owner-approved Cinematic Phase 1 implementation provides the visual foundation, navigation, Home and all four Discover types. The owner authorized final cleanup, squash merge of PR #7 and its automatic staging deployment; consult the PR and workflow for release status. Use the actual HEAD; earlier architecture and verification records remain linked below.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
@@ -25,7 +25,7 @@ The staging host is [lightcyan-snake-955164.hostingersite.com](https://lightcyan
 | UI audit Batch 1 (A1/A2) | Discover context/return navigation and Library filters/Back behavior | Complete: automated tests and live Work browser QA passed |
 | UI audit Batch 2 (B1/B2/B3/B7) | Responsive detail layout, actions before synopsis, authors near title, concise book labels/full classifications disclosure, improved action targets | Media Detail complete: automated tests and live Work browser QA passed; Library residual B3-L1 remains open |
 | UI audit Batch 3 (A3/D2) | Compact Discover book metadata, accessible Full info disclosure, action alignment, mobile 2×2 type switcher | Complete: automated tests and live Work browser QA passed across requested viewports and both themes |
-| Discover Books | Google default and manually selectable tester-only Open Library; owner-approved Phase 1 editorial layout | 342 unit tests passed, 12 platform skips; build passed; 18 mocked headless tests passed with inspected before/after evidence |
+| Cinematic Home and Discover | Owner-approved Phase 1 foundation/navigation and artwork-first Books/Movies/TV/Games; real search/Library Home; Google default and manually selectable tester-only Open Library | 342 unit tests passed, 12 platform skips; build passed; 32 mocked headless tests passed; approved temporary evidence removed with findings retained in the design docs |
 
 Batch 1–3 Work QA completion is the project owner's confirmation supplied for the documentation refresh. Original Work reports/screenshots are not tracked here; preserve them wherever they are held. The external Search V1 live QA report was subsequently reviewed for this follow-up; it has not been overwritten or re-run as new browser evidence. Initial Search V1 staging success is recorded in [workflow run 40751645647](https://github.com/DarkGuardianMT/myfunlist/actions/runs/40751645647). See [QA follow-up](docs/DISCOVER_SEARCH_V1_QA_FOLLOWUP.md) for direct provider evidence, fixes and unresolved checks. These records do not establish complete production readiness.
 
@@ -102,7 +102,7 @@ Normalized detail contains identity/title and object-valued `details`; optional 
 
 Artwork/title links in Discover, Library and Lists lead to detail without swallowing action controls. Signed-out visitors see Login/Register without private data requests. Signed-in users can add/remove Library membership, edit status/rating, and lazily open Add to List for saved entries. List submission uses authoritative `userMedia.id`; detail uses `refreshDetail: false` to invalidate affected caches without fetching list contents. Successful Library removal invalidates list summaries/details; status/rating changes do not. Local busy/context guards and store generations reject stale feedback; the request context is checked again after CSRF resolution.
 
-Light is default; Light/Dark tokens and the `myfunlist_theme` device preference leave artwork unfiltered. At 640px and below, five-item bottom navigation replaces desktop navigation; Profile/Login depends on account state. Detail actions precede the full synopsis, with scoped 44px targets. Book classifications use up to three deduplicated source-topic labels; full classifications remain in Details. Discover alone opts BookCard into two-line title/author previews and a keyboard-accessible Full info disclosure; Library/List cards keep full metadata.
+Dark is the first-visit default; Light/Dark tokens and the `myfunlist_theme` device preference leave artwork unfiltered. At 640px and below, five-item bottom navigation replaces desktop navigation; Profile/Login depends on account state. Detail actions precede the full synopsis, with scoped 44px targets. Book classifications use up to three deduplicated source-topic labels; full classifications remain in Details. Discover alone opts BookCard into two-line title/author previews and a keyboard-accessible Full info disclosure; Library/List cards keep full metadata.
 
 ## External media providers
 
