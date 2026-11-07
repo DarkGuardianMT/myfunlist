@@ -66,6 +66,7 @@ watch(() => props.work, () => { failedCover.value = false; chosen.value = false 
   display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: start;
   gap: 1rem; min-width: 0; overflow-wrap: anywhere;
 }
+.open-library-work:has(.edition-details[open]) { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .open-library-work__cover { width: 100%; aspect-ratio: 2 / 3; padding: 0.4rem; overflow: hidden; background: var(--color-surface-soft); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
 .open-library-work__cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .open-library-work__fallback { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.5rem; color: var(--color-text-muted); font: 1rem/1.3 var(--font-display); text-align: center; }
@@ -106,7 +107,6 @@ summary:focus-visible, button:focus-visible, a:focus-visible { outline: 2px soli
 }
 @media (max-width: 640px) {
   .open-library-work { gap: 0.75rem; }
-  .open-library-work:has(.edition-details[open]) { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .edition-details__metadata > div { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
