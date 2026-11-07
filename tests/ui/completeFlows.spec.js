@@ -1,0 +1,141 @@
+import { test, expect, checkLayout, capture } from './fixtures.js'
+import { fullApp } from './fullAppFixture.js'
+
+test('Complete collection workflows: density, title search, list creation, editing and membership', async ({ page, sandbox }, info) => {
+  const { state } = fullApp(sandbox)
+  await page.addInitScript(() => localStorage.setItem('myfunlist_theme', 'dark'))
+  await page.goto('/library')
+  const cards = page.locator('.library-grid > article')
+  await expect(cards).toHaveCount(12)
+  await page.getByRole('button', { name: 'List', exact: true }).click()
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'List', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByLabel('Search your Library').fill('unpictured')
+  await expect(cards).toHaveCount(4)
+  await page.getByLabel('Search your Library').fill('no matching synthetic title')
+  await expect(cards).toHaveCount(0)
+  await expect(page.locator('.library-empty')).toContainText('No items match')
+  await page.goto('/lists')
+  await expect(page.locator('.list-art img')).toHaveCount(6)
+  await page.getByText('Create a list', { exact: true }).click()
+  await page.getByLabel('Title', { exact: true }).fill('A new collection')
+  await page.getByLabel('Description (optional)', { exact: true }).fill('Created by the isolated browser fixture.')
+  await capture(page, info, 'after-complete-list-create-dark')
+  await page.getByRole('button', { name: 'Create list', exact: true }).click()
+  await expect(page.locator('.list-summary-card')).toHaveCount(3)
+  await page.getByRole('link', { name: 'A new collection', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('A new collection')
+  await page.getByText('Add from Library', { exact: true }).click()
+  await page.getByLabel('Library item', { exact: true }).selectOption('101')
+  await page.getByRole('button', { name: 'Add to list', exact: true }).click()
+  await expect(page.locator('.list-collection-grid > article')).toHaveCount(1)
+  expect(state.members['3']).toEqual(['101'])
+  await page.getByRole('button', { name: 'Edit list', exact: true }).click()
+  await page.getByLabel('Title', { exact: true }).fill('A renamed collection')
+  await capture(page, info, 'after-complete-list-edit-dark')
+  await page.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('A renamed collection')
+  await page.locator('.list-collection-grid .remove-button').click()
+  await expect(page.locator('.list-collection-grid > article')).toHaveCount(0)
+  expect(state.library).toHaveLength(12)
+  expect(sandbox.apiCalls.filter(call => call.startsWith('DELETE /api/v1/library'))).toHaveLength(0)
+  page.once('dialog', dialog => dialog.accept())
+  await page.getByRole('button', { name: 'Delete list', exact: true }).click()
+  await expect(page).toHaveURL(/\/lists$/)
+  await expect(page.locator('.list-summary-card')).toHaveCount(2)
+  await checkLayout(page)
+})
+
+test('Complete account workflows: login, validation, profile, password and logout isolation', async ({ page, sandbox }) => {
+  const { state } = fullApp(sandbox, false)
+  await page.goto('/login')
+  await page.getByLabel('Email', { exact: true }).fill('reader@example.test')
+  await page.getByLabel('Password', { exact: true }).fill('synthetic-password-only')
+  await page.getByRole('button', { name: 'Login', exact: true }).click()
+  await expect(page.locator('.library-grid > article')).toHaveCount(12)
+  await page.goto('/profile')
+  await page.getByRole('textbox', { name: 'Display name', exact: true }).fill('Updated Reader')
+  await page.getByRole('button', { name: 'Save display name' }).click()
+  await expect(page.getByText('Display name saved.', { exact: true })).toBeVisible()
+  await expect(page.locator('.profile-identity')).toContainText('Updated Reader')
+  await page.getByLabel('Current password', { exact: true }).fill('synthetic-current')
+  await page.getByLabel('New password', { exact: true }).fill('synthetic-new-password')
+  await page.getByLabel('Confirm new password', { exact: true }).fill('mismatched-password')
+  await page.getByRole('button', { name: 'Change password', exact: true }).click()
+  await expect(page.locator('.profile-error')).toHaveText('New passwords do not match.')
+  expect(state.passwordChanges).toBe(0)
+  await page.getByLabel('Confirm new password', { exact: true }).fill('synthetic-new-password')
+  await page.getByRole('button', { name: 'Change password', exact: true }).click()
+  await expect(page.getByText('Password changed.', { exact: true })).toBeVisible()
+  expect(state.passwordChanges).toBe(1)
+  await expect(page.getByLabel('Current password', { exact: true })).toHaveValue('')
+  await page.locator('.profile-card').getByRole('button', { name: 'Logout', exact: true }).click()
+  await expect(page.locator('.home-personal')).toHaveCount(0)
+  await page.goto('/library')
+  await expect(page.locator('.library-grid > article')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Login', exact: true }).first()).toBeVisible()
+  await checkLayout(page)
+})
+
+test('Complete responsive review: tablet and narrow layouts, reduced motion and artwork dimensions', async ({ page, sandbox }, info) => {
+  test.setTimeout(60000)
+  fullApp(sandbox)
+  await page.addInitScript(() => localStorage.setItem('myfunlist_theme', 'dark'))
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/library')
+  if (info.project.name === 'desktop') {
+    const art = await page.locator('.collection-card .media-artwork').first().boundingBox()
+    expect(art.width).toBeGreaterThanOrEqual(170)
+    expect(art.width).toBeLessThanOrEqual(220)
+  }
+  for (const theme of ['dark', 'light']) {
+    for (const width of [768, 320]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const route of ['/', '/library', '/lists', '/lists/1', '/profile', '/discover?type=book&q=lantern', '/discover?type=movie&q=lantern', '/discover?type=tv&q=lantern', '/discover?type=game&q=lantern', '/media/book/google-books/complete-book-1', '/media/movie/tmdb/200', '/media/tv/tmdb/300', '/media/game/rawg/400', '/media/book/google-books/complete-book-5', '/media/book/google-books/complete-book-6']) {
+      await page.goto(route)
+      await expect(page.locator('main h1')).toBeVisible()
+      if (await page.locator('html').getAttribute('data-theme') !== theme) {
+        await page.getByRole('button', { name: `Switch to ${theme} mode`, exact: true }).click()
+      }
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+      if (route.includes('/discover')) await expect(page.locator('.discovery-search article')).toHaveCount(6)
+      if (route.includes('/media/')) await expect(page.locator('.media-detail-hero')).toBeVisible()
+      await checkLayout(page)
+    }
+    await page.goto('/library')
+    await expect(page.locator('.library-grid > article')).toHaveCount(12)
+    if (await page.locator('html').getAttribute('data-theme') !== theme) {
+      await page.getByRole('button', { name: `Switch to ${theme} mode`, exact: true }).click()
+    }
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    await capture(page, info, `after-complete-library-${width}-${theme}`)
+    for (const mode of ['Compact', 'List', 'Comfortable']) {
+      await page.getByRole('button', { name: mode, exact: true }).click()
+      await checkLayout(page)
+    }
+    }
+  }
+})
+
+test('Complete registration and recoverable collection errors remain explicit', async ({ page, sandbox }, info) => {
+  const { state } = fullApp(sandbox, false)
+  await page.addInitScript(() => localStorage.setItem('myfunlist_theme', 'dark'))
+  await page.goto('/register')
+  await page.getByLabel('Email', { exact: true }).fill('reader@example.test')
+  await page.getByLabel('Password', { exact: true }).fill('synthetic-register-password')
+  sandbox.apiResponses['GET /api/v1/library'] = { status: 503, json: { error: { code: 'unavailable', message: 'Synthetic Library failure.' } } }
+  await page.getByRole('button', { name: 'Register', exact: true }).click()
+  await expect(page.locator('.library-empty[role="alert"]')).toContainText('Your Library could not be loaded.')
+  await capture(page, info, 'after-complete-library-error-dark')
+  sandbox.apiResponses['GET /api/v1/library'] = () => ({ json: { data: state.library } })
+  await page.getByRole('button', { name: 'Try again', exact: true }).click()
+  await expect(page.locator('.library-grid > article')).toHaveCount(12)
+  sandbox.apiResponses['GET /api/v1/lists/memberships'] = { status: 503, json: { error: { code: 'unavailable', message: 'Synthetic preview failure.' } } }
+  await page.goto('/lists')
+  await expect(page.getByText(/Artwork previews could not be loaded/)).toBeVisible()
+  await expect(page.locator('.list-summary-card')).toHaveCount(2)
+  sandbox.apiResponses['GET /api/v1/lists/memberships'] = { json: { data: { memberships: [{ listId: '1', userMediaId: '101' }], nextCursor: null } } }
+  await page.getByRole('button', { name: 'Retry previews', exact: true }).click()
+  await expect(page.locator('.list-art img')).toHaveCount(1)
+  await checkLayout(page)
+})

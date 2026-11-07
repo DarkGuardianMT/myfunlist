@@ -5,6 +5,7 @@ import { clearBrowsingPositions } from '../router/browsingContext.js'
 const mediaTypeFilter = ref('all')
 const statusFilter = ref('all')
 const sortOrder = ref('recent')
+const titleQuery = ref('')
 
 watch(mediaTypeFilter, () => { statusFilter.value = 'all' }, { flush: 'sync' })
 
@@ -13,9 +14,10 @@ watch(() => currentUser.value?.id, () => {
   mediaTypeFilter.value = 'all'
   statusFilter.value = 'all'
   sortOrder.value = 'recent'
+  titleQuery.value = ''
   clearBrowsingPositions('/library')
 }, { flush: 'sync' })
 
 export function useLibraryBrowsing() {
-  return { mediaTypeFilter, statusFilter, sortOrder }
+  return { mediaTypeFilter, statusFilter, sortOrder, titleQuery }
 }

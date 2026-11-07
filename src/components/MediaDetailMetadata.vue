@@ -39,10 +39,10 @@ const rows = computed(() => fields[props.media.mediaType].flatMap(([key, label])
 </template>
 
 <style scoped>
-.media-detail-metadata { margin-top: 1.5rem; padding: 1.5rem 2rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
-h2 { margin: 0 0 1.25rem; font-size: 1.2rem; }
-dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem 2rem; margin: 0; }
-.media-detail-metadata__row { min-width: 0; overflow-wrap: anywhere; }
+.media-detail-metadata { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--color-border); }
+h2 { margin: 0 0 1.5rem; font-size: 1.5rem; letter-spacing: -0.03em; }
+dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.5rem 2rem; margin: 0; }
+.media-detail-metadata__row { min-width: 0; overflow-wrap: anywhere; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border); }
 dt { margin-bottom: 0.35rem; color: var(--color-text-muted); font-size: 0.85rem; }
 dd { margin: 0; line-height: 1.6; }
 .media-detail-metadata__classifications { margin-top: 1rem; overflow-wrap: anywhere; }
@@ -51,7 +51,8 @@ dd { margin: 0; line-height: 1.6; }
 .media-detail-metadata__classifications ul { margin: 0.5rem 0 0; padding-left: 1.25rem; line-height: 1.6; }
 .media-detail-metadata__classifications li + li { margin-top: 0.5rem; }
 @media (max-width: 640px) {
-  .media-detail-metadata { padding: 1.25rem; }
-  dl { grid-template-columns: minmax(0, 1fr); }
+  .media-detail-metadata { margin-top: 2rem; padding-top: 1.5rem; }
+  dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
 }
+@media (max-width: 360px) { dl { grid-template-columns: minmax(0, 1fr); } }
 </style>

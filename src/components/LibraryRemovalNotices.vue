@@ -40,6 +40,8 @@ async function undo(notice) {
   await nextTick()
   const target = document.getElementById(`remove-library-${notice.entryId}`)
     || document.getElementById(noticeId(notice.id))?.querySelector('button')
+  const disclosure = target?.closest('details')
+  if (disclosure) disclosure.open = true
   target?.focus({ preventScroll: true })
 }
 

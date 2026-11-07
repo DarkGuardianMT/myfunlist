@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ListMediaCard from '../components/ListMediaCard.vue'
+import MediaArtwork from '../components/MediaArtwork.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useAuth } from '../composables/useAuth.js'
@@ -172,6 +173,7 @@ async function removeSelected(item) {
     <p v-else-if="isDetailLoading || !isDetailLoaded" class="library-empty" role="status">Loading this list…</p>
     <template v-else-if="selectedList">
       <header class="list-detail-header">
+        <div class="list-detail-header__copy"><p class="cinematic-eyebrow">Private collection · Curated by you</p>
         <h1>{{ selectedList.title }}</h1>
         <p v-if="selectedList.description" class="list-detail-description">{{ selectedList.description }}</p>
         <p class="list-meta">{{ selectedList.itemCount }} {{ selectedList.itemCount === 1 ? 'item' : 'items' }} · Created {{ formatListDate(selectedList.createdAt) }} · Updated {{ formatListDate(selectedList.updatedAt) }}</p>
@@ -179,6 +181,8 @@ async function removeSelected(item) {
           <button ref="editButton" type="button" class="text-button" :disabled="isSaving || isDeleting" :aria-expanded="editing" aria-controls="edit-list-panel" @click="toggleEdit">{{ editing ? 'Cancel edit' : 'Edit list' }}</button>
           <button type="button" class="text-button list-delete" :disabled="isDeleting" @click="removeList">{{ isDeleting ? 'Deleting…' : 'Delete list' }}</button>
         </div>
+        </div>
+        <div v-if="selectedItems.length" class="list-detail-art" aria-label="Artwork from this collection"><MediaArtwork v-for="item in selectedItems.slice(0, 3)" :key="item.userMedia.id" :media="item.media" :linked="false" /></div>
       </header>
 
       <section v-if="editing" id="edit-list-panel" class="list-panel" aria-labelledby="edit-list-heading">
@@ -234,7 +238,7 @@ async function removeSelected(item) {
         <div v-if="!selectedItems.length" class="library-empty">
           <p>This list is empty. Add an item from your Library above.</p>
         </div>
-        <div v-else class="library-grid">
+        <div v-else class="library-grid collection-grid collection-grid--comfortable list-collection-grid">
           <ListMediaCard v-for="item in selectedItems" :key="item.userMedia.id"
             :item="item" :busy="busyItemId === item.userMedia.id" @remove="removeSelected" />
         </div>

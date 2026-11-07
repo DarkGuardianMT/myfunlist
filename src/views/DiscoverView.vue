@@ -149,7 +149,7 @@ function isAdding(media) {
 }
 
 function cardProps(media) {
-  return { [activeResultPresentation.value.prop]: media,
+  return { [activeResultPresentation.value.prop]: media, poster: true,
     ...(activeMediaType.value === 'book' ? { compactMetadata: true, showProviderLink: true } : {}) }
 }
 </script>
@@ -187,8 +187,8 @@ function cardProps(media) {
     </div>
     <OpenLibraryDiscover v-if="activeMediaType === 'book' && bookProvider === 'open-library'" />
     <section v-else class="discovery-search" :class="{ 'book-discovery': activeMediaType === 'book' }" :aria-labelledby="`${activeMediaType}-search-title`">
-      <div class="cinematic-search-panel" :class="{ 'book-search-panel': activeMediaType === 'book' }">
-        <div class="cinematic-search-heading" :class="{ 'book-search-heading': activeMediaType === 'book' }">
+      <div class="discovery-search-panel" :class="{ 'book-search-panel': activeMediaType === 'book' }">
+        <div class="discovery-search-heading">
           <h2 :id="`${activeMediaType}-search-title`">{{ activeType.searchTitle }}</h2>
 
           <p v-if="activeMediaType === 'book'" class="google-attribution"><a href="https://books.google.com" target="_blank" rel="noopener noreferrer"><img src="https://books.google.com/googlebooks/images/poweredby.png" alt="Powered by Google" /></a></p>
@@ -234,6 +234,8 @@ function cardProps(media) {
           </div>
         </form>
       </div>
+
+      <div v-if="activeSearch.status === 'idle'" class="discovery-welcome" aria-hidden="true"><MediaTypeIcon :type="activeMediaType" /><span>A little curiosity.<br /><strong>A whole new world.</strong></span></div>
 
       <div class="discovery-search__feedback catalogue-summary" :class="{ 'catalogue-state': activeSearch.status !== 'success', 'catalogue-state--error': activeSearch.status === 'error' }" aria-live="polite" aria-atomic="true">
         <span v-if="activeSearch.status === 'success'" class="result-source">{{ activeType.provider }} search results</span>

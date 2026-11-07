@@ -6,6 +6,7 @@ import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useLibraryBrowsing } from '../composables/useLibraryBrowsing.js'
+import { useCollectionView } from '../composables/useCollectionView.js'
 import { useBrowsingReady } from '../router/browsingContext.js'
 import { getStatusOptions } from '../domain/libraryMedia.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
@@ -13,7 +14,8 @@ import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
 const busyMediaKeys = ref(new Set())
 const feedback = ref('')
 const feedbackType = ref('status')
-const { mediaTypeFilter, statusFilter, sortOrder } = useLibraryBrowsing()
+const { mediaTypeFilter, statusFilter, sortOrder, titleQuery } = useLibraryBrowsing()
+const { viewMode, selectView } = useCollectionView()
 const { currentUser, isAuthLoading, authError } = useAuth()
 const {
   libraryItems, displayLibraryItems,
@@ -31,7 +33,7 @@ const visibleLibraryItems = computed(() =>
     mediaTypeFilter.value,
     statusFilter.value,
     sortOrder.value,
-  ),
+  ).filter(item => !titleQuery.value.trim() || item.media.title.toLocaleLowerCase().includes(titleQuery.value.trim().toLocaleLowerCase())),
 )
 const statusOptions = computed(() => getStatusOptions(mediaTypeFilter.value))
 const hasVisibleGames = computed(() =>
@@ -103,8 +105,9 @@ function handleRemove(item) {
 <template>
   <div class="library-page">
     <section class="page-intro" aria-labelledby="page-title">
-      <h1 id="page-title">Library</h1>
-      <p>Your saved books, movies, TV shows, games, statuses, and personal ratings.</p>
+      <div><p class="cinematic-eyebrow">The stories you keep</p><h1 id="page-title">Library</h1>
+      <p>A bookshelf. A watchlist. A few worlds you're not quite ready to leave.</p></div>
+      <RouterLink class="home-primary-link" to="/discover">Find something new <span aria-hidden="true">↗</span></RouterLink>
     </section>
 
     <p
@@ -133,7 +136,12 @@ function handleRemove(item) {
     </div>
 
     <section v-else aria-labelledby="saved-media-title">
-      <h2 id="saved-media-title" class="section-title">Saved media</h2>
+      <div class="collection-toolbar">
+        <div class="collection-search"><label for="library-title-query">Search your Library</label><input id="library-title-query" v-model="titleQuery" type="search" maxlength="200" placeholder="Find a title in your collection…" /></div>
+        <div class="collection-view" role="group" aria-label="Library view">
+          <button v-for="mode in ['comfortable', 'compact', 'list']" :key="mode" type="button" :aria-pressed="viewMode === mode" @click="selectView(mode)">{{ mode[0].toUpperCase() + mode.slice(1) }}</button>
+        </div>
+      </div>
 
       <div class="library-toolbar" role="group" aria-label="Library display options">
         <div class="library-toolbar__field">
@@ -168,24 +176,28 @@ function handleRemove(item) {
         </div>
       </div>
 
+      <div class="collection-caption"><h2 id="saved-media-title">Saved media <span>{{ visibleLibraryItems.length }}</span></h2><p>Collected by you. Enjoyed at your pace.</p></div>
+
       <div v-if="!visibleLibraryItems.length" class="library-empty" role="status">
         <p v-if="!displayLibraryItems.length">Your Library items are pending removal. Use Undo to keep them.</p>
         <p v-else>No items match the selected filters.</p>
         <button
           class="text-button"
           type="button"
-          @click="mediaTypeFilter = 'all'; statusFilter = 'all'"
+          @click="mediaTypeFilter = 'all'; statusFilter = 'all'; titleQuery = ''"
         >
           Show all media
         </button>
       </div>
 
-      <div v-else class="library-grid">
+      <div v-else class="library-grid collection-grid" :class="[`collection-grid--${viewMode}`, { 'collection-grid--games': mediaTypeFilter === 'game' }]">
         <LibraryItemCard
           v-for="item in visibleLibraryItems"
           :key="item.userMedia.mediaKey"
           :item="item"
           :busy="busyMediaKeys.has(item.userMedia.mediaKey)"
+          :layout="viewMode"
+          :landscape="mediaTypeFilter === 'game'"
           @status-change="handleStatusChange"
           @rating-change="handleRatingChange"
           @remove="handleRemove"

@@ -21,7 +21,7 @@ watch(() => props.work, () => { failedCover.value = false; chosen.value = false 
     </div>
     <div class="open-library-work__intro">
       <span class="open-library-work__type">Work</span>
-      <h3>{{ work.workTitle }}</h3>
+      <h3 :title="work.workTitle">{{ work.workTitle }}</h3>
       <p class="open-library-work__authors">{{ work.authors.length ? work.authors.join(', ') : 'Author information unavailable' }}</p>
       <p class="open-library-work__publication">First publication (Work): <span>{{ work.firstPublicationYear ?? 'Unknown' }}</span></p>
       <p class="open-library-work__language">Edition tags: {{ edition?.languages.length ? edition.languages.map(code => languageNames[code] || code).join(', ') : 'Not supplied' }}</p>
@@ -63,17 +63,17 @@ watch(() => props.work, () => { failedCover.value = false; chosen.value = false 
 
 <style scoped>
 .open-library-work {
-  display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); align-content: start; align-items: start;
-  gap: 1rem 1.25rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: var(--radius-card);
-  background: var(--color-surface); box-shadow: var(--shadow-card); min-width: 0; overflow-wrap: anywhere;
+  display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; align-items: start;
+  gap: 1rem; min-width: 0; overflow-wrap: anywhere;
 }
-.open-library-work__cover { aspect-ratio: 2 / 3; overflow: hidden; background: var(--color-surface-soft); border-radius: 0.25rem 0.4rem 0.4rem 0.25rem; box-shadow: var(--shadow-cover); }
+.open-library-work:has(.edition-details[open]) { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.open-library-work__cover { width: 100%; aspect-ratio: 2 / 3; padding: 0.4rem; overflow: hidden; background: var(--color-surface-soft); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
 .open-library-work__cover img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .open-library-work__fallback { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.75rem; padding: 0.5rem; color: var(--color-text-muted); font: 1rem/1.3 var(--font-display); text-align: center; }
 .open-library-work__fallback svg { width: 2rem; fill: none; stroke: currentColor; stroke-width: 1; }
 .open-library-work__intro { min-width: 0; }
 .open-library-work__type { display: inline-block; margin-bottom: 0.45rem; color: var(--color-primary-ink); font-size: 0.65rem; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; }
-h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: 0; font: 500 1.4rem/1.2 var(--font-display); letter-spacing: -0.025em; }
+h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0; font: 650 1rem/1.4 var(--font-display); letter-spacing: -0.025em; }
 .open-library-work__authors { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0.45rem 0 0.75rem; font-size: var(--text-sm); line-height: 1.4; color: var(--color-text-muted); }
 .open-library-work__publication, .open-library-work__language { margin: 0.35rem 0; font-size: var(--text-xs); line-height: 1.5; color: var(--color-text-muted); }
 .open-library-work__publication span { color: var(--color-text); }
@@ -81,7 +81,8 @@ a { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; c
 .edition-details { grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--color-border); }
 summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 44px; padding-top: 0.5rem; list-style: none; cursor: pointer; font-size: var(--text-xs); font-weight: 650; }
 summary::-webkit-details-marker { display: none; }
-.edition-details__hint { color: var(--color-primary-ink); font-weight: 500; }
+.edition-details__hint { color: var(--color-primary-ink); font-weight: 500; font-size: 0; }
+.edition-details__arrow { font-size: 1rem; }
 .edition-details__arrow { display: inline-block; margin-left: 0.25rem; }
 .edition-details[open] .edition-details__arrow { transform: rotate(180deg); }
 .edition-details__body { padding-top: 0.75rem; }
@@ -98,15 +99,14 @@ button:disabled { cursor: not-allowed; opacity: 0.65; }
 .edition-details__read-only { margin-bottom: 0; padding-top: 0.75rem; border-top: 1px solid var(--color-border); }
 summary:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
 @media (min-width: 851px) {
-  .open-library-work:has(.edition-details[open]) { grid-column: 1 / -1; }
+  .open-library-work:has(.edition-details[open]) { grid-column: 1 / -1; grid-template-columns: minmax(170px, 220px) minmax(0, 1fr); padding: 1.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); gap: 1.5rem; }
   .edition-details__body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
   .edition-details__body > * { grid-column: 1 / -1; }
   .edition-details__body > .edition-details__metadata { grid-column: auto; align-self: start; }
   .edition-details__body > button { width: fit-content; min-width: 16rem; }
 }
 @media (max-width: 640px) {
-  .open-library-work { grid-template-columns: 6rem minmax(0, 1fr); gap: 0.75rem 1rem; padding: 1rem; }
-  h3 { font-size: 1.25rem; }
+  .open-library-work { gap: 0.75rem; }
   .edition-details__metadata > div { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); }
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
