@@ -8,6 +8,7 @@ import MovieCard from '../components/MovieCard.vue'
 import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import TvCard from '../components/TvCard.vue'
+import MediaTypeIcon from '../components/MediaTypeIcon.vue'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useDiscoverSearch } from '../composables/useDiscoverSearch.js'
@@ -30,7 +31,7 @@ const discoveryTypes = [
     id: 'movie',
     label: 'Movies',
     heading: 'Discover movies',
-    intro: 'Search for movies using metadata and artwork from TMDB.',
+    intro: 'For the big screen, the quiet evening, and everything that stays with you.',
     searchTitle: 'Search movies',
     searchLabel: 'Movie title',
     placeholder: 'For example: Inception',
@@ -43,7 +44,7 @@ const discoveryTypes = [
     id: 'tv',
     label: 'TV Shows',
     heading: 'Discover TV shows',
-    intro: 'Search for TV shows using metadata and artwork from TMDB.',
+    intro: 'One episode becomes a whole new world. Find your next great series.',
     searchTitle: 'Search TV shows',
     searchLabel: 'TV show title',
     placeholder: 'For example: Breaking Bad',
@@ -56,7 +57,7 @@ const discoveryTypes = [
     id: 'game',
     label: 'Games',
     heading: 'Discover games',
-    intro: 'Search for games using information and artwork from RAWG.',
+    intro: 'New worlds. Different rules. Find your next adventure.',
     searchTitle: 'Search games',
     searchLabel: 'Game title',
     placeholder: 'For example: Stardew Valley',
@@ -156,7 +157,7 @@ function cardProps(media) {
 <template>
   <div class="discover-page" :class="{ 'discover-page--books': activeMediaType === 'book' }">
     <section class="page-intro" aria-labelledby="page-title">
-      <p v-if="activeMediaType === 'book'" class="discover-eyebrow">A little curiosity goes a long way</p>
+      <p class="discover-eyebrow cinematic-eyebrow">Make room for a new favourite</p>
       <h1 id="page-title">{{ activeType.heading }}</h1>
       <p>{{ activeType.intro }}</p>
     </section>
@@ -172,7 +173,7 @@ function cardProps(media) {
           :aria-pressed="activeMediaType === type.id"
           @click="selectMediaType(type.id)"
         >
-          {{ type.label }}
+          <MediaTypeIcon :type="type.id" />{{ type.label }}
         </button>
       </div>
 
@@ -186,11 +187,12 @@ function cardProps(media) {
     </div>
     <OpenLibraryDiscover v-if="activeMediaType === 'book' && bookProvider === 'open-library'" />
     <section v-else class="discovery-search" :class="{ 'book-discovery': activeMediaType === 'book' }" :aria-labelledby="`${activeMediaType}-search-title`">
-      <div :class="{ 'book-search-panel': activeMediaType === 'book' }">
-        <div :class="{ 'book-search-heading': activeMediaType === 'book' }">
+      <div class="cinematic-search-panel" :class="{ 'book-search-panel': activeMediaType === 'book' }">
+        <div class="cinematic-search-heading" :class="{ 'book-search-heading': activeMediaType === 'book' }">
           <h2 :id="`${activeMediaType}-search-title`">{{ activeType.searchTitle }}</h2>
 
           <p v-if="activeMediaType === 'book'" class="google-attribution"><a href="https://books.google.com" target="_blank" rel="noopener noreferrer"><img src="https://books.google.com/googlebooks/images/poweredby.png" alt="Powered by Google" /></a></p>
+          <span v-else class="catalogue-badge">{{ activeType.provider }}</span>
         </div>
         <form class="discovery-search__form" role="search" @submit.prevent="handleSearch">
           <label :for="`${activeMediaType}-query`">{{ activeMediaType === 'book' ? bookSearchLabel : activeType.searchLabel }}</label>
@@ -233,8 +235,8 @@ function cardProps(media) {
         </form>
       </div>
 
-      <div class="discovery-search__feedback" :class="{ 'catalogue-summary': activeMediaType === 'book', 'catalogue-state': activeMediaType === 'book' && activeSearch.status !== 'success', 'catalogue-state--error': activeSearch.status === 'error' }" aria-live="polite" aria-atomic="true">
-        <span v-if="activeMediaType === 'book' && activeSearch.status === 'success'" class="result-source">Google Books search results</span>
+      <div class="discovery-search__feedback catalogue-summary" :class="{ 'catalogue-state': activeSearch.status !== 'success', 'catalogue-state--error': activeSearch.status === 'error' }" aria-live="polite" aria-atomic="true">
+        <span v-if="activeSearch.status === 'success'" class="result-source">{{ activeType.provider }} search results</span>
         <p v-if="activeSearch.status === 'idle'">{{ activeType.idleMessage }}</p>
         <p v-else-if="activeSearch.status === 'loading'" role="status">
           Searching {{ activeType.provider }} for “{{ activeSearch.searchedQuery }}”…
@@ -256,7 +258,7 @@ function cardProps(media) {
         </p>
       </div>
 
-      <div v-if="activeMediaType === 'book' && activeSearch.status === 'loading'" class="catalogue-skeletons" aria-hidden="true">
+      <div v-if="activeSearch.status === 'loading'" class="catalogue-skeletons" aria-hidden="true">
         <div v-for="index in 4" :key="index" class="catalogue-skeleton"><span /><div><i /><i /><i /></div></div>
       </div>
 

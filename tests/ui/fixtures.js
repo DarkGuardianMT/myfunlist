@@ -30,10 +30,12 @@ export const test = base.extend({
   sandbox: [async ({ context, page }, use) => {
     const events = { unexpectedRequests: 0, failedRequests: 0, badResponses: 0, consoleErrors: 0, pageErrors: 0 }
     const state = { offline: false, expectedFailures: 0, authChecks: 0, googleRequests: 0, pilotRequests: 0,
-      openLibraryHarness: false, pilotRespond: null, pilotSearches: [], googleItems: null, artwork: {} }
+      openLibraryHarness: false, pilotRespond: null, pilotSearches: [], googleItems: null, artwork: {}, apiResponses: {}, apiCalls: [] }
     const expectedNetworkFailures = new Set()
     const expectedHttpFailures = new Set()
     const expectedStatuses = new Set()
+    // Bestaande regressies kiezen licht expliciet; Cinematic-tests controleren ook de standaard.
+    await page.addInitScript(() => localStorage.setItem('myfunlist_theme', 'light'))
     page.on('pageerror', () => events.pageErrors++)
     page.on('console', message => {
       if (message.type() !== 'error') return
@@ -52,6 +54,18 @@ export const test = base.extend({
     await context.route('**/*', async route => {
       const request = route.request()
       const url = new URL(request.url())
+      const mockKey = `${request.method()} ${url.pathname}`
+      // Alleen expliciet aangemelde loopback-API-fixtures mogen synthetische mutaties beantwoorden.
+      if (url.origin === origin && url.pathname.startsWith('/api/') && Object.hasOwn(state.apiResponses, mockKey)) {
+        state.apiCalls.push(mockKey)
+        const configured = state.apiResponses[mockKey]
+        const reply = typeof configured === 'function' ? await configured(request) : configured
+        if (reply.status >= 400) {
+          expectedHttpFailures.add(request)
+          expectedStatuses.add(reply.status)
+        }
+        return route.fulfill(reply)
+      }
       if (request.method() !== 'GET') {
         events.unexpectedRequests++
         return route.abort('blockedbyclient')

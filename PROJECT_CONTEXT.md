@@ -1,12 +1,12 @@
 # MyFunList project context
 
-Current-state reference: tester-only Open Library staging is released; Google Books remains the default. The owner-approved Phase 1 visual redesign provides an editorial Discover Books experience. Use the actual HEAD; earlier architecture and verification records remain linked below.
+Current-state reference: tester-only Open Library staging is released; Google Books remains the default. The review candidate on `review/cinematic-redesign-phase1` applies the owner-selected Cinematic foundation, navigation, Home and all four Discover types. It is not merged or deployed. Use the actual HEAD; earlier architecture and verification records remain linked below.
 
 Working rules: [AGENTS.md](AGENTS.md). Setup/API reference: [Development](docs/DEVELOPMENT.md). Hosting/release procedure: [Deployment](docs/DEPLOYMENT.md). Earlier milestones and verification records: [Project history](docs/PROJECT_HISTORY.md).
 
 PR #4 was squash merged as `96139a1eb1f4a9bd666419f9ddd870770312f155`; its [staging workflow](https://github.com/DarkGuardianMT/myfunlist/actions/runs/42116549760) passed. Read-only release verification confirmed health 200, anonymous pilot 401 and an enabled, manually selectable Open Library frontend with Google Books as default. The owner reported valid private configuration, tester IDs, a successful authenticated Work/Edition search and registration-form submission. Tester-only sessions and the private allowlist remain mandatory. This redesign changes no backend or activation configuration. The [activation review](docs/OPEN_LIBRARY_FRONTEND_ACTIVATION.md) retains historical preparation evidence.
 
-The Phase 1 design uses paper/ink theme tokens, serif display type, a unified search/filter panel and two-column artwork-led book results, with compact native disclosures for complete metadata. Google Library actions and read-only Open Library previews retain existing contracts. See the [design system](docs/UI_DESIGN_SYSTEM.md) and [retained mocked visual QA findings](docs/UI_DESIGN_SYSTEM.md#retained-phase-1-qa).
+The Cinematic candidate uses dark/lime theme tokens with a functional light companion, system sans-serif display type, desktop top/mobile bottom navigation and artwork-first Discover results. Dark is the first-visit default; saved preferences persist. Home connects real provider search to Discover and projects the authenticated shared Library into an in-progress/recent shelf. Google Library actions and read-only Open Library previews retain existing contracts. Library/Lists/Detail layouts, backend APIs and schemas are unchanged. See the [design system](docs/UI_DESIGN_SYSTEM.md), [prototype comparison](docs/CINEMATIC_PHASE1.md) and [earlier retained QA findings](docs/UI_DESIGN_SYSTEM.md#retained-phase-1-qa).
 
 ## Project overview and product vision
 

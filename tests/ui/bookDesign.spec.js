@@ -74,7 +74,12 @@ for (const mode of ['light', 'dark']) {
       })
       if (!baseline) {
         expect(measurements[provider].coverWidth).toBeGreaterThanOrEqual(testInfo.project.name === 'mobile' ? 96 : 120)
-        expect(measurements[provider].height).toBeLessThanOrEqual(330)
+        if (provider === 'open-library') expect(measurements[provider].height).toBeLessThanOrEqual(330)
+        else {
+          // Cinematic maakt de omslag de hoofdzaak; de oude rijhoogte is niet meer van toepassing.
+          expect(measurements[provider].coverHeight).toBeGreaterThan(measurements[provider].coverWidth)
+          expect(measurements[provider].coverWidth / measurements[provider].width).toBeGreaterThan(0.9)
+        }
       }
       await checkLayout(page)
       await shot(page, testInfo, `${prefix}${provider}-${mode}`, cards.first())

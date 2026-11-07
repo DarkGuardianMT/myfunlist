@@ -8,7 +8,7 @@ import { renderToString } from 'vue/server-renderer'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createServer } from 'vite'
 
-test('theme defaults to light, switches both ways, and persists on reload', async () => {
+test('theme defaults to Cinematic dark, switches both ways, and persists on reload', async () => {
   const firstPage = new JSDOM('', { url: 'http://localhost/' })
   globalThis.window = firstPage.window
   globalThis.document = firstPage.window.document
@@ -16,13 +16,7 @@ test('theme defaults to light, switches both ways, and persists on reload', asyn
   try {
     const { useTheme } = await import('../src/composables/useTheme.js?theme-interaction')
     const { theme, toggleTheme } = useTheme()
-    assert.equal(theme.value, 'light')
-    assert.notEqual(document.documentElement.dataset.theme, 'dark')
-
-    toggleTheme()
     assert.equal(theme.value, 'dark')
-    assert.equal(document.documentElement.dataset.theme, 'dark')
-    assert.equal(localStorageValue(), 'dark')
 
     toggleTheme()
     assert.equal(theme.value, 'light')
@@ -30,6 +24,9 @@ test('theme defaults to light, switches both ways, and persists on reload', asyn
     assert.equal(localStorageValue(), 'light')
 
     toggleTheme()
+    assert.equal(theme.value, 'dark')
+    assert.equal(document.documentElement.dataset.theme, 'dark')
+    assert.equal(localStorageValue(), 'dark')
     const savedPreference = localStorageValue()
     const reloadedPage = new JSDOM('', { url: 'http://localhost/' })
     reloadedPage.window.localStorage.setItem('myfunlist_theme', savedPreference)
@@ -69,6 +66,7 @@ test('header toggle exposes the next action and pressed state', async () => {
       return renderToString(app)
     }
 
+    useTheme().toggleTheme()
     const lightHeader = await renderHeader()
     assert.match(lightHeader, /aria-label="Switch to dark mode"/)
     assert.match(lightHeader, /aria-pressed="false"/)

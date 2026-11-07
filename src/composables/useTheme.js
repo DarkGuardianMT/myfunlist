@@ -1,8 +1,8 @@
 import { readonly, ref } from 'vue'
 
 const STORAGE_KEY = 'myfunlist_theme'
-const theme = ref(typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark'
-  ? 'dark' : 'light')
+const theme = ref(typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light'
+  ? 'light' : 'dark')
 
 function setTheme(value) {
   theme.value = value === 'dark' ? 'dark' : 'light'
