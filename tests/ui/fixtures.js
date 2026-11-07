@@ -142,9 +142,9 @@ export async function checkLayout(page) {
   }
 }
 
-export async function capture(page, testInfo, name, focus) {
+export async function capture(page, testInfo, name, focus, viewportOnly = false) {
   await page.evaluate(() => document.fonts.ready)
-  const mobile = testInfo.project.name === 'mobile'
+  const mobile = testInfo.project.name === 'mobile' || viewportOnly
   if (mobile && focus) await focus.scrollIntoViewIfNeeded()
   else await page.evaluate(() => window.scrollTo(0, 0))
   // Mobiele viewportbeelden voorkomen dat vaste navigatie over een lange paginacapture valt.

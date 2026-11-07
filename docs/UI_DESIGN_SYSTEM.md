@@ -1,6 +1,6 @@
 # MyFunList visual direction — Cinematic
 
-The owner-selected Cinematic concept defines the shared foundation and every major frontend surface in the complete redesign candidate. See the [current implementation and prototype adaptation](CINEMATIC_COMPLETE.md). The [Phase 1 archive comparison](CINEMATIC_PHASE1.md) remains a historical scope record.
+The owner-selected Cinematic concept defines the shared foundation and every major frontend surface. See the [complete implementation and prototype adaptation](CINEMATIC_COMPLETE.md) and the current [UX refinement candidate](CINEMATIC_UX_REFINEMENTS.md). The [Phase 1 archive comparison](CINEMATIC_PHASE1.md) remains a historical scope record.
 
 ## Theme and typography
 
@@ -24,7 +24,9 @@ Home pairs a large display introduction with actionable provider search. Four ca
 
 Discover shares a heading, icon category switcher, compact search panel and artwork-first results. Portrait grids fit columns with a 190px minimum on larger screens (six at 1440px), two on phones above 360px and one on narrower phones. Games use landscape wells with a 300px minimum and one mobile column. Google filters sit beside search on wide screens. Open Library uses the same cover-first rhythm; expanded Work/Edition disclosures span the grid with distinct metadata and read-only controls.
 
-Library uses a dedicated shared collection card rather than Discover cards with tracking forms appended. Comfortable grids use substantial 190px-minimum artwork wells; Compact uses 145px minimums; List uses a small jacket alongside identity and controls. Games use uncropped landscape artwork when filtered to Games. Native status/rating controls remain immediately available; Manage groups lazy list actions and removal. Undo reopens the restored menu before returning focus. Only density is persisted on the device; account data and title queries are not written to storage.
+Library uses a dedicated shared collection card rather than Discover cards with tracking forms appended. Comfortable grids use substantial 190px-minimum artwork wells; Compact uses 145px minimums; List uses a small jacket alongside identity and controls. Mixed games show full foreground artwork over a blurred decorative portrait backdrop; Games-only views use landscape frames. A small star/score opens the native half-point rating selector, status remains directly editable, and an ellipsis disclosure groups lazy list actions and removal. Escape restores trigger focus. Undo reopens the restored menu before returning focus. Only density is persisted on the device; account data and title queries are not written to storage.
+
+Discover and Library share category buttons ordered Movies, TV Shows, Games, Books, with All first in Library. The Library bar wraps on narrow screens without replacing status/sort controls. Movie/TV year and original-language filters and game year/platform filters explicitly affect only returned results; Books retains its existing provider options. See the [supported filter scope](CINEMATIC_UX_REFINEMENTS.md#discover-filter-scope).
 
 Private list previews derive from existing Library records and guarded, paginated membership reads, without a per-list detail request. Detail combines prominent artwork, identity, tracking and full synopsis, followed by metadata rows. Login/Register share a compact mobile and split desktop shell; Profile separates identity and security forms.
 
