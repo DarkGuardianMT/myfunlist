@@ -8,7 +8,7 @@ import ListDetailView from '../views/ListDetailView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import MediaDetailView from '../views/MediaDetailView.vue'
-import { browsingScrollBehavior, rememberBrowsingPosition } from './browsingContext.js'
+import { browsingScrollBehavior, rememberBrowsingPosition, rememberDetailOrigin } from './browsingContext.js'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -26,8 +26,9 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach((_to, from) => {
+router.beforeEach((to, from) => {
   rememberBrowsingPosition(from, { left: window.scrollX, top: window.scrollY })
+  rememberDetailOrigin(to, from)
 })
 
 export default router

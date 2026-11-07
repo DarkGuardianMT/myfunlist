@@ -17,7 +17,7 @@ const { resetLibrary } = await import('../src/composables/useLibrary.js')
 const { clearCsrfToken } = await import('../src/services/apiClient.js')
 const { clearMediaDetailCache } = await import('../src/composables/useMediaDetails.js')
 const { clearDiscoverCache, DISCOVER_CACHE_TTL, DISCOVER_CACHE_LIMIT } = await import('../src/composables/useDiscoverSearch.js')
-const { browsingScrollBehavior, rememberBrowsingPosition, clearBrowsingPositions, discoverReturnLocation } = await import('../src/router/browsingContext.js')
+const { browsingScrollBehavior, rememberBrowsingPosition, rememberDetailOrigin, clearBrowsingPositions, discoverReturnLocation } = await import('../src/router/browsingContext.js')
 
 const DiscoverView = await loadVueComponent(new URL('../src/views/DiscoverView.vue', import.meta.url))
 const LibraryView = await loadVueComponent(new URL('../src/views/LibraryView.vue', import.meta.url))
@@ -81,7 +81,10 @@ async function page(path = '/discover') {
     { path: '/media/:mediaType/:source/:sourceId', name: 'media-detail', component: MediaDetailView },
     ...['/login', '/register', '/lists'].map((path) => ({ path, component: { render: () => null } })),
   ] })
-  router.beforeEach((_to, from) => rememberBrowsingPosition(from, { left: window.scrollX, top: window.scrollY }))
+  router.beforeEach((to, from) => {
+    rememberBrowsingPosition(from, { left: window.scrollX, top: window.scrollY })
+    rememberDetailOrigin(to, from)
+  })
   await router.push(path)
   await router.isReady()
   const view = mount({ render: () => h(RouterView) }, { global: { plugins: [router] } })
@@ -170,12 +173,12 @@ test('direct URLs and refresh reconstruct searches; bare/invalid URLs and direct
   assert.equal(providerCalls().length, 2)
   await refreshed.router.push('/discover?type=invalid&q=One&q=Two')
   await settle()
-  assert.equal(refreshed.view.get('#book-query').element.value, '')
+  assert.equal(refreshed.view.get('#movie-query').element.value, '')
   assert.equal(refreshed.view.find('article').exists(), false)
   assert.equal(providerCalls().length, 2)
   await refreshed.router.push('/discover')
   await settle()
-  assert.match(refreshed.view.text(), /Enter a title, author, or ISBN/)
+  assert.match(refreshed.view.text(), /Movie title/)
   discoverReturnLocation.value = { path: '/discover' }
   await refreshed.router.push('/media/game/rawg/9767')
   await settle()
@@ -229,6 +232,120 @@ test('leaving and returning during a search deduplicates the pending request and
   assert.equal(view.get('article h3').text(), 'Pending')
 })
 
+for (const outcome of ['success', 'empty', 'error']) test(`completed ${outcome} state survives Library navigation and expiry without automatic requests`, async (context) => {
+  let now = Date.now()
+  context.mock.method(Date, 'now', () => now)
+  currentUser.value = { id: '1' }
+  globalThis.fetch = (path, options) => {
+    if (!path.includes('/discover/game')) return defaultFetch(path, options)
+    calls.push(path)
+    return Promise.resolve(outcome === 'success' ? providerReply('game', 'Remembered') : outcome === 'empty' ? ok([])
+      : { ok: false, status: 503, json: async () => ({ error: { code: 'provider_unavailable' } }) })
+  }
+  const { view, router } = await page('/discover?type=game&q=Remembered&resultYear=unknown')
+  const location = router.currentRoute.value.fullPath
+  const expected = outcome === 'success' ? /Remembered/ : outcome === 'empty' ? /No games found/ : /RAWG is temporarily unavailable/
+  assert.match(view.text(), expected)
+  await router.push('/library')
+  await settle()
+  now += DISCOVER_CACHE_TTL * 2
+  await back(router)
+  assert.equal(router.currentRoute.value.fullPath, location)
+  assert.match(view.text(), expected)
+  assert.doesNotMatch(view.text(), /Searching RAWG/)
+  assert.equal(providerCalls().length, 1)
+  if (outcome === 'error') await view.get('.catalogue-retry').trigger('click')
+  else await view.get('form').trigger('submit')
+  await settle()
+  assert.equal(providerCalls().length, 2)
+  await submit(view, 'Genuinely new')
+  assert.equal(providerCalls().length, 3)
+  assert.equal(router.currentRoute.value.query.resultYear, undefined)
+})
+
+for (const outcome of ['success', 'error']) test(`pending ${outcome} settles while unmounted and is restored without another request`, async () => {
+  let finish
+  globalThis.fetch = path => {
+    calls.push(path)
+    return new Promise(resolve => { finish = resolve })
+  }
+  const { view, router } = await page('/discover?type=game&q=Pending')
+  await router.push('/')
+  await settle()
+  finish(outcome === 'success' ? providerReply('game', 'Completed while away')
+    : { ok: false, status: 503, json: async () => ({ error: { code: 'provider_unavailable' } }) })
+  await settle()
+  await back(router)
+  assert.equal(providerCalls().length, 1)
+  assert.match(view.text(), outcome === 'success' ? /Completed while away/ : /RAWG is temporarily unavailable/)
+  assert.doesNotMatch(view.text(), /Searching RAWG/)
+})
+
+test('Movies is the bare default, legacy Books canonicalizes, and every book action keeps explicit type', async () => {
+  const { view, router } = await page()
+  assert.equal(view.get('.discover-type-switcher__button[aria-pressed="true"]').element.value, 'movie')
+  assert.equal(providerCalls().length, 0)
+  await router.push('/discover?q=Legacy&field=author&lang=nl')
+  await settle()
+  assert.equal(router.currentRoute.value.query.type, 'book')
+  assert.equal(router.currentRoute.value.query.field, 'author')
+  assert.equal(router.currentRoute.value.query.lang, 'nl')
+  assert.equal(providerCalls().length, 1)
+  assert.equal(view.get('#book-provider').element.value, 'google-books')
+  await view.get('#book-provider').setValue('open-library')
+  await settle()
+  assert.equal(router.currentRoute.value.query.type, 'book')
+  assert.equal(router.currentRoute.value.query.provider, 'open-library')
+  assert.match(view.text(), /No search requests are sent/)
+  assert.equal(providerCalls().length, 1)
+  await view.get('#book-provider').setValue('google-books')
+  await settle()
+  assert.equal(router.currentRoute.value.query.type, 'book')
+  await submit(view, 'New book')
+  assert.equal(router.currentRoute.value.query.type, 'book')
+})
+
+test('explicit searches refresh revisited queries and repeated submits share an in-flight request', async () => {
+  const { view } = await page('/discover?type=movie&q=First')
+  await submit(view, 'Second')
+  assert.equal(providerCalls().length, 2)
+  await submit(view, 'First')
+  assert.equal(providerCalls().length, 3)
+  let finish
+  globalThis.fetch = path => {
+    calls.push(path)
+    return new Promise(resolve => { finish = resolve })
+  }
+  await view.get('form').trigger('submit')
+  await view.get('form').trigger('submit')
+  await settle()
+  assert.equal(providerCalls().length, 4)
+  finish(providerReply('movie', 'Manually refreshed'))
+  await settle()
+  assert.equal(view.get('article h3').text(), 'Manually refreshed')
+})
+
+test('error browsing snapshots obey the same 20-entry LRU bound', async () => {
+  globalThis.fetch = async path => {
+    calls.push(path)
+    return { ok: false, status: 503, json: async () => ({ error: { code: 'provider_unavailable' } }) }
+  }
+  const { view, router } = await page('/discover?type=game&q=Oldest')
+  for (let index = 0; index < DISCOVER_CACHE_LIMIT; index++) {
+    await router.push(`/discover?type=game&q=Failure${index}`)
+    await settle()
+  }
+  assert.equal(providerCalls().length, DISCOVER_CACHE_LIMIT + 1)
+  await router.push('/')
+  await router.push(`/discover?type=game&q=Failure${DISCOVER_CACHE_LIMIT - 1}`)
+  await settle()
+  assert.equal(providerCalls().length, DISCOVER_CACHE_LIMIT + 1)
+  await router.push('/discover?type=game&q=Oldest')
+  await settle()
+  assert.equal(providerCalls().length, DISCOVER_CACHE_LIMIT + 2)
+  assert.match(view.text(), /RAWG is temporarily unavailable/)
+})
+
 test('switching types preserves unsubmitted input without treating it as a submitted search', async () => {
   const { view } = await page('/discover?q=The%20Hobbit')
   await view.get('#book-query').setValue('Unsubmitted draft')
@@ -249,7 +366,7 @@ test('switching types preserves unsubmitted input without treating it as a submi
   assert.equal(view.get('article h3').text(), 'Game draft')
 })
 
-test('successful result cache expires and evicts old searches; provider errors remain retryable', async (context) => {
+test('bounded browsing snapshots survive result-cache expiry and preserve manual refresh/retry', async (context) => {
   let now = Date.now()
   context.mock.method(Date, 'now', () => now)
   const { view, router } = await page('/discover?type=movie&q=Oldest')
@@ -268,6 +385,9 @@ test('successful result cache expires and evicts old searches; provider errors r
   now += DISCOVER_CACHE_TTL + 1
   await router.push('/')
   await router.push('/discover?type=movie&q=Oldest')
+  await settle()
+  assert.equal(providerCalls().length, before + 1)
+  await view.get('form').trigger('submit')
   await settle()
   assert.equal(providerCalls().length, before + 2)
   globalThis.fetch = async (path) => {
@@ -335,7 +455,7 @@ test('each book filter searches automatically, isolates cache entries and omits 
   await settle()
   assert.equal(view.get('#book-search-field').element.value, 'all')
   assert.equal(view.get('#book-search-language').element.value, 'any')
-  assert.deepEqual(router.currentRoute.value.query, { q: 'Hobbit' })
+  assert.deepEqual(router.currentRoute.value.query, { type: 'book', q: 'Hobbit' })
   assert.equal(providerCalls().length, 4)
   await router.push('/discover?q=Hobbit&field=invalid&sort=invalid&lang=invalid')
   await settle()
@@ -348,7 +468,7 @@ test('each book filter searches automatically, isolates cache entries and omits 
 })
 
 test('filter choices without a query stay idle; query encoding and type-specific filter context are retained', async () => {
-  const { view, router } = await page()
+  const { view, router } = await page('/discover?type=book')
   await view.get('#book-search-field').setValue('author')
   await settle()
   await view.get('#book-search-language').setValue('en')
@@ -415,7 +535,7 @@ test('filtered empty searches offer broader constraints and provider errors stay
   assert.match(view.text(), /Try All fields or Any language/)
   await view.get('form').trigger('submit')
   await settle()
-  assert.equal(providerCalls().length, 1)
+  assert.equal(providerCalls().length, 2)
   globalThis.fetch = async (path) => {
     calls.push(path)
     return { ok: false, status: 429 }
@@ -427,7 +547,7 @@ test('filtered empty searches offer broader constraints and provider errors stay
   await view.get('form').trigger('submit')
   await settle()
   assert.equal(view.findAll('article').length, 1)
-  assert.equal(providerCalls().length, 3)
+  assert.equal(providerCalls().length, 4)
 })
 
 test('empty book searches suggest only field and language restrictions that can actually be broadened', async () => {
@@ -511,12 +631,12 @@ test('Google language selection retains unknown and mismatched metadata without 
   assert.match(view.get('.book-language-notice').text(), /all returned results remain visible/)
   await view.get('form').trigger('submit')
   await settle()
-  assert.equal(providerCalls().length, 1)
+  assert.equal(providerCalls().length, 2)
   assert.match(view.get('.book-language-notice').text(), /all returned results remain visible/)
   await view.get('#book-search-language').setValue('any')
   await settle()
   assert.equal(view.findAll('article').length, 2)
-  assert.equal(providerCalls().length, 2)
+  assert.equal(providerCalls().length, 3)
 })
 
 test('Library type, valid status and sort survive detail Back, and switching types resets only status', async () => {
@@ -528,7 +648,10 @@ test('Library type, valid status and sort survive detail Back, and switching typ
   window.scrollY = 460
   await view.get('article h3 a').trigger('click')
   await settle()
-  await back(router)
+  assert.match(view.get('.media-detail-back').text(), /Back to Library/)
+  assert.equal(view.get('.media-detail-back').attributes('href'), '/library')
+  await view.get('.media-detail-back').trigger('click')
+  await settle()
   assert.equal(view.get('#library-media-filter button[value="game"]').attributes('aria-pressed'), 'true')
   assert.equal(view.get('#library-status-filter').element.value, 'playing')
   assert.equal(view.get('#library-sort-order').element.value, 'title')

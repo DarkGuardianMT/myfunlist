@@ -134,6 +134,8 @@ test('anonymous Discover keeps login/register prompts separate from detail navig
     id: identities.book.sourceId, volumeInfo: { title: 'Anonymous book' },
   }] }) })
   const { view, router } = await render(DiscoverView)
+  await view.get('.discover-type-switcher__button[value="book"]').trigger('click')
+  await flushPromises()
   await view.get('#book-query').setValue('Fixture')
   await view.get('form').trigger('submit')
   await flushPromises()

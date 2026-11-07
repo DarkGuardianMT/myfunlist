@@ -29,7 +29,7 @@ function syncCooldown() {
 }
 
 function location(q = submitted.value, filters = options.value) {
-  return { path: '/discover', query: { provider: 'open-library', ...(q ? { q } : {}),
+  return { path: '/discover', query: { type: 'book', provider: 'open-library', ...(q ? { q } : {}),
     ...(filters.field !== 'general' ? { field: filters.field } : {}),
     ...(filters.language !== 'any' ? { lang: filters.language } : {}),
     ...(filters.languageMode === 'strict' ? { mode: 'strict' } : {}) } }

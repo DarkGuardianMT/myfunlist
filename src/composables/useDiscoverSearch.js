@@ -2,6 +2,7 @@ import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { resolveBookProvider } from '../domain/bookProviders.js'
 import { MEDIA_TYPES } from '../domain/libraryMedia.js'
+import { resolveDiscoverType } from '../domain/discoverRoute.js'
 import { normalizeBookSearchOptions } from '../domain/bookSearch.js'
 import { filterDiscoveryResults, normalizeResultFilters, resultFilterOptions, RESULT_FILTER_PARAMS } from '../domain/resultFilters.js'
 import { discoverReturnLocation, useBrowsingReady } from '../router/browsingContext.js'
@@ -14,6 +15,7 @@ export const DISCOVER_CACHE_TTL = 5 * 60 * 1000
 export const DISCOVER_CACHE_LIMIT = 20
 const cache = new Map()
 const pending = new Map()
+const snapshots = new Map()
 const queriesByType = new Map()
 let cacheVersion = 0
 const searches = { book: searchBooks, movie: searchMovies, tv: searchTvShows, game: searchGames }
@@ -23,6 +25,7 @@ export function clearDiscoverCache() {
   cacheVersion++
   cache.clear()
   pending.clear()
+  snapshots.clear()
   queriesByType.clear()
 }
 
@@ -32,7 +35,7 @@ function routeQuery(value) {
 
 function location(type, query, options = {}) {
   const { field, sort, language } = normalizeBookSearchOptions(options)
-  return { path: '/discover', query: { ...(type !== 'book' ? { type } : {}), ...(query ? { q: query } : {}),
+  return { path: '/discover', query: { type, ...(query ? { q: query } : {}),
     ...(type === 'book' ? {
       ...(field !== 'all' ? { field } : {}),
       ...(sort !== 'relevance' ? { sort } : {}),
@@ -41,27 +44,43 @@ function location(type, query, options = {}) {
   } }
 }
 
-function search(type, query, options) {
+function search(type, query, options, refresh = false) {
   const key = JSON.stringify([type, query, ...(type === 'book' ? [options.field, options.sort, options.language] : [])])
+  if (pending.has(key)) return pending.get(key)
+  // Een terugkeer herstelt ook verlopen, lege en mislukte zoekacties zonder providerverkeer.
+  const previous = snapshots.get(key)
+  if (!refresh && previous) {
+    snapshots.delete(key)
+    snapshots.set(key, previous)
+    return Promise.resolve(previous)
+  }
   const cached = cache.get(key)
-  if (cached && cached.expiresAt > Date.now()) {
+  if (!refresh && cached && cached.expiresAt > Date.now()) {
     cache.delete(key)
     cache.set(key, cached)
-    return Promise.resolve(cached.results)
+    return Promise.resolve({ results: cached.results, status: cached.results.length ? 'success' : 'empty', errorMessage: '' })
   }
   cache.delete(key)
-  if (pending.has(key)) return pending.get(key)
   const version = cacheVersion
+  function remember(state) {
+    if (version === cacheVersion) {
+      snapshots.delete(key)
+      snapshots.set(key, state)
+      while (snapshots.size > DISCOVER_CACHE_LIMIT) snapshots.delete(snapshots.keys().next().value)
+    }
+    return state
+  }
   const request = searches[type](query, type === 'book' ? options : undefined).then((results) => {
-    if (version !== cacheVersion) return results
+    if (version !== cacheVersion) return { results, status: results.length ? 'success' : 'empty', errorMessage: '' }
     const now = Date.now()
     for (const [key, entry] of cache) {
       if (entry.expiresAt <= now) cache.delete(key)
     }
     cache.set(key, { results, expiresAt: now + DISCOVER_CACHE_TTL })
     while (cache.size > DISCOVER_CACHE_LIMIT) cache.delete(cache.keys().next().value)
-    return results
-  }).finally(() => { if (pending.get(key) === request) pending.delete(key) })
+    return remember({ results, status: results.length ? 'success' : 'empty', errorMessage: '' })
+  }).catch(error => remember({ results: [], status: 'error', errorMessage: messages[type](error) }))
+    .finally(() => { if (pending.get(key) === request) pending.delete(key) })
   pending.set(key, request)
   return request
 }
@@ -69,7 +88,7 @@ function search(type, query, options) {
 export function useDiscoverSearch() {
   const route = useRoute()
   const router = useRouter()
-  const activeMediaType = computed(() => MEDIA_TYPES.includes(route.query.type) ? route.query.type : 'book')
+  const activeMediaType = computed(() => resolveDiscoverType(route.query))
   const bookProvider = computed(() => resolveBookProvider(route.query.provider))
   const bookFilters = computed(() => normalizeBookSearchOptions({
     field: route.query.field, sort: route.query.sort, language: route.query.lang,
@@ -95,6 +114,7 @@ export function useDiscoverSearch() {
     },
   })
   let generation = 0
+  let refreshLocation = null
 
   function rememberContext() {
     const type = activeMediaType.value
@@ -118,12 +138,15 @@ export function useDiscoverSearch() {
     discoverReturnLocation.value = context
   }
 
-  async function load() {
+  async function load(refresh = false) {
     const version = ++generation
     if (route.path !== '/discover') return
     const type = activeMediaType.value
     const query = routeQuery(route.query.q)
     const options = bookFilters.value
+    if (type === 'book' && route.query.type !== 'book') {
+      return router.replace({ path: '/discover', query: { ...route.query, type: 'book' }, hash: route.hash })
+    }
     rememberContext()
     const draft = drafts.get(type)
     const input = draft?.submittedQuery === query ? draft.query : query
@@ -131,10 +154,9 @@ export function useDiscoverSearch() {
     if (type === 'book' && bookProvider.value === 'open-library') { activeSearch.value.status = 'idle'; return }
     if (!query) return
     try {
-      const results = await search(type, query, options)
+      const state = await search(type, query, options, refresh)
       if (version !== generation) return
-      activeSearch.value.results = results
-      activeSearch.value.status = results.length ? 'success' : 'empty'
+      Object.assign(activeSearch.value, state)
     } catch (error) {
       if (version !== generation) return
       activeSearch.value.status = 'error'
@@ -145,7 +167,11 @@ export function useDiscoverSearch() {
   // Lokale resultaatfilters mogen ook na het verlopen van de cache geen zoekactie starten.
   watch([() => route.path, () => route.query.type, () => route.query.q,
     ...['provider', 'field', 'sort', 'lang', 'mode'].map(name => () => activeMediaType.value === 'book' ? route.query[name] : undefined),
-  ], load, { immediate: true })
+  ], () => {
+    const refresh = refreshLocation === route.fullPath
+    refreshLocation = null
+    load(refresh)
+  }, { immediate: true })
   watch(() => [route.query.resultYear, route.query.resultLanguage, route.query.resultPlatform], () => {
     if (route.path === '/discover') rememberContext()
   })
@@ -168,15 +194,16 @@ export function useDiscoverSearch() {
     const query = routeQuery(activeSearch.value.query)
     if (!query || activeSearch.value.status === 'loading') return
     drafts.delete(activeMediaType.value)
-    if (route.path === '/discover' && query === routeQuery(route.query.q)) return load()
+    if (route.path === '/discover' && query === routeQuery(route.query.q)) return load(true)
     const target = location(activeMediaType.value, query, bookFilters.value)
     if (activeMediaType.value === 'book' && route.query.provider) target.query.provider = bookProvider.value
+    refreshLocation = router.resolve(target).fullPath
     return router.push(target)
   }
 
   function setBookProvider(provider) {
     if (!['open-library', 'google-books'].includes(provider)) return
-    return router.push({ path: '/discover', query: { provider, ...(routeQuery(route.query.q) ? { q: routeQuery(route.query.q) } : {}) } })
+    return router.push({ path: '/discover', query: { type: 'book', provider, ...(routeQuery(route.query.q) ? { q: routeQuery(route.query.q) } : {}) } })
   }
 
   function setResultFilter(name, value) {

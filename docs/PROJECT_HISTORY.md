@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Discover navigation fix candidate — 7 November 2026
+
+Following the owner-reported staging issues, `review/discover-navigation-fixes` restores bounded TMDB/RAWG/Google browsing snapshots without remount/expiry retries, retains pending-request deduplication and explicit refresh, adds validated internal Discover/Library/List return navigation and switches bare Discover/Home to Movies with explicit/legacy-compatible Books URLs. One bounded staging game search returned 503 `provider_unavailable` in 8.2 seconds; the generic mapping prevents a definitive key/upstream/transport diagnosis. See [behavior and diagnostic limits](DISCOVER_NAVIGATION_FIX.md). Backend runtime, provider configuration/limits, database and hosting settings remain unchanged. Delivery uses one review PR. The owner reviewed the temporary QA evidence and subsequently approved its task-specific cleanup and squash merge to staging. Verify the automatic workflow result independently. Branch deletion and public production release are not authorized.
+
 ## Cinematic UX refinement candidate — 7 November 2026
 
 Following the PR #8 release, `review/cinematic-ux-refinements` refines uncropped game artwork, shared media ordering, local Discover result filters, compact editable Library tracking/menu controls and a keyboard-operated Library category bar. No backend/provider contracts change. Unit checks pass 345 tests with 12 existing platform skips; build and 58 isolated headless tests pass. See the [implementation, limitations and retained QA summary](CINEMATIC_UX_REFINEMENTS.md). The owner reviewed the temporary screenshots and approved their task-specific removal and the squash merge to staging. Production release and deletion of the review branch are not authorized; actual staging deployment success must be verified separately.

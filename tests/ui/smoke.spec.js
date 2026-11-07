@@ -4,7 +4,7 @@ test('anonymous navigation, responsive controls and theme switching', async ({ p
   await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Track what you love.' })).toBeVisible()
   await page.getByRole('link', { name: 'Discover media' }).click()
-  await expect(page.getByRole('heading', { name: 'Discover books' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Discover movies' })).toBeVisible()
   const mobile = testInfo.project.name === 'mobile'
   const navigation = page.getByRole('navigation', { name: mobile ? 'Mobile navigation' : 'Main navigation', exact: true })
   await expect(navigation).toBeVisible()

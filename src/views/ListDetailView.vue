@@ -9,6 +9,7 @@ import { useAuth } from '../composables/useAuth.js'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useLists } from '../composables/useLists.js'
 import { formatListDate } from '../utils/listDisplay.js'
+import { useBrowsingReady } from '../router/browsingContext.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -49,6 +50,7 @@ const filteredItems = computed(() => {
 })
 const hasTmdbMedia = computed(() => selectedItems.value.some((item) => item.media.source === 'tmdb'))
 const hasGames = computed(() => selectedItems.value.some((item) => item.media.mediaType === 'game'))
+useBrowsingReady('/lists', computed(() => !isDetailLoading.value && !isLibraryLoading.value))
 
 watch([() => currentUser.value?.id, isAuthLoading, listId], async () => {
   feedback.value = ''

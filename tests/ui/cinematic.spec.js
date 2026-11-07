@@ -58,16 +58,20 @@ for (const mode of ['dark', 'light']) {
       await checkLayout(page)
     }
     await page.setViewportSize(info.project.use.viewport)
-    await page.getByLabel('Title, author, or ISBN', { exact: true }).fill('lantern-fixture')
+    await page.getByLabel('Search by title', { exact: true }).fill('lantern-fixture')
     await page.getByRole('button', { name: 'Find media', exact: true }).click()
-    await expect(page.locator('.book-card')).toHaveCount(6)
-    await expect(page.getByLabel('Book catalogue', { exact: true })).toHaveValue('google-books')
+    await expect(page.locator('.discovery-search article')).toHaveCount(6)
+    await expect(page).toHaveURL(/type=movie/)
     for (const [type, label] of [['book', 'Books'], ['movie', 'Movies'], ['tv', 'TV Shows'], ['game', 'Games']]) {
       await page.getByRole('button', { name: label, exact: true }).click()
       const input = page.locator(`#${type}-query`)
-      if (type !== 'book') {
+      if (type !== 'movie') {
         await input.fill('lantern-fixture')
         await page.getByRole('button', { name: 'Search', exact: true }).click()
+      }
+      if (type === 'book') {
+        await expect(page).toHaveURL(/type=book/)
+        await expect(page.getByLabel('Book catalogue', { exact: true })).toHaveValue('google-books')
       }
       const cards = page.locator('.discovery-search article')
       await expect(cards).toHaveCount(6)

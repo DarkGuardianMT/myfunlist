@@ -147,7 +147,7 @@ test('UX returned-result filters preserve provider requests, URL context and cac
     await expect(page.locator('.discovery-search article')).toHaveCount(6)
     await expect(page).not.toHaveURL(/resultYear/)
   }
-  await page.goto('/discover')
+  await page.goto('/discover?type=book')
   await expect(page.getByLabel('Book catalogue')).toHaveValue('google-books')
   expect(sandbox.pilotRequests).toBe(0)
 })

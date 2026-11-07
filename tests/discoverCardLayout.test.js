@@ -132,6 +132,8 @@ test('Discover enables compact metadata for rendered Hobbit fixture results, inc
   } }))
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ items }) })
   const { view, router } = await render(Discover, {})
+  await view.get('.discover-type-switcher__button[value="book"]').trigger('click')
+  await flushPromises()
   await view.get('#book-query').setValue('The Hobbit')
   await view.get('form').trigger('submit')
   await flushPromises()

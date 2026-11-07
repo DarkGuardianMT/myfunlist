@@ -9,9 +9,10 @@ import RawgAttribution from '../components/RawgAttribution.vue'
 import TmdbAttribution from '../components/TmdbAttribution.vue'
 import { useMediaDetails } from '../composables/useMediaDetails.js'
 import { getMediaKey } from '../domain/mediaIdentity.js'
-import { discoverReturnLocation } from '../router/browsingContext.js'
+import { useDetailBack } from '../router/browsingContext.js'
 
 const route = useRoute()
+const back = useDetailBack(route)
 const identity = computed(() => ({ mediaType: route.params.mediaType, source: route.params.source, sourceId: route.params.sourceId }))
 const { detail, status, error, retry } = useMediaDetails(identity)
 const feedback = computed(() => {
@@ -26,7 +27,7 @@ const feedback = computed(() => {
 
 <template>
   <article class="media-detail-page" :aria-busy="status === 'loading'" aria-labelledby="media-title">
-    <RouterLink class="inline-link media-detail-back" :to="discoverReturnLocation">← Discover</RouterLink>
+    <RouterLink class="inline-link media-detail-back" :to="back.location">← {{ back.label }}</RouterLink>
     <div v-if="status === 'loading'" class="media-detail-state" role="status">
       <h1 id="media-title">Loading media…</h1>
       <p>Getting the details for this item.</p>
@@ -46,7 +47,7 @@ const feedback = computed(() => {
     <div v-else class="media-detail-state" role="alert" :data-state="status">
       <h1 id="media-title">{{ feedback.title }}</h1>
       <p>{{ feedback.message }}</p>
-      <RouterLink v-if="status === 'not-found'" class="inline-link" :to="discoverReturnLocation">Back to Discover</RouterLink>
+      <RouterLink v-if="status === 'not-found'" class="inline-link" :to="back.location">{{ back.label }}</RouterLink>
       <button v-else class="text-button" type="button" @click="retry">Try again</button>
     </div>
   </article>
