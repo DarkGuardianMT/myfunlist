@@ -53,7 +53,7 @@ test('Discover keeps search, switching, loading, stale-result, and error behavio
       })),
       { path: '/media/:mediaType/:source/:sourceId', name: 'media-detail', component: { render: () => null } },
     ] })
-    await router.push('/discover')
+    await router.push('/discover?type=book')
     view = mount(DiscoverView, { global: { plugins: [router] } })
 
     await view.get('#book-query').setValue('The Hobbit')

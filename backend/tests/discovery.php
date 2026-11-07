@@ -186,11 +186,14 @@ try {
         && json_decode($malformed->body(), true, 512, JSON_THROW_ON_ERROR)['error']['code']
             === 'provider_error', 'Malformed upstream results must return a safe 502.');
 
-    $_ENV['TMDB_API_TOKEN'] = '';
-    $callsBeforeMissing = $http->calls;
-    $missing = $application->handle('GET', '/api/v1/discover/movie');
-    verifyDiscovery($missing->status === 503 && $http->calls === $callsBeforeMissing,
-        'Missing provider configuration should fail safely without an upstream call.');
+    foreach (['TMDB_API_TOKEN' => 'movie', 'RAWG_API_KEY' => 'game'] as $credential => $type) {
+        $_ENV[$credential] = '';
+        $callsBeforeMissing = $http->calls;
+        $missing = $application->handle('GET', '/api/v1/discover/' . $type);
+        verifyDiscovery($missing->status === 503 && $http->calls === $callsBeforeMissing
+            && json_decode($missing->body(), true)['error']['code'] === 'provider_unavailable',
+            'Missing provider configuration should fail safely without an upstream call.');
+    }
 
     echo "Discovery provider and API tests passed.\n";
 } finally {

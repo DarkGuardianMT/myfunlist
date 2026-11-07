@@ -12,7 +12,7 @@ const router = useRouter()
 const { currentUser, isAuthLoading } = useAuth()
 const { displayLibraryItems, isLibraryLoading, isLibraryLoaded, libraryError, loadLibrary } = useLibrary()
 const query = ref('')
-const mediaType = ref('book')
+const mediaType = ref('movie')
 const worlds = orderMediaCategories([
   { id: 'book', name: 'Books', caption: 'One more chapter.', description: 'Find your next great read.', provider: 'Google Books' },
   { id: 'movie', name: 'Movies', caption: 'Make it a movie night.', description: 'Find a film that stays with you.', provider: 'TMDB' },
@@ -31,7 +31,7 @@ watch([currentUser, isAuthLoading], () => loadHomeLibrary(), { immediate: true }
 
 function search() {
   const q = query.value.trim()
-  if (q) router.push({ path: '/discover', query: { ...(mediaType.value !== 'book' ? { type: mediaType.value } : {}), q } })
+  if (q) router.push({ path: '/discover', query: { type: mediaType.value, q } })
 }
 </script>
 
@@ -73,7 +73,7 @@ function search() {
     <section aria-labelledby="home-worlds-title">
       <div class="cinematic-section-heading"><div><p class="cinematic-eyebrow">Four ways to get lost</p><h2 id="home-worlds-title">A world for every mood.</h2></div><span class="home-section-note">One Library. All your favourites.</span></div>
       <div class="home-worlds">
-        <RouterLink v-for="(world, index) in worlds" :key="world.id" class="home-world" :data-type="world.id" :to="{ path: '/discover', query: world.id === 'book' ? {} : { type: world.id } }">
+        <RouterLink v-for="(world, index) in worlds" :key="world.id" class="home-world" :data-type="world.id" :to="{ path: '/discover', query: { type: world.id } }">
           <div class="home-world-art" aria-hidden="true"><span class="home-world-number">0{{ index + 1 }}</span><MediaTypeIcon :type="world.id" /><span class="home-world-arrow">↗</span></div>
           <h3>{{ world.name }}</h3><p class="home-world-caption">{{ world.caption }}</p><p>{{ world.description }}</p>
         </RouterLink>
