@@ -75,6 +75,7 @@ namespace {
     $originalServer = $_SERVER;
     $originalGet = $_GET;
     $originalFlag = getenv('OPEN_LIBRARY_PILOT_ENABLED');
+    $_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] = 'false';
     $db = new OpenLibraryTestPDO();
     $store = new \MyFunList\Provider\OpenLibraryStateStore(static fn (): PDO => $db);
     $fixture = json_decode(file_get_contents(__DIR__ . '/fixtures/open_library.json'), true, 512, JSON_THROW_ON_ERROR);

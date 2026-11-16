@@ -17,6 +17,7 @@ jobs:
     timeout-minutes: 15
     env:
       VITE_OPEN_LIBRARY_DISCOVER_ENABLED: 'true'
+      OPEN_LIBRARY_EXPECTED_ACCESS_MODE: ${{ vars.OPEN_LIBRARY_EXPECTED_ACCESS_MODE }}
     defaults:
       run:
         shell: bash
@@ -71,6 +72,13 @@ jobs:
           php backend/tests/database_safety.php
           composer --working-dir=backend run test:providers
           composer --working-dir=backend run test:api
+
+      - name: Validate expected Open Library access mode
+        run: |
+          node --input-type=module <<'NODE'
+          import { verifyOpenLibraryConfiguration } from './scripts/verifyOpenLibraryPilot.mjs'
+          verifyOpenLibraryConfiguration(process.env.OPEN_LIBRARY_EXPECTED_ACCESS_MODE, process.env.VITE_OPEN_LIBRARY_DISCOVER_ENABLED)
+          NODE
 
       - name: Configure SSH
         env:

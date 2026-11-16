@@ -30,7 +30,7 @@ final class OpenLibraryController
             $unavailable = $exception->status === 429 || ($exception->status >= 500 && $exception->status !== 502);
             return JsonResponse::error($unavailable ? 503 : 502,
                 $unavailable ? 'provider_unavailable' : 'provider_error',
-                $unavailable ? 'Book search pilot is temporarily unavailable.' : 'Book provider returned invalid data.',
+                $unavailable ? 'Book search is temporarily unavailable.' : 'Book provider returned invalid data.',
                 ['Cache-Control' => 'no-store', ...($unavailable ? ['Retry-After' => '60'] : [])]);
         }
     }

@@ -82,9 +82,9 @@ function submit() {
     <div class="book-search-panel">
       <div class="book-search-heading">
         <h2 id="open-library-search-title">Search books with Open Library</h2>
-        <span class="catalogue-badge">Tester pilot · read-only</span>
+        <span class="catalogue-badge">Read-only book discovery</span>
       </div>
-      <p v-if="!enabled" class="catalogue-state" role="status">Open Library discovery is awaiting operational and policy checks. No search requests are sent. Choose Google Books above to search now.</p>
+      <p v-if="!enabled" class="catalogue-state" role="status">Open Library discovery is currently unavailable. Choose Google Books above to search now.</p>
       <form class="discovery-search__form" role="search" @submit.prevent="submit">
         <label for="open-library-query">{{ labels[options.field] }}</label>
         <div class="discovery-search__controls">

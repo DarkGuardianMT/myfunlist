@@ -60,6 +60,10 @@ test('enabled pilot keeps Google as default and allows manual Open Library selec
   await view.get('#book-provider').setValue('open-library')
   await flushPromises()
   assert.match(view.text(), /A modern book/)
+  assert.match(view.text(), /Read-only book discovery/)
+  assert.doesNotMatch(view.text(), /tester|pilot/i)
+  assert.equal(currentUser.value, null)
+  assert.equal(view.get('#book-provider option[value="open-library"]').text(), 'Open Library')
   assert.equal(calls.length, 2)
   await view.get('#book-provider').setValue('google-books')
   await flushPromises()
@@ -75,8 +79,8 @@ test('pilot 401 and 403 explain access without expiring the session or automatic
   currentUser.value = user
   try {
     for (const [status, code, message] of [
-      [401, 'unauthenticated', 'Sign in to test Open Library.'],
-      [403, 'forbidden', 'Your account is not authorized for this pilot.'],
+      [401, 'unauthenticated', 'Open Library access currently requires sign-in.'],
+      [403, 'forbidden', 'Open Library is not available for this account.'],
     ]) {
       clearOpenLibraryCache()
       globalThis.fetch = async () => {
@@ -99,7 +103,7 @@ test('blocked Open Library sends zero requests and Google remains separately fun
   const calls = []
   globalThis.fetch = async path => { calls.push(path); return { ok: true, json: async () => ({ items: [{ id: 'volume1', volumeInfo: { title: 'Google volume' } }] }) } }
   const { view } = await page('/discover?provider=open-library&q=modern', DiscoverView, {})
-  assert.match(view.text(), /awaiting operational and policy checks/)
+  assert.match(view.text(), /Open Library discovery is currently unavailable/)
   assert.equal(view.get('#open-library-query').attributes('disabled'), '')
   assert.equal(calls.length, 0)
   await view.get('#book-provider').setValue('google-books')
