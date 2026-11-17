@@ -126,6 +126,9 @@ try {
     $editionCover = OpenLibraryEdition::fromSearch([...$work, 'cover' => ['id' => 123, 'url' => 'https://untrusted.invalid/image'],
         'provenance' => ['cover' => ['field' => 'editions.docs[0].cover_i']]]);
     checkEdition($editionCover['coverImage'] === 'https://covers.openlibrary.org/b/id/123-M.jpg?default=false', 'Cover must be built on the fixed host from a trusted integer.');
+    $longValues = array_map(static fn (int $index): string => (string) $index . str_repeat('界', 490), range(1, 30));
+    editionError(static fn () => OpenLibraryEdition::fromSearch([...$work, 'authors' => $longValues,
+        'selectedEdition' => [...$work['selectedEdition'], 'publicationDates' => $longValues]]), ApiException::class, 409);
 
     $seed([$work]);
     $state = $db->state(); $state['reservation'] = str_repeat('b', 64); $state['nextRequestAt'] = 1060;

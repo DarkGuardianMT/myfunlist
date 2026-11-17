@@ -15,6 +15,13 @@ export function clearOpenLibraryCache() {
   cooldown = null
 }
 
+export function forgetOpenLibraryEdition(editionId) {
+  // Alleen afgewezen zoekresultaten vervallen; de bestaande afkoeling blijft behouden.
+  for (const [key, entry] of cache) {
+    if (entry.data.items.some(work => work.selectedEdition?.editionId === editionId)) cache.delete(key)
+  }
+}
+
 export function normalizeOpenLibraryOptions(options = {}) {
   const language = ['en', 'nl', 'tr'].includes(options.language) ? options.language : 'any'
   return {
@@ -32,7 +39,7 @@ export function validIsbn(value) {
     [...value].reduce((sum, digit, i) => sum + Number(digit) * (i % 2 ? 3 : 1), 0) % 10 === 0
 }
 
-const id = (value, suffix) => typeof value === 'string' && value.length <= 32 && new RegExp(`^OL[1-9][0-9]*${suffix}$`).test(value)
+const id = (value, suffix) => typeof value === 'string' && value.trim() === value && value.length <= 32 && new RegExp(`^OL[1-9][0-9]*${suffix}$`).test(value)
 const texts = (value) => Array.isArray(value) && value.every((text) => typeof text === 'string')
 
 export function validateOpenLibraryResponse(data) {

@@ -16,7 +16,7 @@ test('Open Library Work/Edition preview, keyboard access, themes and narrow layo
   await page.goto('/tests/ui/open-library.html?provider=open-library&q=lantern&lang=nl&mode=strict')
   const card = page.getByRole('article')
   await expect(card.getByRole('heading', { name: bookTitle })).toBeVisible()
-  await expect(page.getByText('Read-only book discovery', { exact: true })).toBeVisible()
+  await expect(page.getByText('Edition-based book discovery', { exact: true })).toBeVisible()
   await expect(page.locator('#book-provider option[value="open-library"]')).toHaveText('Open Library')
   await expect(page.locator('main')).not.toContainText(/tester|pilot/i)
   await expect(card.getByText('First publication (Work): 2024')).toBeVisible()

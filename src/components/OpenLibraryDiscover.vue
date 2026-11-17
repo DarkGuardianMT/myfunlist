@@ -82,7 +82,7 @@ function submit() {
     <div class="book-search-panel">
       <div class="book-search-heading">
         <h2 id="open-library-search-title">Search books with Open Library</h2>
-        <span class="catalogue-badge">Read-only book discovery</span>
+        <span class="catalogue-badge">Edition-based book discovery</span>
       </div>
       <p v-if="!enabled" class="catalogue-state" role="status">Open Library discovery is currently unavailable. Choose Google Books above to search now.</p>
       <form class="discovery-search__form" role="search" @submit.prevent="submit">

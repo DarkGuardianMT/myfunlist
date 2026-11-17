@@ -3,6 +3,9 @@ import { computed } from 'vue'
 
 const props = defineProps({ media: { type: Object, required: true } })
 const fields = {
+  'open-library': [['editionId', 'Edition ID'], ['publicationDates', 'Edition publication'], ['languages', 'Edition language tags'],
+    ['isbns', 'Edition ISBNs'], ['workId', 'Work ID'], ['workTitle', 'Work title'], ['workAuthors', 'Work authors'],
+    ['workFirstPublicationYear', 'First publication (Work)']],
   book: [['authors', 'Authors'], ['publisher', 'Publisher'], ['pageCount', 'Pages'],
     ['publishedDate', 'Published'], ['language', 'Language'], ['isbn10', 'ISBN-10'], ['isbn13', 'ISBN-13']],
   movie: [['releaseDate', 'Release date'], ['runtimeMinutes', 'Runtime'], ['directors', 'Directors'],
@@ -12,7 +15,7 @@ const fields = {
     ['originalLanguage', 'Original language']],
   game: [['releaseDate', 'Release date'], ['platforms', 'Platforms'], ['developers', 'Developers'], ['publishers', 'Publishers']],
 }
-const rows = computed(() => fields[props.media.mediaType].flatMap(([key, label]) => {
+const rows = computed(() => fields[props.media.source === 'open-library' ? 'open-library' : props.media.mediaType].flatMap(([key, label]) => {
   const value = props.media.details[key]
   const present = Array.isArray(value) ? value.length > 0
     : typeof value === 'number' ? value > 0 : typeof value === 'string' && Boolean(value.trim())

@@ -76,3 +76,21 @@ test('detail service preserves structured errors and never contacts the backend 
   }), { status: 404, code: 'not_found' })
   assert.equal(calls, 0)
 })
+
+test('Open Library persisted details separate Work/Edition fields and reject unsafe or mismatched snapshots', async () => {
+  const identity = { source: 'open-library', mediaType: 'book', sourceId: 'OL202M' }
+  const fixture = { ...identity, title: 'Selected edition', metadataSource: 'persisted-search',
+    artworkImage: 'https://covers.openlibrary.org/b/id/100-M.jpg?default=false',
+    details: { editionId: 'OL202M', workId: 'OL101W', workAuthors: ['Example Author'], workTitle: 'Work title',
+      workFirstPublicationYear: 2024, publicationDates: ['March 2025'], languages: ['dut'], isbns: ['9780261103344'] } }
+  assert.deepEqual(await fetchMediaDetail(identity, { requestImpl: async () => fixture }), fixture)
+  for (const extra of [{ metadataSource: 'live' }, { artworkImage: 'https://evil.invalid/cover' },
+    { details: { ...fixture.details, editionId: 'OL999M' } }, { details: { ...fixture.details, workId: 'OL101M' } },
+    { details: { ...fixture.details, workId: 'OL101W\n' } }, { artworkImage: fixture.artworkImage + '\n' },
+    { details: { ...fixture.details, languages: ['nl'] } }]) {
+    await assert.rejects(fetchMediaDetail(identity, { requestImpl: async () => ({ ...fixture, ...extra }) }), { code: 'invalid_response' })
+  }
+  const clean = await fetchMediaDetail(identity, { requestImpl: async () => ({ ...fixture, userMedia: { rating: 9 },
+    details: { ...fixture.details, authors: ['Unlabelled Work authors'], pageCount: 999, lists: ['Private'] } }) })
+  assert.deepEqual(clean, fixture)
+})

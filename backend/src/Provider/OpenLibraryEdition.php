@@ -28,7 +28,7 @@ final class OpenLibraryEdition
             ? 'https://covers.openlibrary.org/b/id/' . $coverId . '-M.jpg?default=false' : null;
         $dates = self::texts($edition['publicationDates'] ?? null);
         $date = $dates[0] ?? null;
-        return [
+        $summary = [
             'source' => 'open-library', 'mediaType' => 'book', 'sourceId' => $id,
             'title' => self::text($edition['title']), 'workId' => $workId,
             'workTitle' => self::text($work['workTitle'] ?? null),
@@ -44,6 +44,11 @@ final class OpenLibraryEdition
             'isbns' => array_values(array_filter(self::texts($edition['isbns'] ?? null), OpenLibraryQuery::validIsbn(...))),
             'coverImage' => $cover, 'metadataSource' => 'open-library-search',
         ];
+        // De bestaande TEXT-kolom moet ook bij lange Unicode-metadata binnen haar bytegrens blijven.
+        if (strlen(json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) > 60000) {
+            throw self::unavailable();
+        }
+        return $summary;
     }
 
     public static function detail(array $media): array

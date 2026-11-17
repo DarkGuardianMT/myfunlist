@@ -12,6 +12,8 @@ const { clearOpenLibraryCache } = await import('../src/services/openLibrary.js')
 const { clearDiscoverCache } = await import('../src/composables/useDiscoverSearch.js')
 const { currentUser, isAuthLoading } = await import('../src/composables/authState.js')
 const { setSessionExpiredHandler } = await import('../src/services/apiClient.js')
+const { clearCsrfToken } = await import('../src/services/apiClient.js')
+const { resetLibrary, useLibrary } = await import('../src/composables/useLibrary.js')
 const OpenLibraryDiscover = await loadVueComponent(new URL('../src/components/OpenLibraryDiscover.vue', import.meta.url))
 OpenLibraryDiscover.name = 'OpenLibraryDiscover'
 const DiscoverView = await loadVueComponent(new URL('../src/views/DiscoverView.vue', import.meta.url))
@@ -36,6 +38,8 @@ async function page(path = '/discover?provider=open-library&q=modern', component
   return { view, router }
 }
 beforeEach(() => {
+  resetLibrary()
+  clearCsrfToken()
   clearOpenLibraryCache()
   clearDiscoverCache()
   currentUser.value = null
@@ -60,7 +64,7 @@ test('enabled pilot keeps Google as default and allows manual Open Library selec
   await view.get('#book-provider').setValue('open-library')
   await flushPromises()
   assert.match(view.text(), /A modern book/)
-  assert.match(view.text(), /Read-only book discovery/)
+  assert.match(view.text(), /Edition-based book discovery/)
   assert.doesNotMatch(view.text(), /tester|pilot/i)
   assert.equal(currentUser.value, null)
   assert.equal(view.get('#book-provider option[value="open-library"]').text(), 'Open Library')
@@ -120,7 +124,7 @@ test('blocked Open Library sends zero requests and Google remains separately fun
   assert.equal(view.find('.google-attribution').exists(), false)
 })
 
-test('Work and edition dates/identities remain separate; selection has no Library action or write', async () => {
+test('Work and edition dates/identities remain separate; preview has no write and offers authenticated saving separately', async () => {
   const calls = []
   globalThis.fetch = async (path, options) => { calls.push([path, options]); return ok(response()) }
   const { view, router } = await page()
@@ -133,7 +137,7 @@ test('Work and edition dates/identities remain separate; selection has no Librar
   const choose = view.findAll('button').find(button => button.text() === 'Use this edition for preview')
   await choose.trigger('click')
   assert.match(view.get('article [role="status"]').text(), /OL1W \/ OL2M/)
-  assert.equal(view.find('.library-add-button').exists(), false)
+  assert.equal(view.get('.edition-save a.library-add-button').attributes('href'), '/login')
   assert.equal(calls.length, 1)
   assert.equal(calls[0][1].method, 'GET')
   await view.get('#open-library-language').setValue('tr')
@@ -149,7 +153,7 @@ test('Work and edition dates/identities remain separate; selection has no Librar
   assert.match(view.get('[role="alert"]').text(), /valid ISBN/)
 })
 
-test('an enabled Open Library view never dispatches Google or Library reads; switching rejects its late result', async () => {
+test('an enabled Open Library view does not read the Library before an edition is displayed; switching rejects its late result', async () => {
   const calls = []
   let finish
   globalThis.fetch = path => {
@@ -177,10 +181,9 @@ test('an enabled Open Library view never dispatches Google or Library reads; swi
 })
 
 test('a returned cover keeps Work provenance and a failed image becomes an honest placeholder', async () => {
-  const view = mount(WorkCard, { props: { work: { ...work,
+  const { view } = await page('/discover', WorkCard, { work: { ...work,
     cover: { id: 100, url: 'https://covers.openlibrary.org/b/id/100-M.jpg?default=false' },
-    provenance: { cover: { field: 'cover_i', state: 'present' } } } } })
-  mounted.push(view)
+    provenance: { cover: { field: 'cover_i', state: 'present' } } } })
   assert.match(view.text(), /Work cover; edition cover unavailable/)
   assert.equal(view.get('.edition-details').element.open, false)
   assert.equal(view.get('.edition-details').element.contains(view.get('dl').element), true)
@@ -196,13 +199,140 @@ test('a returned cover keeps Work provenance and a failed image becomes an hones
 
 test('missing edition and conflicting language metadata cannot become a selectable edition', async () => {
   for (const selectedEdition of [null, { ...work.selectedEdition, title: null },
+    ...['OL1W', 'OL0M', '/books/OL2M'].map(editionId => ({ ...work.selectedEdition, editionId })),
     ...['inconsistent', 'mismatch', 'ambiguous'].map(languageStatus => ({ ...work.selectedEdition, languageStatus }))]) {
     const view = mount(WorkCard, { props: { work: { ...work, selectedEdition } } })
     mounted.push(view)
     const buttons = view.findAll('button')
     assert.ok(!buttons.length || buttons[0].attributes('disabled') !== undefined)
-    assert.match(view.text(), /Saving Open Library editions.*not available/)
+    assert.match(view.text(), /cannot be saved/)
   }
+})
+
+test('authenticated saving uses only the exact Edition identity, deduplicates clicks and reports existing membership', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  const item = { media: { source: 'open-library', mediaType: 'book', sourceId: 'OL2M', title: 'Trusted edition' },
+    userMedia: { id: '50', mediaKey: 'open-library:book:OL2M', status: 'want-to-read', rating: null } }
+  let complete
+  const writes = []
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library') {
+      writes.push(options)
+      return new Promise(resolve => { complete = resolve })
+    }
+    return ok(response())
+  }
+  const { view } = await page()
+  const button = view.get('.library-add-button')
+  assert.equal(button.text(), 'Add to Library')
+  await button.trigger('click')
+  await flushPromises()
+  assert.equal(button.text(), 'Adding…')
+  await button.trigger('click')
+  assert.equal(writes.length, 1)
+  assert.deepEqual(JSON.parse(writes[0].body), { media: { source: 'open-library', mediaType: 'book', sourceId: 'OL2M' } })
+  assert.equal(writes[0].headers['X-CSRF-Token'], 'synthetic-token')
+  complete(ok({ added: true, item }))
+  await flushPromises()
+  assert.equal(button.text(), 'In Library')
+  assert.match(view.text(), /Selected edition added to Library/)
+  assert.equal(view.get('.edition-save .inline-link').attributes('href'), '/media/book/open-library/OL2M')
+  view.unmount()
+  const next = await page()
+  assert.equal(next.view.get('.library-add-button').text(), 'In Library')
+  assert.equal(writes.length, 1)
+})
+
+test('unknown Library membership stays disabled while loading and recovers through an explicit retry', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let finish
+  let reads = 0
+  let writes = 0
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/library' && options.method === 'GET') {
+      reads++
+      if (reads === 1) return new Promise(resolve => { finish = resolve })
+      return ok([{ media: { source: 'open-library', mediaType: 'book', sourceId: 'OL2M' },
+        userMedia: { id: '50', mediaKey: 'open-library:book:OL2M', status: 'reading', rating: 0.5 } }])
+    }
+    if (options.method === 'POST') writes++
+    return ok(response())
+  }
+  const { view } = await page()
+  assert.equal(view.get('.library-add-button').text(), 'Loading Library…')
+  assert.equal(view.get('.library-add-button').attributes('disabled'), '')
+  finish({ ok: false, status: 503, json: async () => ({ error: { code: 'service_unavailable' } }) })
+  await flushPromises()
+  assert.match(view.get('.edition-save [role="alert"]').text(), /Your Library is unavailable/)
+  await view.get('.edition-save button').trigger('click')
+  await flushPromises()
+  assert.equal(view.get('.library-add-button').text(), 'In Library')
+  assert.equal(reads, 2)
+  assert.equal(writes, 0)
+})
+
+test('rejected trusted-cache saves require manual search refresh and preserve library/account boundaries', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let searches = 0
+  let writes = 0
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') {
+      writes++
+      return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) }
+    }
+    searches++
+    return ok(response())
+  }
+  const { view } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  assert.match(view.get('.edition-save [role="alert"]').text(), /Submit the search again/)
+  assert.equal(searches, 1)
+  assert.equal(writes, 1)
+  assert.equal(useLibrary().libraryItems.value.length, 0)
+  await view.get('form').trigger('submit')
+  await flushPromises()
+  assert.equal(searches, 2)
+  currentUser.value = null
+  await flushPromises()
+  assert.equal(view.get('.edition-save .library-add-button').attributes('href'), '/login')
+  assert.equal(useLibrary().libraryItems.value.length, 0)
+})
+
+test('save rate/storage errors wait for manual retry and discard a response after an account transition', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let writes = 0
+  let complete
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') {
+      writes++
+      if (writes === 1) return { ok: false, status: 429, headers: new Headers({ 'Retry-After': '90' }), json: async () => ({ error: { code: 'rate_limited' } }) }
+      return new Promise(resolve => { complete = resolve })
+    }
+    return ok(response())
+  }
+  const { view } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  assert.match(view.get('.edition-save [role="alert"]').text(), /wait/)
+  assert.equal(view.get('.library-add-button').attributes('disabled'), '')
+  t.mock.timers.tick(90000)
+  await flushPromises()
+  assert.equal(writes, 1)
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  currentUser.value = { id: '20', email: 'other@example.test' }
+  complete(ok({ added: true, item: { media: {}, userMedia: { id: '50', mediaKey: 'open-library:book:OL2M' } } }))
+  await flushPromises()
+  assert.equal(useLibrary().libraryItems.value.length, 0)
+  assert.doesNotMatch(view.text(), /Selected edition added/)
 })
 
 test('loading, empty and omission counts remain distinct; successful empty retry uses cache', async () => {
