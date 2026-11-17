@@ -205,7 +205,9 @@ test('missing edition and conflicting language metadata cannot become a selectab
     mounted.push(view)
     const buttons = view.findAll('button')
     assert.ok(!buttons.length || buttons[0].attributes('disabled') !== undefined)
-    assert.match(view.text(), /cannot be saved/)
+    assert.match(view.get('.open-library-work__unavailable').text(), /cannot be saved/)
+    assert.equal(view.get('.open-library-work__unavailable').element.closest('details'), null)
+    assert.equal(view.find('.edition-save').exists(), false)
   }
 })
 
@@ -227,6 +229,13 @@ test('authenticated saving uses only the exact Edition identity, deduplicates cl
   const { view } = await page()
   const button = view.get('.library-add-button')
   assert.equal(button.text(), 'Add to Library')
+  assert.equal(button.element.closest('details'), null)
+  assert.equal(view.get('.edition-details').element.open, false)
+  assert.match(view.get('.open-library-work__save .open-library-work__language').text(), /Edition language: Dutch/)
+  assert.equal(view.findAll('.edition-save').length, 1)
+  await view.get('.edition-details summary').trigger('click')
+  assert.equal(view.findAll('.edition-save').length, 1)
+  await view.get('.edition-details summary').trigger('click')
   await button.trigger('click')
   await flushPromises()
   assert.equal(button.text(), 'Adding…')
@@ -243,6 +252,16 @@ test('authenticated saving uses only the exact Edition identity, deduplicates cl
   const next = await page()
   assert.equal(next.view.get('.library-add-button').text(), 'In Library')
   assert.equal(writes.length, 1)
+})
+
+test('quick-add labels the selected Edition languages without inferring missing catalogue tags', async () => {
+  for (const [languages, label] of [[['eng', 'tur'], 'English, Turkish'], [[], 'Not supplied'], [['fre'], 'fre']]) {
+    const { view } = await page('/discover', WorkCard, { work: { ...work,
+      selectedEdition: { ...work.selectedEdition, languages, languageStatus: 'unverified' } } })
+    assert.equal(view.get('.open-library-work__language').text(), `Edition language: ${label}`)
+    assert.equal(view.get('.edition-save .library-add-button').element.closest('details'), null)
+    assert.equal(view.get('.edition-details').element.open, false)
+  }
 })
 
 test('unknown Library membership stays disabled while loading and recovers through an explicit retry', async () => {
