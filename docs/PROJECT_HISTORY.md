@@ -1,12 +1,16 @@
 # MyFunList project history
 
+## Discover and quick-add final QA cleanup — 18 November 2026
+
+For PR #14, the owner authorized removal of only the temporary `open-library-quick-add` and `discover-provider-state` review directories: two reports and ten screenshots. Meaningful test results, actual visual findings, intermediate failures, warnings and cache-only/release limitations are retained in the [quick-add QA record](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#retained-quick-add-qa) and [Discover verification record](DISCOVER_PROVIDER_STATE.md#verification), with immutable links to the original evidence. Context and review-description links now use permanent documentation. The cleanup is documentation/evidence-only; application code, tests, backend, schema, hosting and unrelated historical evidence are unchanged. Focused Markdown-link, scope and whitespace checks verify the cleanup. PR #14 stays ready for review and PR #13 stays open; no merge, deployment or branch deletion is authorized.
+
 ## Discover provider and return-state candidate — 18 November 2026
 
 `review/discover-provider-state` starts from main `44de0ea`, carrying the separately implemented PR #13 quick-add commit because it was not yet merged. The candidate makes Open Library the Books default only when its frontend gate is enabled, preserves explicit provider URLs and forbids automatic fallback. It shares bounded display snapshots across all search flows, restores them beyond API TTL, and handles clearing without erasing the current cards or repopulating future returns from stale responses. Only the active browser query's snapshot/cache entry is invalidated; server cache/admission and existing API cache/cooldown policies remain. See [design and verification](DISCOVER_PROVIDER_STATE.md). No backend/database/hosting operation, merge, deployment or branch deletion accompanies this review.
 
 ## Open Library quick-add candidate — 17 November 2026
 
-From merged PR #12 at `44de0ea`, `review/open-library-quick-add` moves the existing selected-Edition save control onto the closed Work card, beside its language tags. Edition Details stays optional and has no duplicate save control; invalid/missing selections explain why saving is unavailable. Existing authentication, membership, loading, duplicate prevention and error/cooldown behavior are reused without changing backend, schema or provider limits. See the [quick-add review](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#quick-add-review-candidate) and temporary QA report. No merge or deployment is authorized.
+From merged PR #12 at `44de0ea`, `review/open-library-quick-add` moves the existing selected-Edition save control onto the closed Work card, beside its language tags. Edition Details stays optional and has no duplicate save control; invalid/missing selections explain why saving is unavailable. Existing authentication, membership, loading, duplicate prevention and error/cooldown behavior are reused without changing backend, schema or provider limits. See the [quick-add review](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#quick-add-review-candidate) and [retained QA findings](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#retained-quick-add-qa). No merge or deployment is authorized.
 
 ## Open Library Library final QA cleanup — 17 November 2026
 
