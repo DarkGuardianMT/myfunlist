@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Open Library Library integration candidate — 17 November 2026
+
+The `review/open-library-library-integration` candidate starts from main `e6643de` (merged PR #11). Exact selected Edition identities now use the existing authenticated Library/List tracking and detail navigation. Unseen Editions resolve exclusively from fresh trusted shared search-cache metadata under existing client admission, with separate Work provenance, fail-closed conflict/expiry handling and no new provider HTTP. Persisted public details explain their saved-search fallback. No schema migration, provider-default, access-flag, rate-limit, hosting or deployment change is included. See the [design and limitations](OPEN_LIBRARY_LIBRARY_INTEGRATION.md) and temporary review report. The guarded persistence suite could not connect to the isolated test database and stopped before writes; real database verification remains open. This candidate has not been merged or deployed.
+
 ## Open Library public access preparation — 16 November 2026
 
 The `review/open-library-public-access` candidate from main `66f1fc7` introduces default-disabled private public discovery while preserving tester-only fallback, main-pilot 404 precedence and all existing provider/database safeguards. Google Books remains default; Open Library wording is public-facing and read-only. Deployment verification now requires one explicit access mode and exact queryless response (disabled 404, tester-only 401, public 422), with pre-SSH configuration validation. The [rollout guide](OPEN_LIBRARY_PUBLIC_ACCESS.md) records private registration/contact/Hostinger/shared-database/client-IP gates, ordered activation and emergency rollback. No live provider requests, database changes, private settings, merge or deployment accompany this work. Local results and temporary screenshot evidence are recorded in the review report; public availability remains unverified.
