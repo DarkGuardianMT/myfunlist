@@ -2,6 +2,14 @@
 
 17 November 2026. Candidate branch: `review/open-library-library-integration`, from freshly fetched `origin/main` at `e6643de` (PR #11). No merge, deployment, Hostinger configuration, access-flag, rate-limit or schema change accompanies this integration. It is not established as live.
 
+## Quick-add review candidate
+
+The focused `review/open-library-quick-add` branch starts from merged PR #12 at `44de0ea`. Each Work card shows the existing save control directly below its selected Edition's language tags. Edition Details remains an optional inspection/preview disclosure and contains no second save control. The existing valid `selectedEdition` is the sole save target; unavailable identity/title/language selections show an explanation on the closed card. No alternative Edition is invented or selected automatically. Missing language tags show Not supplied; unmapped codes are shown unchanged.
+
+The save component and shared authentication, membership, loading, duplicate prevention and error/manual-retry behavior are reused unchanged. The layout keeps one full-width action within the card's existing text column on desktop/mobile. Backend, database schema, provider defaults, caching and rate limits are unchanged. The [temporary quick-add QA report](../qa/reviews/open-library-quick-add/report.md) records executed checks, inspected screenshots and limitations. This candidate has not been merged or deployed.
+
+Quick-add verification passed 365 unit tests with 12 existing platform skips, the production build, all 70 isolated headless desktop/mobile tests with clean teardown, and 64 local Markdown links/scope checks. Four Light/Dark desktop/mobile screenshots were inspected. The initial focused browser run passed its assertions but stalled during sandboxed server teardown; its verified process tree was stopped before the successful full headless rerun with normal process-cleanup permission. The report preserves that failure and the existing native-select/capture limitations. No database or live provider was accessed.
+
 ## Identity and metadata
 
 The existing authenticated, CSRF-protected `POST /api/v1/library` accepts only an identity:

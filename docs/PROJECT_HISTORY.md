@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Open Library quick-add candidate — 17 November 2026
+
+From merged PR #12 at `44de0ea`, `review/open-library-quick-add` moves the existing selected-Edition save control onto the closed Work card, beside its language tags. Edition Details stays optional and has no duplicate save control; invalid/missing selections explain why saving is unavailable. Existing authentication, membership, loading, duplicate prevention and error/cooldown behavior are reused without changing backend, schema or provider limits. See the [quick-add review](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#quick-add-review-candidate) and temporary QA report. No merge or deployment is authorized.
+
 ## Open Library Library final QA cleanup — 17 November 2026
 
 The owner authorized PR #12 final merge preparation on `review/open-library-library-integration`. Both temporary QA reports and ten screenshots were removed only after preserving unit/headless/PHP results, the 28-assertion real MariaDB follow-up, desktop/mobile inspection findings, historical failures/warnings and cache-only/release limitations in the [integration verification record](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#verification-and-limitations). References now point to that retained record or immutable historical evidence. Application code, tests, schema, budgets and hosting settings are unchanged; unrelated historical evidence is preserved. Documentation/scope checks precede push and marking the PR ready for review. Merge, deployment and branch deletion remain separately unauthorized.

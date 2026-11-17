@@ -29,8 +29,13 @@ watch(() => props.work, () => { failedCover.value = false; chosen.value = false 
       <h3 :title="work.workTitle">{{ work.workTitle }}</h3>
       <p class="open-library-work__authors">{{ work.authors.length ? work.authors.join(', ') : 'Author information unavailable' }}</p>
       <p class="open-library-work__publication">First publication (Work): <span>{{ work.firstPublicationYear ?? 'Unknown' }}</span></p>
-      <p class="open-library-work__language">Edition tags: {{ edition?.languages.length ? edition.languages.map(code => languageNames[code] || code).join(', ') : 'Not supplied' }}</p>
       <a class="open-library-work__source" :href="`https://openlibrary.org/works/${work.workId}`" target="_blank" rel="noopener noreferrer">View Work on Open Library <span aria-hidden="true">↗</span></a>
+      <div class="open-library-work__save">
+        <p class="open-library-work__language">Edition language: {{ edition?.languages.length ? edition.languages.map(code => languageNames[code] || code).join(', ') : 'Not supplied' }}</p>
+        <OpenLibraryEditionSave v-if="canChoose" :key="edition.editionId" :edition="edition" />
+        <p v-else-if="edition" class="open-library-work__unavailable">This edition cannot be saved: its identity or title is missing or unsupported, or its language metadata is conflicting, mismatched or ambiguous.</p>
+        <p v-else class="open-library-work__unavailable">No supported edition was supplied. This Work cannot be saved as an edition.</p>
+      </div>
     </div>
     <details class="edition-details">
       <summary :aria-label="`Inspect selected edition for ${work.workTitle}`">
@@ -54,13 +59,10 @@ watch(() => props.work, () => { failedCover.value = false; chosen.value = false 
             <div><dt>ISBN: </dt><dd>{{ edition.isbns.join(', ') || 'Unavailable' }}</dd></div>
           </dl>
           <p class="edition-details__note">Language tags describe catalogue metadata; content language has not been independently verified.</p>
-          <p v-if="!canChoose" class="edition-details__note">This edition cannot be saved or chosen: its identity or title is missing, or language metadata is conflicting, mismatched or ambiguous.</p>
           <button type="button" :disabled="!canChoose || chosen" @click="chosen = true">{{ chosen ? 'Edition selected for preview' : 'Use this edition for preview' }}</button>
           <p v-if="chosen" class="edition-details__selection" role="status">Preview selection: {{ work.workId }} / {{ edition.editionId }}. The catalogue association is not independently verified.</p>
           <a :href="`https://openlibrary.org/books/${edition.editionId}`" target="_blank" rel="noopener noreferrer">View edition on Open Library</a>
-          <OpenLibraryEditionSave v-if="canChoose" :key="edition.editionId" :edition="edition" />
         </template>
-        <p v-else class="edition-details__note">No supported edition was supplied. This Work cannot be saved or selected as an edition.</p>
       </div>
     </details>
   </article>
@@ -82,6 +84,9 @@ h3 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; 
 .open-library-work__authors { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin: 0.45rem 0 0.75rem; font-size: var(--text-sm); line-height: 1.4; color: var(--color-text-muted); }
 .open-library-work__publication, .open-library-work__language { margin: 0.35rem 0; font-size: var(--text-xs); line-height: 1.5; color: var(--color-text-muted); }
 .open-library-work__publication span { color: var(--color-text); }
+.open-library-work__save { margin-top: 0.5rem; }
+.open-library-work__save :deep(.edition-save) { padding-top: 0; border-top: 0; }
+.open-library-work__unavailable { margin: 0.5rem 0 0; color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.5; }
 a { display: inline-flex; align-items: center; gap: 0.35rem; min-height: 44px; color: var(--color-primary-ink); font-size: var(--text-xs); text-underline-offset: 0.2em; }
 .edition-details { grid-column: 1 / -1; min-width: 0; border-top: 1px solid var(--color-border); }
 summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 44px; padding-top: 0.5rem; list-style: none; cursor: pointer; font-size: var(--text-xs); font-weight: 650; }
