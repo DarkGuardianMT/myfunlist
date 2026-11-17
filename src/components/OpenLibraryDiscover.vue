@@ -2,22 +2,34 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { openLibraryDiscoverEnabled, resolveBookProvider } from '../domain/bookProviders.js'
-import { getOpenLibraryCooldown, normalizeOpenLibraryOptions, openLibraryError, searchOpenLibrary } from '../services/openLibrary.js'
+import { forgetOpenLibrarySearch, getOpenLibraryCooldown, getOpenLibrarySearchKey, normalizeOpenLibraryOptions, openLibraryError, searchOpenLibrary } from '../services/openLibrary.js'
+import { forgetDiscoverSnapshot, getDiscoverSnapshot, rememberDiscoverSnapshot } from '../services/discoverSnapshots.js'
 import { useBrowsingReady } from '../router/browsingContext.js'
 import OpenLibraryWorkCard from './OpenLibraryWorkCard.vue'
 
 const props = defineProps({ enabled: { type: Boolean, default: openLibraryDiscoverEnabled } })
 const route = useRoute()
 const router = useRouter()
-const query = ref('')
+const input = ref('')
+const query = computed({
+  get: () => input.value,
+  set: value => {
+    input.value = value
+    if (!value.trim()) { clearSearch(); return }
+    const saved = getDiscoverSnapshot('open-library', getOpenLibrarySearchKey(submitted.value, options.value))
+    if (saved) saved.inputQuery = value
+  },
+})
 const options = computed(() => normalizeOpenLibraryOptions({ field: route.query.field, language: route.query.lang, languageMode: route.query.mode }))
 const submitted = computed(() => typeof route.query.q === 'string' && route.query.q.length <= 200 ? route.query.q.trim() : '')
 const status = ref('idle')
 const message = ref('')
 const data = ref(null)
+const displayedQuery = ref('')
 const waiting = ref(false)
 let timer
 let generation = 0
+let clearedLocation = null
 const labels = { general: 'Title, author, or ISBN', title: 'Book title', author: 'Author name', isbn: 'ISBN-10 or ISBN-13' }
 
 function syncCooldown() {
@@ -34,15 +46,25 @@ function location(q = submitted.value, filters = options.value) {
     ...(filters.language !== 'any' ? { lang: filters.language } : {}),
     ...(filters.languageMode === 'strict' ? { mode: 'strict' } : {}) } }
 }
-async function load() {
+async function load(refresh = false) {
   const version = ++generation
   data.value = null
   message.value = ''
   if (route.path !== '/discover' || route.query.type && route.query.type !== 'book' ||
     resolveBookProvider(route.query.provider, props.enabled) !== 'open-library') return
   if (!props.enabled) { status.value = 'blocked'; return }
+  displayedQuery.value = submitted.value
   const cooldown = syncCooldown()
   if (!submitted.value) { status.value = 'idle'; return }
+  const key = getOpenLibrarySearchKey(submitted.value, options.value)
+  const previous = !refresh && getDiscoverSnapshot('open-library', key)
+  if (previous) {
+    input.value = previous.inputQuery ?? submitted.value
+    data.value = previous.data
+    status.value = previous.status
+    message.value = previous.message
+    return
+  }
   if (cooldown) {
     const error = openLibraryError(cooldown.error)
     status.value = error.state
@@ -55,24 +77,46 @@ async function load() {
     if (version !== generation) return
     data.value = result
     status.value = result.items.length ? 'success' : 'empty'
+    rememberDiscoverSnapshot('open-library', key, { data: result, status: status.value, message: '', inputQuery: input.value })
   } catch (error) {
     if (version !== generation) return
     const lastError = openLibraryError(error)
     status.value = lastError.state
     message.value = lastError.message
+    rememberDiscoverSnapshot('open-library', key, { data: null, status: status.value, message: message.value, inputQuery: input.value })
     syncCooldown()
   }
 }
-watch(() => [route.path, route.query.type, route.query.provider, submitted.value, route.query.field, route.query.lang, route.query.mode, props.enabled], () => { query.value = submitted.value; load() }, { immediate: true })
+watch(() => [route.path, route.query.type, route.query.provider, submitted.value, route.query.field, route.query.lang, route.query.mode, props.enabled], () => {
+  if (clearedLocation === route.fullPath) { clearedLocation = null; return }
+  clearedLocation = null
+  input.value = submitted.value
+  load()
+}, { immediate: true })
 useBrowsingReady('/discover', computed(() => status.value !== 'loading'))
 onScopeDispose(() => { generation++; clearTimeout(timer) })
+function clearSearch() {
+  if (route.path !== '/discover') return
+  generation++
+  const key = getOpenLibrarySearchKey(submitted.value, options.value)
+  forgetDiscoverSnapshot('open-library', key)
+  forgetOpenLibrarySearch(submitted.value, options.value)
+  if (status.value === 'loading') status.value = data.value?.items.length ? 'success' : 'idle'
+  if (route.query.q === undefined) return
+  const routeQuery = { ...route.query }
+  delete routeQuery.q
+  const target = { path: '/discover', query: routeQuery, hash: route.hash }
+  // De huidige kaarten blijven staan; alleen dit route-event mag ze niet opnieuw laden.
+  clearedLocation = router.resolve(target).fullPath
+  return router.replace(target)
+}
 function setFilter(name, value) {
   const filters = normalizeOpenLibraryOptions({ ...options.value, [name]: value })
   return router.push(location(submitted.value, filters))
 }
 function submit() {
-  if (!props.enabled || waiting.value || status.value === 'loading') return
-  if (query.value.trim() === submitted.value) return load()
+  if (!props.enabled || waiting.value || status.value === 'loading' || !query.value.trim()) return
+  if (query.value.trim() === submitted.value) return load(true)
   return router.push(location(query.value.trim()))
 }
 </script>
@@ -128,16 +172,16 @@ function submit() {
     <div class="catalogue-summary" :class="{ 'catalogue-state': status !== 'success', 'catalogue-state--error': Boolean(message) }" aria-live="polite" aria-atomic="true">
       <span v-if="data?.items.length" class="result-source">Open Library · Works</span>
       <p v-if="status === 'idle'">Enter a title, author or ISBN to search.</p>
-      <p v-else-if="status === 'loading'" role="status">Searching Open Library for “{{ submitted }}”…</p>
-      <p v-else-if="status === 'empty'">No supported Works found for “{{ submitted }}”. Try General or Any language. This does not establish that no edition exists.</p>
+      <p v-else-if="status === 'loading'" role="status">Searching Open Library for “{{ displayedQuery }}”…</p>
+      <p v-else-if="status === 'empty'">No supported Works found for “{{ displayedQuery }}”. Try General or Any language. This does not establish that no edition exists.</p>
       <p v-else-if="message" role="alert">{{ message }}</p>
-      <p v-else-if="data">{{ data.items.length }} {{ data.items.length === 1 ? 'Work' : 'Works' }} shown for “{{ submitted }}” (up to 10).</p>
+      <p v-else-if="data">{{ data.items.length }} {{ data.items.length === 1 ? 'Work' : 'Works' }} shown for “{{ displayedQuery }}” (up to 10).</p>
       <p v-if="data && Object.values(data.omitted).some(count => count > 0)" class="catalogue-omissions">Omitted from this bounded response: {{ data.omitted.invalid }} invalid, {{ data.omitted.duplicateWork }} repeated Work, {{ data.omitted.language }} language mismatch/unknown and {{ data.omitted.isbn }} ISBN mismatch.</p>
     </div>
     <div v-if="status === 'loading'" class="catalogue-skeletons" aria-hidden="true">
       <div v-for="index in 4" :key="index" class="catalogue-skeleton"><span /><div><i /><i /><i /></div></div>
     </div>
-    <button v-if="message && status !== 'invalid'" class="catalogue-retry" type="button" :disabled="waiting" @click="load">{{ waiting ? 'Please wait before retrying' : 'Retry search' }}</button>
+    <button v-if="message && status !== 'invalid'" class="catalogue-retry" type="button" :disabled="waiting" @click="load(true)">{{ waiting ? 'Please wait before retrying' : 'Retry search' }}</button>
     <div v-if="data?.items.length" class="open-library-results" aria-label="Open Library Work search results">
       <OpenLibraryWorkCard v-for="work in data.items" :key="work.workId" :work="work" />
     </div>

@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Discover provider and return-state candidate — 18 November 2026
+
+`review/discover-provider-state` starts from main `44de0ea`, carrying the separately implemented PR #13 quick-add commit because it was not yet merged. The candidate makes Open Library the Books default only when its frontend gate is enabled, preserves explicit provider URLs and forbids automatic fallback. It shares bounded display snapshots across all search flows, restores them beyond API TTL, and handles clearing without erasing the current cards or repopulating future returns from stale responses. Only the active browser query's snapshot/cache entry is invalidated; server cache/admission and existing API cache/cooldown policies remain. See [design and verification](DISCOVER_PROVIDER_STATE.md). No backend/database/hosting operation, merge, deployment or branch deletion accompanies this review.
+
 ## Open Library quick-add candidate — 17 November 2026
 
 From merged PR #12 at `44de0ea`, `review/open-library-quick-add` moves the existing selected-Edition save control onto the closed Work card, beside its language tags. Edition Details stays optional and has no duplicate save control; invalid/missing selections explain why saving is unavailable. Existing authentication, membership, loading, duplicate prevention and error/cooldown behavior are reused without changing backend, schema or provider limits. See the [quick-add review](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#quick-add-review-candidate) and temporary QA report. No merge or deployment is authorized.

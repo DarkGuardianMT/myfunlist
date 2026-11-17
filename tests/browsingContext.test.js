@@ -161,6 +161,92 @@ for (const [index, type] of Object.keys(identities).entries()) {
   })
 }
 
+for (const type of Object.keys(identities)) {
+  test(`${type} preserves a nonempty unsubmitted draft with its displayed results after unmount`, async () => {
+    const { view, router } = await page(`/discover?type=${type}&q=Original`)
+    await view.get('input[type="search"]').setValue('Unsubmitted draft')
+    await router.push('/')
+    await back(router)
+    assert.equal(view.get('input[type="search"]').element.value, 'Unsubmitted draft')
+    assert.equal(view.get('article h3').text(), 'Original')
+    assert.equal(providerCalls().length, 1)
+  })
+
+  test(`${type} return survives TTL; clearing keeps the display but revokes its URL, cache and future return`, async t => {
+    let now = Date.now()
+    t.mock.method(Date, 'now', () => now)
+    const target = `/discover?type=${type}&q=Original${type === 'book' ? '&provider=google-books&lang=nl' : ''}`
+    const { view, router } = await page(target)
+    now += DISCOVER_CACHE_TTL + 1
+    await router.push('/')
+    await back(router)
+    assert.equal(view.get('article h3').text(), 'Original')
+    assert.equal(providerCalls().length, 1)
+    await view.get('input[type="search"]').setValue('')
+    assert.equal(view.get('input[type="search"]').element.value, '')
+    await settle()
+    assert.equal(router.currentRoute.value.query.q, undefined)
+    assert.equal(discoverReturnLocation.value.query.q, undefined)
+    assert.equal(view.get('article h3').text(), 'Original')
+    assert.equal(providerCalls().length, 1)
+    if (type === 'book') assert.equal(router.currentRoute.value.query.lang, 'nl')
+    await router.push('/')
+    await back(router)
+    assert.equal(view.get('input[type="search"]').element.value, '')
+    assert.equal(view.find('article').exists(), false)
+    assert.equal(providerCalls().length, 1)
+    await router.push(target)
+    await settle()
+    assert.equal(providerCalls().length, 2)
+    await view.get('input[type="search"]').setValue('')
+    await settle()
+    await submit(view, 'Replacement')
+    assert.equal(view.get('article h3').text(), 'Replacement')
+    assert.equal(router.currentRoute.value.query.q, 'Replacement')
+    assert.equal(providerCalls().length, 3)
+  })
+
+  test(`${type} clearing a pending query prevents its late response from replacing a new same-query search`, async () => {
+    const completions = []
+    globalThis.fetch = path => { calls.push(path); return new Promise(resolve => completions.push(resolve)) }
+    const { view, router } = await page(`/discover?type=${type}&q=Pending`)
+    await view.get('input[type="search"]').setValue('')
+    await settle()
+    assert.equal(view.find('.catalogue-skeletons').exists(), false)
+    await submit(view, 'Pending')
+    assert.equal(providerCalls().length, 2)
+    completions[1](providerReply(type, 'Current result'))
+    await settle()
+    completions[0](providerReply(type, 'Stale result'))
+    await settle()
+    assert.equal(view.get('article h3').text(), 'Current result')
+    await router.push('/')
+    await back(router)
+    assert.equal(view.get('article h3').text(), 'Current result')
+    assert.equal(providerCalls().length, 2)
+  })
+}
+
+test('clearing one category/query preserves other category and same-category query snapshots', async () => {
+  const { view, router } = await page('/discover?type=movie&q=Shared')
+  for (const target of ['/discover?type=book&q=Shared', '/discover?type=tv&q=Other', '/discover?type=tv&q=Shared']) {
+    await router.push(target)
+    await settle()
+  }
+  assert.equal(providerCalls().length, 4)
+  await view.get('#tv-query').setValue('')
+  await settle()
+  for (const target of ['/discover?type=movie&q=Shared', '/discover?type=book&q=Shared', '/discover?type=tv&q=Other']) {
+    await router.push(target)
+    await settle()
+    assert.equal(view.findAll('article').length, 1)
+    assert.equal(providerCalls().length, 4)
+  }
+  await router.push('/discover?type=tv&q=Shared')
+  await settle()
+  assert.equal(providerCalls().length, 5)
+})
+
 test('direct URLs and refresh reconstruct searches; bare/invalid URLs and direct detail entry have safe defaults', async () => {
   const first = await page('/discover?type=game&q=Hollow%20Knight')
   assert.equal(first.view.get('#game-query').element.value, 'Hollow Knight')
@@ -364,6 +450,30 @@ test('switching types preserves unsubmitted input without treating it as a submi
   await view.get('form').trigger('submit')
   await settle()
   assert.equal(view.get('article h3').text(), 'Game draft')
+})
+
+test('a displayed API-cache hit becomes a return snapshot after older display state was evicted', async t => {
+  let now = Date.now()
+  t.mock.method(Date, 'now', () => now)
+  const { view, router } = await page('/discover?type=movie&q=Original')
+  globalThis.fetch = async path => {
+    if (!path.includes('/discover/game')) return defaultFetch(path)
+    calls.push(path)
+    return { ok: false, status: 503, json: async () => ({ error: { code: 'provider_unavailable' } }) }
+  }
+  for (let i = 0; i < DISCOVER_CACHE_LIMIT; i++) {
+    await router.push(`/discover?type=game&q=Failure${i}`)
+    await settle()
+  }
+  await router.push('/discover?type=movie&q=Original')
+  await settle()
+  assert.equal(view.get('article h3').text(), 'Original')
+  assert.equal(providerCalls().length, DISCOVER_CACHE_LIMIT + 1)
+  now += DISCOVER_CACHE_TTL + 1
+  await router.push('/')
+  await back(router)
+  assert.equal(view.get('article h3').text(), 'Original')
+  assert.equal(providerCalls().length, DISCOVER_CACHE_LIMIT + 1)
 })
 
 test('bounded browsing snapshots survive result-cache expiry and preserve manual refresh/retry', async (context) => {

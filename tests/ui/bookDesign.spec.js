@@ -57,7 +57,7 @@ for (const mode of ['light', 'dark']) {
     test.skip(baseline && mode === 'dark', 'The original baseline captures light mode only.')
     await page.addInitScript(value => localStorage.setItem('myfunlist_theme', value), mode)
     const prefix = baseline ? 'before-' : 'books-'
-    await page.goto('/tests/ui/open-library.html?q=lantern')
+    await page.goto('/tests/ui/open-library.html?provider=google-books&q=lantern')
     expect(await page.locator('html').getAttribute('data-theme') || 'light').toBe(mode)
     await expect(page.locator('#book-provider')).toHaveValue('google-books')
     await expect(page.locator('.book-card')).toHaveCount(6)
