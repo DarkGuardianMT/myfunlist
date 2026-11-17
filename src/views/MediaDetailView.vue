@@ -38,9 +38,14 @@ const feedback = computed(() => {
         <MediaDetailLists :key="`lists:${getMediaKey(detail)}`" :media="detail" />
       </MediaDetailHero>
       <MediaDetailMetadata :media="detail" />
+      <div v-if="detail.source === 'open-library'" class="media-detail-credits">
+        <p>Saved catalogue snapshot from Open Library search. Live edition details are unavailable here; missing fields are not inferred. Author names describe the Work, and language tags are unverified catalogue metadata.</p>
+        <p>Book metadata and covers: <a :href="`https://openlibrary.org/books/${detail.sourceId}`" target="_blank" rel="noopener noreferrer">Open Library · Edition {{ detail.sourceId }}</a>.
+          <a :href="`https://openlibrary.org/works/${detail.details.workId}`" target="_blank" rel="noopener noreferrer">Work {{ detail.details.workId }}</a></p>
+      </div>
       <TmdbAttribution v-if="detail.source === 'tmdb'" />
       <RawgAttribution v-else-if="detail.source === 'rawg'" />
-      <p v-else class="media-detail-credits">
+      <p v-else-if="detail.source === 'google-books'" class="media-detail-credits">
         Book data provided by <a href="https://books.google.com/" target="_blank" rel="noopener noreferrer">Google Books</a>.
       </p>
     </template>

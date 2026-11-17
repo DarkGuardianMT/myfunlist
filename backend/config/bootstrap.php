@@ -26,6 +26,8 @@ use MyFunList\Lists\ListService;
 use MyFunList\Provider\CurlProviderHttpClient;
 use MyFunList\Provider\ProviderMediaResolver;
 use MyFunList\Provider\OpenLibraryPilot;
+use MyFunList\Provider\OpenLibraryMediaResolver;
+use MyFunList\Infrastructure\MediaRepository;
 use MyFunList\Infrastructure\Database;
 use MyFunList\Infrastructure\PhpSession;
 use MyFunList\Infrastructure\SessionCurrentUserProvider;
@@ -46,13 +48,15 @@ $auth = new AuthController(
 $profile = new ProfileController(new ProfileService($users, $passwords), $session);
 $middleware = new AuthMiddleware($session, new SessionCurrentUserProvider($session));
 $limits = new RateLimitMiddleware(new RateLimiter($database, require __DIR__ . '/rate_limits.php'));
-$providers = new ProviderMediaResolver(new CurlProviderHttpClient());
+$pilot = OpenLibraryPilot::fromEnvironment(new CurlProviderHttpClient());
+$providers = new ProviderMediaResolver(new CurlProviderHttpClient(), new OpenLibraryMediaResolver($pilot,
+    static fn (string $id): ?array => (new MediaRepository($database->connect()))->findByIdentity('open-library', 'book', $id)));
 $libraryService = new LibraryService($database, $providers);
 $library = new LibraryController($libraryService, new LibraryImportService($libraryService));
 $lists = new ListController(new ListService($database));
 $discover = new DiscoverController($providers);
 $media = new MediaController($providers);
-$openLibrary = new OpenLibraryController(OpenLibraryPilot::fromEnvironment(new CurlProviderHttpClient()));
+$openLibrary = new OpenLibraryController($pilot);
 $openLibraryEnabled = ($_ENV['OPEN_LIBRARY_PILOT_ENABLED'] ?? $_SERVER['OPEN_LIBRARY_PILOT_ENABLED'] ?? getenv('OPEN_LIBRARY_PILOT_ENABLED')) === 'true';
 $openLibraryPublic = ($_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] ?? $_SERVER['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] ?? getenv('OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED')) === 'true';
 $testerSearch = $middleware->requireUser(static function (AuthenticatedUser $identity) use ($openLibrary): JsonResponse {
@@ -79,6 +83,9 @@ foreach (['book' => 'google-books', 'movie' => 'tmdb', 'tv' => 'tmdb', 'game' =>
         $limits->ip('media_detail_ip', static fn (string $sourceId): JsonResponse => $media->show($mediaType, $source, $sourceId)),
         ['sourceId' => static fn (string $sourceId): bool => MediaRules::isValidSourceId($source, $sourceId)]);
 }
+$router->add('GET', '/api/v1/media/book/open-library/{sourceId}',
+    $limits->ip('media_detail_ip', static fn (string $sourceId): JsonResponse => $media->show('book', 'open-library', $sourceId)),
+    ['sourceId' => static fn (string $sourceId): bool => MediaRules::isValidSourceId('open-library', $sourceId)]);
 $router->add('GET', '/api/v1/auth/csrf', [$auth, 'csrf']);
 $router->add('POST', '/api/v1/auth/register', $middleware->csrf(
     $limits->ip('register_ip', [$auth, 'register']),

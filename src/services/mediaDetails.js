@@ -41,6 +41,15 @@ const fields = {
   game: { releaseDate: date, platforms: names, developers: names, publishers: names },
 }
 const sharedFields = { artworkImage: image, backdropImage: image, description: text(20000), genres: names }
+const openLibraryFields = {
+  editionId: value => typeof value === 'string' && /^OL[1-9][0-9]{0,28}M$/.test(value),
+  workId: value => typeof value === 'string' && value.trim() === value && /^OL[1-9][0-9]{0,28}W$/.test(value),
+  workTitle: text(500), workAuthors: value => Array.isArray(value) && value.length > 0 && value.length <= 30 && value.every(text(500)),
+  workFirstPublicationYear: value => Number.isInteger(value) && value > 0 && value <= 9999,
+  publicationDates: value => Array.isArray(value) && value.length > 0 && value.length <= 30 && value.every(text(500)),
+  languages: value => Array.isArray(value) && value.length > 0 && value.length <= 30 && value.every(code => typeof code === 'string' && /^[a-z]{3}$/.test(code)),
+  isbns: value => Array.isArray(value) && value.length > 0 && value.length <= 30 && value.every(isbn => typeof isbn === 'string' && /^(?:[0-9]{9}[0-9X]|[0-9]{13})$/.test(isbn)),
+}
 const invalid = () => new ApiError('The server returned invalid media details.', 0, 'invalid_response')
 
 function publicFields(input, validators) {
@@ -61,11 +70,17 @@ export async function fetchMediaDetail(identity, { requestImpl = request } = {})
     || data.source !== identity.source || data.mediaType !== identity.mediaType || data.sourceId !== identity.sourceId) {
     throw invalid()
   }
+  const openLibrary = data.source === 'open-library'
+  if (openLibrary && (data.details.editionId !== data.sourceId || !openLibraryFields.workId(data.details.workId)
+    || data.metadataSource !== 'persisted-search'
+    || data.artworkImage !== undefined && (typeof data.artworkImage !== 'string' || data.artworkImage.trim() !== data.artworkImage
+      || !/^https:\/\/covers\.openlibrary\.org\/b\/id\/[1-9][0-9]{0,9}-M\.jpg\?default=false$/.test(data.artworkImage)))) throw invalid()
 
   // Alleen het publieke contract mag in de detailpagina en de gedeelde cache terechtkomen.
   return {
     source: data.source, mediaType: data.mediaType, sourceId: data.sourceId, title: data.title,
-    details: publicFields(data.details, fields[data.mediaType]),
+    details: publicFields(data.details, openLibrary ? openLibraryFields : fields[data.mediaType]),
+    ...(openLibrary ? { metadataSource: 'persisted-search' } : {}),
     ...publicFields(data, sharedFields),
   }
 }

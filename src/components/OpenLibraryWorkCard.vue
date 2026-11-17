@@ -1,11 +1,16 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
+import OpenLibraryEditionSave from './OpenLibraryEditionSave.vue'
+import { isSupportedMediaIdentity } from '../domain/mediaIdentity.js'
 
 const props = defineProps({ work: { type: Object, required: true } })
 const failedCover = ref(false)
 const chosen = ref(false)
 const edition = computed(() => props.work.selectedEdition)
-const canChoose = computed(() => edition.value?.title?.trim() && !['inconsistent', 'mismatch', 'ambiguous'].includes(edition.value.languageStatus))
+const canChoose = computed(() => typeof edition.value?.title === 'string' && edition.value.title.trim()
+  && typeof props.work.workId === 'string' && props.work.workId.trim() === props.work.workId && /^OL[1-9][0-9]{0,28}W$/.test(props.work.workId)
+  && isSupportedMediaIdentity({ source: 'open-library', mediaType: 'book', sourceId: edition.value.editionId })
+  && !['inconsistent', 'mismatch', 'ambiguous'].includes(edition.value.languageStatus))
 const languageNames = { eng: 'English', dut: 'Dutch', tur: 'Turkish' }
 watch(() => props.work, () => { failedCover.value = false; chosen.value = false })
 </script>
@@ -49,13 +54,13 @@ watch(() => props.work, () => { failedCover.value = false; chosen.value = false 
             <div><dt>ISBN: </dt><dd>{{ edition.isbns.join(', ') || 'Unavailable' }}</dd></div>
           </dl>
           <p class="edition-details__note">Language tags describe catalogue metadata; content language has not been independently verified.</p>
-          <p v-if="!canChoose" class="edition-details__note">This selection cannot be chosen: the title is missing or language metadata is conflicting, mismatched or ambiguous.</p>
+          <p v-if="!canChoose" class="edition-details__note">This edition cannot be saved or chosen: its identity or title is missing, or language metadata is conflicting, mismatched or ambiguous.</p>
           <button type="button" :disabled="!canChoose || chosen" @click="chosen = true">{{ chosen ? 'Edition selected for preview' : 'Use this edition for preview' }}</button>
           <p v-if="chosen" class="edition-details__selection" role="status">Preview selection: {{ work.workId }} / {{ edition.editionId }}. The catalogue association is not independently verified.</p>
           <a :href="`https://openlibrary.org/books/${edition.editionId}`" target="_blank" rel="noopener noreferrer">View edition on Open Library</a>
+          <OpenLibraryEditionSave v-if="canChoose" :key="edition.editionId" :edition="edition" />
         </template>
-        <p v-else class="edition-details__note">No supported edition was supplied. This Work cannot be selected as an edition.</p>
-        <p class="edition-details__note edition-details__read-only">Saving Open Library editions to your Library is not available yet.</p>
+        <p v-else class="edition-details__note">No supported edition was supplied. This Work cannot be saved or selected as an edition.</p>
       </div>
     </details>
   </article>
@@ -96,7 +101,6 @@ button { width: 100%; min-height: 44px; border: 1px solid var(--color-control-bo
 button:hover:not(:disabled) { background: var(--color-primary); color: var(--color-on-primary); }
 button:disabled { cursor: not-allowed; opacity: 0.65; }
 .edition-details__selection { padding: 0.75rem; border: 1px solid var(--color-control-border); border-radius: var(--radius-control); font-size: var(--text-xs); line-height: 1.6; color: var(--color-primary-ink); }
-.edition-details__read-only { margin-bottom: 0; padding-top: 0.75rem; border-top: 1px solid var(--color-border); }
 summary:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
 @media (min-width: 851px) {
   .open-library-work:has(.edition-details[open]) { grid-column: 1 / -1; grid-template-columns: minmax(170px, 220px) minmax(0, 1fr); padding: 1.5rem; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); gap: 1.5rem; }

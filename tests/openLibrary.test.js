@@ -1,6 +1,6 @@
 import test, { beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { clearOpenLibraryCache, normalizeOpenLibraryOptions, searchOpenLibrary, openLibraryError, validIsbn } from '../src/services/openLibrary.js'
+import { clearOpenLibraryCache, forgetOpenLibraryEdition, normalizeOpenLibraryOptions, searchOpenLibrary, openLibraryError, validIsbn } from '../src/services/openLibrary.js'
 import { resolveBookProvider } from '../src/domain/bookProviders.js'
 import { getMediaDetailRoute } from '../src/domain/mediaIdentity.js'
 
@@ -21,7 +21,23 @@ test('Google remains the default during the pilot; explicit providers remain iso
   assert.equal(resolveBookProvider('google-books', true), 'google-books')
   assert.equal(resolveBookProvider('open-library', false), 'open-library')
   assert.equal(resolveBookProvider(['google-books'], false), 'google-books')
-  assert.equal(getMediaDetailRoute({ source: 'open-library', mediaType: 'book', sourceId: 'OL2M' }), null)
+  assert.deepEqual(getMediaDetailRoute({ source: 'open-library', mediaType: 'book', sourceId: 'OL2M' }), {
+    name: 'media-detail', params: { source: 'open-library', mediaType: 'book', sourceId: 'OL2M' },
+  })
+  assert.equal(getMediaDetailRoute({ source: 'open-library', mediaType: 'book', sourceId: 'OL2W' }), null)
+})
+
+test('discarding rejected Edition snapshots does not bypass an existing provider cooldown', async () => {
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return calls === 1 ? ok(result()) : { ok: false, status: 429, json: async () => ({ error: { code: 'rate_limited' } }) }
+  }
+  await searchOpenLibrary('cached')
+  await assert.rejects(searchOpenLibrary('limited'), { status: 429 })
+  forgetOpenLibraryEdition('OL2M')
+  await assert.rejects(searchOpenLibrary('cached'), { status: 429 })
+  assert.equal(calls, 2)
 })
 
 test('all search fields use one same-origin pilot request; language modes are explicit', async () => {

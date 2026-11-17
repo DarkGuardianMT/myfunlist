@@ -9,6 +9,7 @@ use MyFunList\Http\JsonRequest;
 use MyFunList\Http\JsonResponse;
 use MyFunList\Library\LibraryService;
 use MyFunList\Library\LibraryImportService;
+use MyFunList\RateLimit\OpenLibraryClientLimitExceeded;
 
 final class LibraryController
 {
@@ -27,7 +28,12 @@ final class LibraryController
 
     public function add(AuthenticatedUser $user): JsonResponse
     {
-        $result = $this->library->add($user, JsonRequest::body());
+        try {
+            $result = $this->library->add($user, JsonRequest::body());
+        } catch (OpenLibraryClientLimitExceeded $exception) {
+            return JsonResponse::error(429, 'rate_limited', $exception->getMessage(),
+                ['Retry-After' => (string) $exception->retryAfter, ...self::NO_STORE]);
+        }
 
         return JsonResponse::data($result, $result['added'] ? 201 : 200, self::NO_STORE);
     }

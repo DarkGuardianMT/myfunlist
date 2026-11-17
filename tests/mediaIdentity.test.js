@@ -40,3 +40,14 @@ test('moving media keys preserves the legacy import contract without allowing le
   assert.equal(getMediaKey({ source: 'future', mediaType: 'book', sourceId: 'id' }), 'future:book:id')
   assert.equal(getMediaKey({ ...identities.book, mediaType: 'anime' }), null)
 })
+
+test('Open Library routes use exact canonical Editions and remain distinct from Google and Works', () => {
+  const identity = { source: 'open-library', mediaType: 'book', sourceId: 'OL202M' }
+  assert.equal(getMediaDetailPath(identity), '/media/book/open-library/OL202M')
+  assert.notEqual(getMediaKey(identity), getMediaKey({ ...identity, source: 'google-books' }))
+  for (const sourceId of ['OL202W', 'ol202m', '/books/OL202M', 'OL0M', 'OL0202M', 'OL202M.json', 'OL202M\n', 'OL' + '1'.repeat(30) + 'M']) {
+    assert.equal(getMediaDetailPath({ ...identity, sourceId }), null)
+  }
+  assert.equal(getMediaDetailPath({ ...identity, mediaType: 'movie' }), null)
+  for (const mediaType of ['__proto__', 'constructor', 'toString']) assert.equal(getMediaDetailPath({ ...identity, mediaType }), null)
+})

@@ -9,6 +9,7 @@ use DateTimeZone;
 use MyFunList\Auth\AuthenticatedUser;
 use MyFunList\Domain\MediaRules;
 use MyFunList\Http\ApiException;
+use MyFunList\RateLimit\OpenLibraryClientLimitExceeded;
 use stdClass;
 
 final class LibraryImportService
@@ -56,13 +57,13 @@ final class LibraryImportService
                 $status = $outcome['added'] ? 'imported' : 'existing';
                 $summary[$status]++;
                 $results[] = ['index' => $index, 'mediaKey' => $mediaKey, 'status' => $status];
-            } catch (ApiException $exception) {
+            } catch (ApiException|OpenLibraryClientLimitExceeded $exception) {
                 $summary['failed']++;
                 $results[] = [
                     'index' => $index,
                     'mediaKey' => $mediaKey,
                     'status' => 'failed',
-                    'error' => ['code' => $exception->errorCode],
+                    'error' => ['code' => $exception instanceof ApiException ? $exception->errorCode : 'rate_limited'],
                 ];
             }
         }

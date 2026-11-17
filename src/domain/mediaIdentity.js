@@ -1,6 +1,6 @@
 import { MEDIA_TYPES } from './libraryMedia.js'
 
-const sources = { book: 'google-books', movie: 'tmdb', tv: 'tmdb', game: 'rawg' }
+const sources = { book: ['google-books', 'open-library'], movie: ['tmdb'], tv: ['tmdb'], game: ['rawg'] }
 
 export function getMediaKey(media) {
   const source = typeof media?.source === 'string' ? media.source.trim() : ''
@@ -13,10 +13,13 @@ export function getMediaKey(media) {
 }
 
 export function isSupportedMediaIdentity(media) {
-  if (!media || typeof media.mediaType !== 'string' || typeof media.source !== 'string' || sources[media.mediaType] !== media.source
+  if (!media || typeof media.mediaType !== 'string' || typeof media.source !== 'string'
+    || !Object.hasOwn(sources, media.mediaType) || !sources[media.mediaType].includes(media.source)
     || typeof media.sourceId !== 'string' || media.sourceId.trim() !== media.sourceId) return false
 
-  return (media.source === 'google-books' ? /^[A-Za-z0-9_-]{1,191}$/ : /^[1-9][0-9]{0,19}$/).test(media.sourceId)
+  const pattern = media.source === 'open-library' ? /^OL[1-9][0-9]{0,28}M$/
+    : media.source === 'google-books' ? /^[A-Za-z0-9_-]{1,191}$/ : /^[1-9][0-9]{0,19}$/
+  return pattern.test(media.sourceId)
 }
 
 export function getMediaDetailRoute(media) {
