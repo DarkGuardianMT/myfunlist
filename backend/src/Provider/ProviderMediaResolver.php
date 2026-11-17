@@ -8,12 +8,13 @@ use MyFunList\Domain\MediaRules;
 
 final class ProviderMediaResolver implements MediaResolver, MediaSearcher, MediaDetailResolver
 {
-    public function __construct(private readonly ProviderHttpClient $http)
+    public function __construct(private readonly ProviderHttpClient $http, private readonly ?OpenLibraryMediaResolver $openLibrary = null)
     {
     }
 
     public function resolve(string $source, string $mediaType, string $sourceId): array
     {
+        if ($source === 'open-library' && $this->openLibrary !== null) return $this->openLibrary->resolve($source, $mediaType, $sourceId);
         $data = $this->fetchMedia($source, $mediaType, $sourceId);
 
         return match ($mediaType) {
@@ -25,6 +26,7 @@ final class ProviderMediaResolver implements MediaResolver, MediaSearcher, Media
 
     public function resolveDetail(string $source, string $mediaType, string $sourceId): array
     {
+        if ($source === 'open-library' && $this->openLibrary !== null) return $this->openLibrary->resolveDetail($source, $mediaType, $sourceId);
         if (!MediaRules::supports($source, $mediaType) || !MediaRules::isValidSourceId($source, $sourceId)) {
             throw self::invalid();
         }

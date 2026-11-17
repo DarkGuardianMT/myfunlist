@@ -15,6 +15,7 @@ final class MediaRules
 
     private const SOURCE_TYPES = [
         'google-books' => ['book'],
+        'open-library' => ['book'],
         'tmdb' => ['movie', 'tv'],
         'rawg' => ['game'],
     ];
@@ -28,6 +29,7 @@ final class MediaRules
     {
         $pattern = match ($source) {
             'google-books' => '/^[A-Za-z0-9_-]{1,191}$/D',
+            'open-library' => '/^OL[1-9][0-9]{0,28}M$/D',
             'tmdb', 'rawg' => '/^[1-9][0-9]{0,19}$/D',
             default => null,
         };

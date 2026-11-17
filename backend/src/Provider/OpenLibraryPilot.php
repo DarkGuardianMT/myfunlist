@@ -38,12 +38,49 @@ final class OpenLibraryPilot
 
     public function search(array $parameters): array
     {
+        $this->assertAvailable();
+        return $this->searchAvailable($parameters);
+    }
+
+    private function assertAvailable(): void
+    {
         if (!$this->enabled) throw new ApiException(404, 'not_found', 'Route not found.');
         if (!$this->sharedBudgetConfirmed || strlen($this->userAgent) > 200
             || preg_match('/[^\x20-\x7E]/', $this->userAgent) === 1
             || preg_match('/^MyFunList[^\r\n]*\([A-Za-z0-9.!#$%&\x27*+\/=?^_`{|}~-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\)$/D', $this->userAgent) !== 1) {
             throw self::unavailable();
         }
+    }
+
+    public function resolveEdition(string $editionId): array
+    {
+        if (!\MyFunList\Domain\MediaRules::isValidSourceId('open-library', $editionId)) throw OpenLibraryEdition::unavailable();
+        $this->assertAvailable();
+        $decision = $this->store->transaction(function (array &$state, float $now) use ($editionId): array {
+            try {
+                (new OpenLibraryClientLimiter($this->clientSecret))->admit($state['clients'], $_SERVER['REMOTE_ADDR'] ?? null, $now);
+                $found = null;
+                foreach ($state['cache'] as $entry) {
+                    if ($entry['expiresAt'] <= $now) continue;
+                    foreach ($entry['data']['items'] as $work) {
+                        if (($work['selectedEdition']['editionId'] ?? null) !== $editionId) continue;
+                        $candidate = OpenLibraryEdition::fromSearch($work);
+                        if ($found !== null && $found !== $candidate) throw OpenLibraryEdition::unavailable();
+                        $found = $candidate;
+                    }
+                }
+                if ($found === null) throw OpenLibraryEdition::unavailable();
+                return ['data' => $found];
+            } catch (ApiException|OpenLibraryClientLimitExceeded $exception) {
+                return ['error' => $exception];
+            }
+        });
+        if (isset($decision['error'])) throw $decision['error'];
+        return $decision['data'];
+    }
+
+    private function searchAvailable(array $parameters): array
+    {
         $decision = $this->store->transaction(function (array &$state, float $now) use ($parameters): array {
             try {
                 (new OpenLibraryClientLimiter($this->clientSecret))->admit($state['clients'], $_SERVER['REMOTE_ADDR'] ?? null, $now);
