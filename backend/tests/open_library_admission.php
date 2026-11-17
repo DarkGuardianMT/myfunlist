@@ -27,10 +27,11 @@ namespace MyFunList\Provider {
     {
         public static int $calls = 0;
         public static bool $fail = false;
+        public static int $failureStatus = 503;
         public function get(string $url, array $headers = []): array
         {
             self::$calls++;
-            if (self::$fail) throw new ProviderException(503, 'provider_unavailable', 'fixture-private');
+            if (self::$fail) throw new ProviderException(self::$failureStatus, 'provider_unavailable', 'fixture-private');
             return json_decode(file_get_contents(__DIR__ . '/fixtures/open_library.json'), true, 512, JSON_THROW_ON_ERROR);
         }
     }
@@ -75,6 +76,10 @@ namespace {
     $originalEnvironment = $_ENV;
     $originalServer = $_SERVER;
     $originalGet = $_GET;
+    $originalPublicFlag = getenv('OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED');
+    putenv('OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED');
+    unset($_SERVER['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED']);
+    $_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] = 'false';
     $db = new OpenLibraryTestPDO();
     $store = new \MyFunList\Provider\OpenLibraryStateStore(static fn (): PDO => $db);
     $secret = str_repeat('fixture-', 8);
@@ -297,11 +302,106 @@ namespace {
         (new \MyFunList\Infrastructure\PhpSession())->logout();
         verifyAdmission(admissionRequest($bootstrap)->status === 401 && Database::$calls === $beforeDb,
             'Logging out must revoke pilot access without coordinator I/O.');
+
+        // Alleen exact true opent toegang; ongeldige waarden houden de bestaande accountcontrole.
+        foreach ([null, '', 'false', 'TRUE', '1', true, ['true'], ' true', 'true '] as $publicFlag) {
+            if ($publicFlag === null) unset($_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED']);
+            else $_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] = $publicFlag;
+            $restricted = require dirname(__DIR__) . '/config/bootstrap.php';
+            $_SESSION = [];
+            $response = admissionRequest($restricted, []);
+            verifyAdmission($response->status === 401 && json_decode($response->body(), true)['error']['code'] === 'unauthenticated',
+                'Absent/invalid public configuration must preserve anonymous 401.');
+            $_SESSION['user_id'] = '30';
+            verifyAdmission(admissionRequest($restricted)->status === 403, 'Invalid public configuration must preserve account checks.');
+            verifyAdmission(Database::$calls === $beforeDb, 'Restricted requests must not touch shared storage.');
+        }
+
+        $_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] = 'true';
+        $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = 'malformed-and-ignored';
+        $_SESSION = [];
+        session_destroy();
+        $public = require dirname(__DIR__) . '/config/bootstrap.php';
+        seedAdmission($db);
+        $now = 6000.0;
+        $beforeHttp = Http::$calls;
+        $response = admissionRequest($public, []);
+        verifyAdmission($response->status === 422 && json_decode($response->body(), true)['error']['code'] === 'validation_error'
+            && Http::$calls === $beforeHttp && admissionState($db)['reservation'] === null
+            && session_status() === PHP_SESSION_NONE,
+            'Public queryless verification must consume admission without starting sessions or reserving/calling the provider.');
+        seedAdmission($db);
+        verifyAdmission(admissionRequest($public)->status === 200 && Http::$calls === $beforeHttp + 1
+            && session_status() === PHP_SESSION_NONE, 'Anonymous public search must work without a session or valid tester configuration.');
+        verifyAdmission(admissionRequest($public)->status === 200 && Http::$calls === $beforeHttp + 1,
+            'Anonymous public searches must share the existing response cache.');
+        $busy = admissionRequest($public, ['q' => 'uncached public search']);
+        verifyAdmission($busy->status === 503 && json_decode($busy->body(), true)['error']['code'] === 'provider_busy'
+            && admissionHeaders($busy)['Retry-After'] === '2' && Http::$calls === $beforeHttp + 1,
+            'Public access must preserve global provider spacing and manual backoff.');
+        verifyAdmission(admissionRequest($public)->status === 200 && admissionRequest($public)->status === 200
+            && admissionRequest($public)->status === 429 && Http::$calls === $beforeHttp + 1,
+            'Public cache hits and budget refusals must preserve five admissions per IP per minute.');
+        $_SERVER['HTTP_X_FORWARDED_FOR'] = '198.51.100.20';
+        verifyAdmission(admissionRequest($public)->status === 429, 'Public access must ignore spoofed forwarding headers.');
+        $_SERVER['REMOTE_ADDR'] = '192.0.2.99';
+        verifyAdmission(admissionRequest($public)->status === 200 && Http::$calls === $beforeHttp + 1,
+            'Real distinct REMOTE_ADDR clients must have separate admission and share the provider cache.');
+
+        (new \MyFunList\Infrastructure\PhpSession())->start();
+        $_SESSION['user_id'] = '30';
+        seedAdmission($db);
+        verifyAdmission(admissionRequest($public)->status === 200 && $_SESSION['user_id'] === '30',
+            'Any signed-in account must search publicly without allowlist membership or session changes.');
+        unset($_ENV['OPEN_LIBRARY_TESTER_USER_IDS']);
+        verifyAdmission(admissionRequest($public)->status === 200, 'Public discovery must not require a tester allowlist.');
+        $_SESSION = [];
+        session_destroy();
+
+        Http::$fail = true;
+        foreach ([429, 503, 502] as $upstreamStatus) {
+            seedAdmission($db);
+            Http::$failureStatus = $upstreamStatus;
+            $response = admissionRequest($public, ['q' => 'public provider failure']);
+            $beforeHttp = Http::$calls;
+            verifyAdmission($response->status === ($upstreamStatus === 502 ? 502 : 503)
+                && ($upstreamStatus === 502 || admissionHeaders($response)['Retry-After'] === '60')
+                && !str_contains($response->body(), 'fixture-private') && admissionState($db)['nextRequestAt'] === 6060,
+                'Public provider failures must remain sanitized and impose the shared cooldown.');
+            verifyAdmission(admissionRequest($public, ['q' => 'other public query'])->status === 503 && Http::$calls === $beforeHttp,
+                'Public cooldown must suppress all further provider calls without automatic retries.');
+        }
+        Http::$fail = false;
+        seedAdmission($db);
+        $db->fail = 'connect';
+        verifyAdmission(admissionRequest($public)->status === 503 && Http::$calls === $beforeHttp,
+            'Public database failures must fail closed before provider I/O.');
+        seedAdmission($db);
+        $state = admissionState($db);
+        $state['reservation'] = str_repeat('a', 64);
+        $state['nextRequestAt'] = 6010;
+        $db->raw = json_encode($state);
+        verifyAdmission(admissionRequest($public)->status === 503 && Http::$calls === $beforeHttp
+            && admissionState($db)['reservation'] === $state['reservation'],
+            'Public access must not steal a stranded worker reservation.');
+
+        // De hoofdschakelaar heeft voorrang op publieke toegang, ongeldige invoer en kapotte opslag.
+        $beforeDb = Database::$calls;
+        $db->raw = '{broken';
+        foreach ([null, 'false', '', 'TRUE', '1'] as $pilotFlag) {
+            $_ENV['OPEN_LIBRARY_PILOT_ENABLED'] = $pilotFlag ?? false;
+            $disabledPublic = require dirname(__DIR__) . '/config/bootstrap.php';
+            $response = admissionRequest($disabledPublic, []);
+            verifyAdmission($response->status === 404 && json_decode($response->body(), true)['error']['code'] === 'not_found'
+                && Database::$calls === $beforeDb && Http::$calls === $beforeHttp && session_status() === PHP_SESSION_NONE,
+                'Disabled pilot must win over public access before session/database/provider I/O.');
+        }
     } finally {
         if (session_status() === PHP_SESSION_ACTIVE) { $_SESSION = []; session_destroy(); }
         $_ENV = $originalEnvironment;
         $_SERVER = $originalServer;
         $_GET = $originalGet;
+        putenv($originalPublicFlag === false ? 'OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED' : 'OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED=' . $originalPublicFlag);
     }
     echo 'Open Library admission checks passed (', $checks, " assertions; fixture I/O only, no database/network requests).\n";
 }

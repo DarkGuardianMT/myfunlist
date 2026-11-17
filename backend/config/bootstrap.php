@@ -54,6 +54,7 @@ $discover = new DiscoverController($providers);
 $media = new MediaController($providers);
 $openLibrary = new OpenLibraryController(OpenLibraryPilot::fromEnvironment(new CurlProviderHttpClient()));
 $openLibraryEnabled = ($_ENV['OPEN_LIBRARY_PILOT_ENABLED'] ?? $_SERVER['OPEN_LIBRARY_PILOT_ENABLED'] ?? getenv('OPEN_LIBRARY_PILOT_ENABLED')) === 'true';
+$openLibraryPublic = ($_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] ?? $_SERVER['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] ?? getenv('OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED')) === 'true';
 $testerSearch = $middleware->requireUser(static function (AuthenticatedUser $identity) use ($openLibrary): JsonResponse {
     $testers = $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] ?? $_SERVER['OPEN_LIBRARY_TESTER_USER_IDS'] ?? getenv('OPEN_LIBRARY_TESTER_USER_IDS');
     // Alleen exacte account-ID's; ontbrekende of ongeldige configuratie weigert alle testers.
@@ -67,7 +68,8 @@ $testerSearch = $middleware->requireUser(static function (AuthenticatedUser $ide
 
 $router->add('GET', '/api/v1/health', new HealthController($database));
 $router->add('GET', '/api/v1/pilot/open-library/search',
-    static fn (): JsonResponse => $openLibraryEnabled ? $testerSearch() : $openLibrary->search($_GET));
+    // De uitgeschakelde pilot stopt in de controller; publieke reads starten geen sessie.
+    static fn (): JsonResponse => !$openLibraryEnabled || $openLibraryPublic ? $openLibrary->search($_GET) : $testerSearch());
 foreach (['movie', 'tv', 'game'] as $mediaType) {
     $router->add('GET', '/api/v1/discover/' . $mediaType,
         $limits->ip('discover_ip', static fn (): JsonResponse => $discover->search($mediaType, $_GET)));

@@ -296,7 +296,7 @@ test('Movies is the bare default, legacy Books canonicalizes, and every book act
   await settle()
   assert.equal(router.currentRoute.value.query.type, 'book')
   assert.equal(router.currentRoute.value.query.provider, 'open-library')
-  assert.match(view.text(), /No search requests are sent/)
+  assert.match(view.text(), /Open Library discovery is currently unavailable/)
   assert.equal(providerCalls().length, 1)
   await view.get('#book-provider').setValue('google-books')
   await settle()

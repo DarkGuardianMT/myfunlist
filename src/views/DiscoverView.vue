@@ -172,7 +172,7 @@ function cardProps(media) {
         <label for="book-provider">Book catalogue</label>
         <select id="book-provider" :value="bookProvider" @change="setBookProvider($event.target.value)">
           <option value="google-books">Google Books</option>
-          <option value="open-library">Open Library · tester pilot</option>
+          <option value="open-library">Open Library</option>
         </select>
       </div>
     </div>

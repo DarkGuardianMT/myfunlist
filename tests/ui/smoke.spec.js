@@ -63,7 +63,7 @@ test('empty results, controlled network failure, manual retry and disabled Open 
   await page.getByRole('button', { name: 'Retry search', exact: true }).click()
   await expect(page.getByRole('heading', { name: bookTitle })).toBeVisible()
   await page.getByLabel('Book catalogue', { exact: true }).selectOption('open-library')
-  await expect(page.getByText(/Open Library discovery is awaiting operational and policy checks/)).toBeVisible()
+  await expect(page.getByText(/Open Library discovery is currently unavailable/)).toBeVisible()
   await expect(page.locator('#open-library-query')).toBeDisabled()
   expect(sandbox.pilotRequests).toBe(0)
   await checkLayout(page)
