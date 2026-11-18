@@ -1,6 +1,6 @@
 import test, { beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { clearOpenLibraryCache, forgetOpenLibraryEdition, normalizeOpenLibraryOptions, searchOpenLibrary, openLibraryError, validIsbn } from '../src/services/openLibrary.js'
+import { clearOpenLibraryCache, forgetOpenLibraryEdition, forgetOpenLibrarySearch, getOpenLibraryCooldown, normalizeOpenLibraryOptions, searchOpenLibrary, openLibraryError, validIsbn } from '../src/services/openLibrary.js'
 import { resolveBookProvider } from '../src/domain/bookProviders.js'
 import { getMediaDetailRoute } from '../src/domain/mediaIdentity.js'
 
@@ -15,9 +15,9 @@ const ok = (data) => ({ ok: true, json: async () => ({ data }) })
 beforeEach(clearOpenLibraryCache)
 afterEach(() => { globalThis.fetch = originalFetch })
 
-test('Google remains the default during the pilot; explicit providers remain isolated', () => {
+test('the enabled frontend defaults to Open Library; explicit providers remain isolated', () => {
   assert.equal(resolveBookProvider(undefined, false), 'google-books')
-  assert.equal(resolveBookProvider(undefined, true), 'google-books')
+  assert.equal(resolveBookProvider(undefined, true), 'open-library')
   assert.equal(resolveBookProvider('google-books', true), 'google-books')
   assert.equal(resolveBookProvider('open-library', false), 'open-library')
   assert.equal(resolveBookProvider(['google-books'], false), 'google-books')
@@ -25,6 +25,37 @@ test('Google remains the default during the pilot; explicit providers remain iso
     name: 'media-detail', params: { source: 'open-library', mediaType: 'book', sourceId: 'OL2M' },
   })
   assert.equal(getMediaDetailRoute({ source: 'open-library', mediaType: 'book', sourceId: 'OL2W' }), null)
+})
+
+test('forgetting one local Open Library search preserves other queries, filter variants and shared cooldown', async () => {
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return ok(result()) }
+  await searchOpenLibrary('shared')
+  await searchOpenLibrary('other')
+  await searchOpenLibrary('shared', { language: 'nl' })
+  forgetOpenLibrarySearch('shared')
+  await searchOpenLibrary('other')
+  await searchOpenLibrary('shared', { language: 'nl' })
+  assert.equal(calls, 3)
+  await searchOpenLibrary('shared')
+  assert.equal(calls, 4)
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 429, headers: new Headers({ 'Retry-After': '90' }), json: async () => ({ error: { code: 'rate_limited' } }) } }
+  await assert.rejects(searchOpenLibrary('limited'))
+  const cooldown = getOpenLibraryCooldown()
+  forgetOpenLibrarySearch('limited')
+  assert.equal(getOpenLibraryCooldown(), cooldown)
+  await assert.rejects(searchOpenLibrary('shared'))
+  assert.equal(calls, 5)
+})
+
+test('forgetting a pending Open Library query cannot suppress its provider-protecting cooldown', async () => {
+  let finish
+  globalThis.fetch = () => new Promise(resolve => { finish = resolve })
+  const pending = searchOpenLibrary('pending')
+  forgetOpenLibrarySearch('pending')
+  finish({ ok: false, status: 503, headers: new Headers({ 'Retry-After': '60' }), json: async () => ({ error: { code: 'provider_unavailable' } }) })
+  await assert.rejects(pending)
+  assert.ok(getOpenLibraryCooldown())
 })
 
 test('discarding rejected Edition snapshots does not bypass an existing provider cooldown', async () => {

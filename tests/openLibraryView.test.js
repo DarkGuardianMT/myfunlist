@@ -48,7 +48,7 @@ beforeEach(() => {
 afterEach(() => { mounted.splice(0).forEach(view => view.unmount()); globalThis.fetch = originalFetch })
 after(() => dom.window.close())
 
-test('enabled pilot keeps Google as default and allows manual Open Library selection', async () => {
+test('enabled discovery defaults to Open Library and preserves explicit Google selection', async () => {
   const calls = []
   globalThis.fetch = async path => {
     calls.push(path)
@@ -56,14 +56,15 @@ test('enabled pilot keeps Google as default and allows manual Open Library selec
     assert.ok(path.startsWith('/api/v1/pilot/open-library/search?'))
     return ok(response())
   }
-  const enabledComponent = { ...OpenLibraryDiscover, props: { enabled: { type: Boolean, default: true } } }
-  const { view } = await page('/discover?q=modern', DiscoverView, {}, { OpenLibraryDiscover: enabledComponent })
-  assert.equal(view.get('#book-provider').element.value, 'google-books')
-  assert.match(view.text(), /Google volume/)
+  const { view } = await page('/discover?q=modern', DiscoverView, { openLibraryEnabled: true })
+  assert.equal(view.get('#book-provider').element.value, 'open-library')
+  assert.match(view.text(), /A modern book/)
   assert.equal(calls.length, 1)
+  await view.get('#book-provider').setValue('google-books')
+  await flushPromises()
+  assert.match(view.text(), /Google volume/)
   await view.get('#book-provider').setValue('open-library')
   await flushPromises()
-  assert.match(view.text(), /A modern book/)
   assert.match(view.text(), /Edition-based book discovery/)
   assert.doesNotMatch(view.text(), /tester|pilot/i)
   assert.equal(currentUser.value, null)
@@ -73,6 +74,118 @@ test('enabled pilot keeps Google as default and allows manual Open Library selec
   await flushPromises()
   assert.match(view.text(), /Google volume/)
   assert.equal(calls.length, 2)
+})
+
+for (const outcome of ['success', 'empty', 'error']) test(`Open Library restores ${outcome} display after API TTL without another request`, async t => {
+  let now = Date.now()
+  t.mock.method(Date, 'now', () => now)
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return outcome === 'error' ? { ok: false, status: 503, json: async () => ({ error: { code: 'provider_unavailable' } }) }
+      : ok(response(outcome === 'empty' ? [] : [work]))
+  }
+  const first = await page()
+  first.view.unmount()
+  now += 300001
+  const { view } = await page()
+  assert.equal(calls, 1)
+  assert.equal(view.get('#open-library-query').element.value, 'modern')
+  assert.match(view.text(), outcome === 'success' ? /A modern book/ : outcome === 'empty' ? /No supported Works/ : /temporarily unavailable/)
+})
+
+test('Open Library preserves a nonempty unsubmitted draft with its displayed results after unmount', async () => {
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return ok(response()) }
+  const first = await page()
+  await first.view.get('#open-library-query').setValue('Unsubmitted draft')
+  first.view.unmount()
+  const { view } = await page()
+  assert.equal(view.get('#open-library-query').element.value, 'Unsubmitted draft')
+  assert.match(view.text(), /A modern book/)
+  assert.equal(calls, 1)
+})
+
+test('Open Library clear preserves visible cards, removes only q and returns idle without searching', async () => {
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return ok(response()) }
+  const { view, router } = await page('/discover?type=book&provider=open-library&q=modern&lang=nl&mode=strict')
+  await view.get('#open-library-query').setValue('')
+  assert.equal(view.get('#open-library-query').element.value, '')
+  await flushPromises()
+  assert.match(view.text(), /A modern book/)
+  assert.match(view.text(), /shown for “modern”/)
+  await view.get('form').trigger('submit')
+  await flushPromises()
+  assert.match(view.text(), /A modern book/)
+  assert.equal(router.currentRoute.value.query.q, undefined)
+  assert.equal(router.currentRoute.value.query.lang, 'nl')
+  assert.equal(calls, 1)
+  await router.push('/library')
+  await router.push('/discover?type=book&provider=open-library&lang=nl&mode=strict')
+  await flushPromises()
+  assert.match(view.text(), /Enter a title, author or ISBN/)
+  assert.equal(view.find('.open-library-work').exists(), false)
+  assert.equal(calls, 1)
+  await view.get('#open-library-query').setValue('modern')
+  await view.get('form').trigger('submit')
+  await flushPromises()
+  assert.equal(calls, 2)
+  assert.match(view.text(), /A modern book/)
+})
+
+test('Open Library clear rejects late display/cache writes and permits a fresh same-query search', async () => {
+  const completions = []
+  globalThis.fetch = () => new Promise(resolve => completions.push(resolve))
+  const { view, router } = await page()
+  await view.get('#open-library-query').setValue('')
+  await flushPromises()
+  assert.doesNotMatch(view.text(), /Searching Open Library/)
+  await view.get('#open-library-query').setValue('modern')
+  await view.get('form').trigger('submit')
+  await flushPromises()
+  assert.equal(completions.length, 2)
+  completions[1](ok(response([{ ...work, workTitle: 'Current result' }])))
+  await flushPromises()
+  completions[0](ok(response([{ ...work, workTitle: 'Stale result' }])))
+  await flushPromises()
+  assert.match(view.text(), /Current result/)
+  assert.doesNotMatch(view.text(), /Stale result/)
+  await router.push('/library')
+  await router.push('/discover?provider=open-library&q=modern')
+  await flushPromises()
+  assert.equal(completions.length, 2)
+  assert.match(view.text(), /Current result/)
+})
+
+test('Open Library display snapshots stay bounded after API cache expiry', async t => {
+  let now = Date.now()
+  t.mock.method(Date, 'now', () => now)
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return ok(response()) }
+  const { router } = await page()
+  for (let i = 0; i < 20; i++) {
+    await router.push(`/discover?provider=open-library&q=selection${i}`)
+    await flushPromises()
+  }
+  now += 300001
+  await router.push('/library')
+  await router.push('/discover?provider=open-library&q=selection19')
+  await flushPromises()
+  assert.equal(calls, 21)
+  await router.push('/discover?provider=open-library&q=modern')
+  await flushPromises()
+  assert.equal(calls, 22)
+})
+
+test('enabled default Open Library failures never select or request Google automatically', async () => {
+  const calls = []
+  globalThis.fetch = async path => { calls.push(path); return { ok: false, status: 503, json: async () => ({ error: { code: 'provider_unavailable' } }) } }
+  const { view } = await page('/discover?type=book&q=modern', DiscoverView, { openLibraryEnabled: true })
+  assert.equal(view.get('#book-provider').element.value, 'open-library')
+  assert.match(view.text(), /temporarily unavailable/)
+  assert.equal(calls.length, 1)
+  assert.ok(calls[0].startsWith('/api/v1/pilot/open-library/'))
 })
 
 test('pilot 401 and 403 explain access without expiring the session or automatically retrying', async () => {
@@ -163,8 +276,7 @@ test('an enabled Open Library view does not read the Library before an edition i
     throw new Error(`Unexpected request: ${path}`)
   }
   currentUser.value = { id: '1', email: 'fixture@example.test' }
-  const enabledComponent = { ...OpenLibraryDiscover, props: { enabled: { type: Boolean, default: true } } }
-  const { view, router } = await page('/discover?provider=open-library&q=modern&lang=nl&mode=strict', DiscoverView, {}, { OpenLibraryDiscover: enabledComponent })
+  const { view, router } = await page('/discover?provider=open-library&q=modern&lang=nl&mode=strict', DiscoverView, { openLibraryEnabled: true })
   assert.equal(calls.length, 1)
   assert.ok(calls[0].startsWith('/api/v1/pilot/open-library/search?'))
   currentUser.value = null
@@ -205,7 +317,9 @@ test('missing edition and conflicting language metadata cannot become a selectab
     mounted.push(view)
     const buttons = view.findAll('button')
     assert.ok(!buttons.length || buttons[0].attributes('disabled') !== undefined)
-    assert.match(view.text(), /cannot be saved/)
+    assert.match(view.get('.open-library-work__unavailable').text(), /cannot be saved/)
+    assert.equal(view.get('.open-library-work__unavailable').element.closest('details'), null)
+    assert.equal(view.find('.edition-save').exists(), false)
   }
 })
 
@@ -227,6 +341,13 @@ test('authenticated saving uses only the exact Edition identity, deduplicates cl
   const { view } = await page()
   const button = view.get('.library-add-button')
   assert.equal(button.text(), 'Add to Library')
+  assert.equal(button.element.closest('details'), null)
+  assert.equal(view.get('.edition-details').element.open, false)
+  assert.match(view.get('.open-library-work__save .open-library-work__language').text(), /Edition language: Dutch/)
+  assert.equal(view.findAll('.edition-save').length, 1)
+  await view.get('.edition-details summary').trigger('click')
+  assert.equal(view.findAll('.edition-save').length, 1)
+  await view.get('.edition-details summary').trigger('click')
   await button.trigger('click')
   await flushPromises()
   assert.equal(button.text(), 'Adding…')
@@ -243,6 +364,16 @@ test('authenticated saving uses only the exact Edition identity, deduplicates cl
   const next = await page()
   assert.equal(next.view.get('.library-add-button').text(), 'In Library')
   assert.equal(writes.length, 1)
+})
+
+test('quick-add labels the selected Edition languages without inferring missing catalogue tags', async () => {
+  for (const [languages, label] of [[['eng', 'tur'], 'English, Turkish'], [[], 'Not supplied'], [['fre'], 'fre']]) {
+    const { view } = await page('/discover', WorkCard, { work: { ...work,
+      selectedEdition: { ...work.selectedEdition, languages, languageStatus: 'unverified' } } })
+    assert.equal(view.get('.open-library-work__language').text(), `Edition language: ${label}`)
+    assert.equal(view.get('.edition-save .library-add-button').element.closest('details'), null)
+    assert.equal(view.get('.edition-details').element.open, false)
+  }
 })
 
 test('unknown Library membership stays disabled while loading and recovers through an explicit retry', async () => {

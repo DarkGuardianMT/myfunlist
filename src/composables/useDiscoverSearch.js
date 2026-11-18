@@ -1,6 +1,7 @@
-import { computed, onScopeDispose, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, toValue, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { resolveBookProvider } from '../domain/bookProviders.js'
+import { openLibraryDiscoverEnabled, resolveBookProvider } from '../domain/bookProviders.js'
+import { clearDiscoverSnapshots, forgetDiscoverSnapshot, getDiscoverSnapshot, rememberDiscoverSnapshot } from '../services/discoverSnapshots.js'
 import { MEDIA_TYPES } from '../domain/libraryMedia.js'
 import { resolveDiscoverType } from '../domain/discoverRoute.js'
 import { normalizeBookSearchOptions } from '../domain/bookSearch.js'
@@ -15,7 +16,6 @@ export const DISCOVER_CACHE_TTL = 5 * 60 * 1000
 export const DISCOVER_CACHE_LIMIT = 20
 const cache = new Map()
 const pending = new Map()
-const snapshots = new Map()
 const queriesByType = new Map()
 let cacheVersion = 0
 const searches = { book: searchBooks, movie: searchMovies, tv: searchTvShows, game: searchGames }
@@ -25,7 +25,7 @@ export function clearDiscoverCache() {
   cacheVersion++
   cache.clear()
   pending.clear()
-  snapshots.clear()
+  clearDiscoverSnapshots()
   queriesByType.clear()
 }
 
@@ -44,14 +44,16 @@ function location(type, query, options = {}) {
   } }
 }
 
+function searchKey(type, query, options) {
+  return JSON.stringify([type, query, ...(type === 'book' ? [options.field, options.sort, options.language] : [])])
+}
+
 function search(type, query, options, refresh = false) {
-  const key = JSON.stringify([type, query, ...(type === 'book' ? [options.field, options.sort, options.language] : [])])
+  const key = searchKey(type, query, options)
   if (pending.has(key)) return pending.get(key)
   // Een terugkeer herstelt ook verlopen, lege en mislukte zoekacties zonder providerverkeer.
-  const previous = snapshots.get(key)
+  const previous = getDiscoverSnapshot(type, key)
   if (!refresh && previous) {
-    snapshots.delete(key)
-    snapshots.set(key, previous)
     return Promise.resolve(previous)
   }
   const cached = cache.get(key)
@@ -63,15 +65,11 @@ function search(type, query, options, refresh = false) {
   cache.delete(key)
   const version = cacheVersion
   function remember(state) {
-    if (version === cacheVersion) {
-      snapshots.delete(key)
-      snapshots.set(key, state)
-      while (snapshots.size > DISCOVER_CACHE_LIMIT) snapshots.delete(snapshots.keys().next().value)
-    }
+    if (version === cacheVersion && pending.get(key) === request) rememberDiscoverSnapshot(type, key, state)
     return state
   }
   const request = searches[type](query, type === 'book' ? options : undefined).then((results) => {
-    if (version !== cacheVersion) return { results, status: results.length ? 'success' : 'empty', errorMessage: '' }
+    if (version !== cacheVersion || pending.get(key) !== request) return { results, status: results.length ? 'success' : 'empty', errorMessage: '' }
     const now = Date.now()
     for (const [key, entry] of cache) {
       if (entry.expiresAt <= now) cache.delete(key)
@@ -85,11 +83,11 @@ function search(type, query, options, refresh = false) {
   return request
 }
 
-export function useDiscoverSearch() {
+export function useDiscoverSearch({ openLibraryEnabled = openLibraryDiscoverEnabled } = {}) {
   const route = useRoute()
   const router = useRouter()
   const activeMediaType = computed(() => resolveDiscoverType(route.query))
-  const bookProvider = computed(() => resolveBookProvider(route.query.provider))
+  const bookProvider = computed(() => resolveBookProvider(route.query.provider, toValue(openLibraryEnabled)))
   const bookFilters = computed(() => normalizeBookSearchOptions({
     field: route.query.field, sort: route.query.sort, language: route.query.lang,
   }))
@@ -111,14 +109,17 @@ export function useDiscoverSearch() {
     set: (value) => {
       activeSearch.value.query = value
       drafts.set(activeMediaType.value, { submittedQuery: activeSearch.value.searchedQuery, query: value })
+      if (!value.trim()) { clearActiveSearch(); return }
+      const saved = getDiscoverSnapshot(activeMediaType.value, searchKey(activeMediaType.value, routeQuery(route.query.q), bookFilters.value))
+      if (saved) saved.inputQuery = value
     },
   })
   let generation = 0
   let refreshLocation = null
+  let clearedLocation = null
 
-  function rememberContext() {
+  function rememberContext(query = routeQuery(route.query.q)) {
     const type = activeMediaType.value
-    const query = routeQuery(route.query.q)
     const options = bookFilters.value
     const context = location(type, query, options)
     if (type === 'book' && (bookProvider.value === 'open-library' || route.query.provider)) {
@@ -136,6 +137,27 @@ export function useDiscoverSearch() {
     }
     queriesByType.set(type, context)
     discoverReturnLocation.value = context
+  }
+
+  function clearActiveSearch() {
+    if (route.path !== '/discover') return
+    generation++
+    refreshLocation = null
+    const type = activeMediaType.value
+    const key = searchKey(type, routeQuery(route.query.q), bookFilters.value)
+    forgetDiscoverSnapshot(type, key)
+    cache.delete(key)
+    pending.delete(key)
+    drafts.delete(type)
+    if (activeSearch.value.status === 'loading') activeSearch.value.status = activeSearch.value.results.length ? 'success' : 'idle'
+    rememberContext('')
+    if (route.query.q === undefined) return
+    const query = { ...route.query }
+    delete query.q
+    const target = { path: '/discover', query, hash: route.hash }
+    // Alleen deze vervanging behoudt het huidige raster; een echte terugkeer wordt weer idle.
+    clearedLocation = router.resolve(target).fullPath
+    return router.replace(target)
   }
 
   async function load(refresh = false) {
@@ -156,7 +178,11 @@ export function useDiscoverSearch() {
     try {
       const state = await search(type, query, options, refresh)
       if (version !== generation) return
-      Object.assign(activeSearch.value, state)
+      const { inputQuery, ...display } = state
+      Object.assign(activeSearch.value, display)
+      if (draft?.submittedQuery !== query && typeof inputQuery === 'string') activeSearch.value.query = inputQuery
+      // Ook een zichtbaar API-cachetreffer wordt opnieuw een begrensde terugkeersnapshot.
+      rememberDiscoverSnapshot(type, searchKey(type, query, options), { ...display, inputQuery: activeSearch.value.query })
     } catch (error) {
       if (version !== generation) return
       activeSearch.value.status = 'error'
@@ -166,8 +192,15 @@ export function useDiscoverSearch() {
 
   // Lokale resultaatfilters mogen ook na het verlopen van de cache geen zoekactie starten.
   watch([() => route.path, () => route.query.type, () => route.query.q,
+    () => toValue(openLibraryEnabled),
     ...['provider', 'field', 'sort', 'lang', 'mode'].map(name => () => activeMediaType.value === 'book' ? route.query[name] : undefined),
   ], () => {
+    if (clearedLocation === route.fullPath) {
+      clearedLocation = null
+      rememberContext()
+      return
+    }
+    clearedLocation = null
     const refresh = refreshLocation === route.fullPath
     refreshLocation = null
     load(refresh)

@@ -43,14 +43,63 @@ function editionApp(sandbox, authenticated = true) {
 
 const discover = '/tests/ui/open-library.html?type=book&provider=open-library&q=lantern&lang=nl&mode=strict'
 
+test('Open Library quick-add stays visible with optional details and explains unavailable Editions', async ({ page, sandbox }, info) => {
+  const app = editionApp(sandbox)
+  sandbox.pilotRespond = async () => ({ json: { data: openLibraryResult([
+    openLibraryWork,
+    { ...openLibraryWork, workId: 'OL102W', workTitle: 'A Work without a selected Edition', selectedEdition: null },
+    { ...openLibraryWork, workId: 'OL103W', workTitle: 'A Work with an untitled Edition',
+      selectedEdition: { ...openLibraryWork.selectedEdition, editionId: 'OL203M', title: null } },
+    { ...openLibraryWork, workId: 'OL104W', workTitle: 'A Work with ambiguous Edition languages',
+      selectedEdition: { ...openLibraryWork.selectedEdition, editionId: 'OL204M', languages: ['dut', 'eng'], languageStatus: 'ambiguous' } },
+  ]) } })
+  await page.goto('/tests/ui/open-library.html?type=book&provider=open-library&q=lantern')
+  const cards = page.locator('.open-library-work')
+  await expect(cards).toHaveCount(4)
+  await expect(cards.locator('.edition-details[open]')).toHaveCount(0)
+  const add = cards.first().getByRole('button', { name: /^Add to Library:/ })
+  await expect(add).toBeVisible()
+  await expect(add).toBeEnabled()
+  await expect(cards.first().locator('.open-library-work__save')).toContainText('Edition language: Dutch')
+  await expect(cards.nth(1).locator('.open-library-work__unavailable')).toBeVisible()
+  await expect(cards.nth(1).locator('.open-library-work__unavailable')).toContainText('No supported edition was supplied')
+  for (const index of [2, 3]) {
+    await expect(cards.nth(index).locator('.open-library-work__unavailable')).toContainText('cannot be saved')
+    await expect(cards.nth(index).locator('.edition-save')).toHaveCount(0)
+  }
+  await expect(cards.locator('.edition-save')).toHaveCount(1)
+  await cards.first().locator('summary').click()
+  await expect(cards.locator('.edition-details .edition-save')).toHaveCount(0)
+  await expect(add).toHaveCount(1)
+  await cards.first().locator('summary').click()
+  await checkLayout(page)
+  await capture(page, info, 'quick-add-light', cards.first().locator('.open-library-work__save'))
+  await page.getByRole('button', { name: 'Switch to dark mode', exact: true }).filter({ visible: true }).click()
+  await capture(page, info, 'quick-add-dark', cards.first().locator('.open-library-work__save'))
+  for (const width of [320, 768]) {
+    await page.setViewportSize({ width, height: 900 })
+    await checkLayout(page)
+    await expect(add).toBeVisible()
+    expect((await add.boundingBox()).height).toBeGreaterThanOrEqual(44)
+  }
+  expect(app.writes()).toBe(0)
+  expect(sandbox.pilotRequests).toBe(1)
+})
+
 test('Open Library Library integration: save exact Edition, tracking, layouts, Lists, reload and contextual detail', async ({ page, sandbox }, info) => {
   test.setTimeout(60000)
   const app = editionApp(sandbox)
   await page.goto(discover)
   const work = page.locator('.open-library-work')
-  await work.locator('summary').click()
   const add = work.getByRole('button', { name: /^Add to Library:/ })
+  await expect(work.locator('.edition-details')).not.toHaveAttribute('open', '')
+  await expect(add).toBeVisible()
   await expect(add).toBeEnabled()
+  await expect(work.locator('.open-library-work__save')).toContainText('Edition language: Dutch')
+  await work.locator('summary').click()
+  await expect(work.locator('.edition-details .edition-save')).toHaveCount(0)
+  await expect(work.getByRole('button', { name: /^Add to Library:/ })).toHaveCount(1)
+  await work.locator('summary').click()
   await capture(page, info, 'after-open-library-save-light', add)
   await add.dblclick()
   await expect(work.getByRole('button', { name: /^In Library:/ })).toBeDisabled()
@@ -123,7 +172,6 @@ test('Open Library Library integration: save exact Edition, tracking, layouts, L
 test('Open Library saving: anonymous login, expired trust, manual retry and outage cooldown', async ({ page, sandbox }) => {
   const app = editionApp(sandbox, false)
   await page.goto(discover)
-  await page.locator('.open-library-work summary').click()
   await page.getByRole('link', { name: /^Log in to add:/ }).click()
   await expect(page).toHaveURL(/\/login$/)
   expect(app.writes()).toBe(0)
@@ -132,7 +180,6 @@ test('Open Library saving: anonymous login, expired trust, manual retry and outa
   await page.getByRole('button', { name: 'Login', exact: true }).click()
   await expect(page).toHaveURL(/\/library$/)
   await page.goto(discover)
-  await page.locator('.open-library-work summary').click()
   app.fail({ status: 409, json: { error: { code: 'edition_unavailable' } } })
   await page.getByRole('button', { name: /^Add to Library:/ }).click()
   await expect(page.locator('.edition-save').getByRole('alert')).toContainText('Submit the search again')
@@ -141,7 +188,6 @@ test('Open Library saving: anonymous login, expired trust, manual retry and outa
   await page.locator('.open-library-discover button[type=submit]').click()
   await expect(page.locator('.open-library-work')).toBeVisible()
   expect(sandbox.pilotRequests).toBe(searches + 1)
-  await page.locator('.open-library-work summary').click()
   app.fail({ status: 503, headers: { 'Retry-After': '60' }, json: { error: { code: 'provider_unavailable' } } })
   await page.getByRole('button', { name: /^Add to Library:/ }).click()
   await expect(page.locator('.edition-save').getByRole('alert')).toContainText('wait')

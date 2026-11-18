@@ -15,6 +15,9 @@ import { resultLanguageLabel } from '../domain/resultFilters.js'
 import { useLibrary } from '../composables/useLibrary.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useDiscoverSearch } from '../composables/useDiscoverSearch.js'
+import { openLibraryDiscoverEnabled } from '../domain/bookProviders.js'
+
+const props = defineProps({ openLibraryEnabled: { type: Boolean, default: openLibraryDiscoverEnabled } })
 
 const discoveryTypes = orderMediaCategories([
   {
@@ -72,7 +75,7 @@ const discoveryTypes = orderMediaCategories([
 ])
 
 const { bookProvider, setBookProvider, activeMediaType, activeSearch, activeQuery, bookFilters, bookFilterAdvice,
-  setBookFilter, selectMediaType, handleSearch, resultFilters, resultOptions, visibleResults, hasResultFilters, setResultFilter, clearResultFilters } = useDiscoverSearch()
+  setBookFilter, selectMediaType, handleSearch, resultFilters, resultOptions, visibleResults, hasResultFilters, setResultFilter, clearResultFilters } = useDiscoverSearch({ openLibraryEnabled: () => props.openLibraryEnabled })
 const bookSearchLabel = computed(() => ({ all: 'Title, author, or ISBN', title: 'Book title', author: 'Author name' })[bookFilters.value.field])
 const bookLanguageLabel = computed(() => ({ en: 'English', nl: 'Dutch', tr: 'Turkish' })[bookFilters.value.language])
 const resultPresentation = {
@@ -176,7 +179,7 @@ function cardProps(media) {
         </select>
       </div>
     </div>
-    <OpenLibraryDiscover v-if="activeMediaType === 'book' && bookProvider === 'open-library'" />
+    <OpenLibraryDiscover v-if="activeMediaType === 'book' && bookProvider === 'open-library'" :enabled="openLibraryEnabled" />
     <section v-else class="discovery-search" :class="{ 'book-discovery': activeMediaType === 'book' }" :aria-labelledby="`${activeMediaType}-search-title`">
       <div class="discovery-search-panel" :class="{ 'book-search-panel': activeMediaType === 'book' }">
         <div class="discovery-search-heading">

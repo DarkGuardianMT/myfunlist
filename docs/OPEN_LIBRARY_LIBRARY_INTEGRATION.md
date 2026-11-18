@@ -2,6 +2,48 @@
 
 17 November 2026. Candidate branch: `review/open-library-library-integration`, from freshly fetched `origin/main` at `e6643de` (PR #11). No merge, deployment, Hostinger configuration, access-flag, rate-limit or schema change accompanies this integration. It is not established as live.
 
+## Quick-add review candidate
+
+The focused `review/open-library-quick-add` branch starts from merged PR #12 at `44de0ea`. Each Work card shows the existing save control directly below its selected Edition's language tags. Edition Details remains an optional inspection/preview disclosure and contains no second save control. The existing valid `selectedEdition` is the sole save target; unavailable identity/title/language selections show an explanation on the closed card. No alternative Edition is invented or selected automatically. Missing language tags show Not supplied; unmapped codes are shown unchanged.
+
+The save component and shared authentication, membership, loading, duplicate prevention and error/manual-retry behavior are reused unchanged. The layout keeps one full-width action within the card's existing text column on desktop/mobile. This quick-add change leaves backend, database schema, provider defaults, caching and rate limits unchanged; the separate [Discover candidate](DISCOVER_PROVIDER_STATE.md) changes the feature-gated frontend default. This candidate has not been merged or deployed.
+
+### Retained quick-add QA
+
+The meaningful findings from PR #13's 17–18 November review are retained below. During PR #14 cleanup, only the temporary quick-add report and four screenshots were removed from the current branch. The [original report](https://github.com/DarkGuardianMT/myfunlist/blob/d47c90f057c2cc128fe7ea15ca6d851b45b5906d/qa/reviews/open-library-quick-add/report.md) and [four inspected images](https://github.com/DarkGuardianMT/myfunlist/tree/d47c90f057c2cc128fe7ea15ca6d851b45b5906d/qa/reviews/open-library-quick-add) remain available at that immutable Git checkpoint. Unrelated historical evidence is preserved; PR #13 remains open.
+
+| Check | Recorded result |
+| --- | --- |
+| `node --test tests/openLibraryView.test.js` | 16 passed; exit 0 |
+| `npm test` | 377 total: 365 passed, 12 existing Linux/POSIX skips on Windows, zero failures; exit 0 |
+| `npm run build` | Passed; 118 modules; exit 0 |
+| `npm run test:ui -- tests/ui/openLibraryLibrary.spec.js --grep "quick-add stays visible"`, with `QA_REVIEW_TASK=open-library-quick-add` | Both desktop/mobile test bodies passed; four images exported. Runner stalled during sandboxed server teardown and was stopped; this command did not complete successfully |
+| Full isolated headless `npm run test:ui` | 70 passed in 4.3 minutes; clean teardown, exit 0 |
+| Documentation, scope and `git diff --check` | 64 local Markdown file/heading links passed; backend, shared save/auth/Library, provider and configuration paths unchanged |
+
+Unit and browser coverage established one visible save control with Details closed or toggled, exact selected-Edition request identity and CSRF, one write on duplicate clicks, and existing membership/loading/error/manual-retry/account/cooldown behavior. Missing/invalid identity or title and conflicting/mismatched/ambiguous language explain unavailability without mounting save. Supplied English/Dutch/Turkish tags map to names, unknown codes remain unchanged and absent tags show Not supplied; no Edition or language is invented.
+
+The synthetic desktop/mobile scenario combined valid, missing, untitled and ambiguous selections, checked no automatic writes, and asserted 44px action height and no page overflow at 320px and 768px. The integration flow saved with Details closed and retained tracking, ratings, layouts, Custom Lists, reload/Undo and detail navigation. Anonymous Login and cache-expiry/outage feedback were checked without opening Details.
+
+All four selected screenshots were opened and inspected during that review (327,457 bytes total). Desktop captures were 1440×900 full-page; mobile captures were 390×844 touch-emulated viewports focused on the action area.
+
+| Archived capture | Inspected finding |
+| --- | --- |
+| `desktop-quick-add-light.png` | One Add to Library action with Dutch language and closed Details; four compact poster cards and readable unavailable-selection explanations |
+| `desktop-quick-add-dark.png` | Readable lime/text contrast and separation between the primary action and optional Details |
+| `mobile-quick-add-light.png` | Compact two-column layout; language above full-width 44px action, wrapped exact-Edition caveat and readable adjacent explanation without fixed-navigation overlap |
+| `mobile-quick-add-dark.png` | Action, language, caveat and closed Details readable above fixed navigation in the same compact layout |
+
+No new horizontal overflow or overlapping controls was observed. Mobile frames deliberately crop upper covers/later cards and do not establish full-card/page or physical-device acceptance. The existing long native desktop language-matching option remained visibly truncated. Catalogue language tags do not verify content language; synthetic covers do not establish provider branding or artwork quality.
+
+The first focused run stalled after both assertions passed, leaving its isolated Vite process running. Sandbox process inspection was denied; permitted read-only inspection identified only this task's npm/Playwright/Vite descendants. Only that verified tree was stopped, ending the run with exit -1. The full suite then passed all 70 tests with permission for normal child-process cleanup and clean exit, without a headed/debug fallback or stopping unrelated servers. The original selected images were retained. No unresolved assertion or final-run teardown failure remained.
+
+Runtime: Node 24.22.1 with its directory on PATH and the installed npm CLI explicitly invoked through Node; Playwright 1.64.1, managed headless Chromium 156.0.8078.4 (revision 1248). Existing unmatched-route/Vite WebSocket and `NO_COLOR`/`FORCE_COLOR` warnings appeared, with PowerShell native-stderr wrapping and Git LF/CRLF warnings. Raw logs and large generated outputs were not committed.
+
+Checks used fresh ephemeral headless contexts, synthetic account/catalogue/artwork fixtures, mocked API mutations, blocked unexpected external requests and a dedicated loopback Vite server. The ordinary Open Library build gate stayed false; the isolated component harness supplied fixtures. No visible browser, existing profile, real account, live provider, PHP server or database was used. Backend/database tests were not rerun for this UI-only change.
+
+Cache-only saving still requires fresh consistent trusted server metadata: an eligible visible action can receive the existing 409 and require explicit renewed search. There is no automatic search/retry, Edition substitution or saved-metadata refresh; saved snapshots can remain incomplete/stale. Login does not automatically return/save. Mocked local QA does not establish real authentication/persistence, deployed availability, independent live-browser, physical-device or screen-reader acceptance. No merge, deployment, hosting change or branch deletion accompanies these results.
+
 ## Identity and metadata
 
 The existing authenticated, CSRF-protected `POST /api/v1/library` accepts only an identity:

@@ -1,4 +1,5 @@
 import { ApiError, request } from './apiClient.js'
+import { clearDiscoverSnapshots } from './discoverSnapshots.js'
 
 const cache = new Map()
 const pending = new Map()
@@ -13,6 +14,23 @@ export function clearOpenLibraryCache() {
   cache.clear()
   pending.clear()
   cooldown = null
+  clearDiscoverSnapshots('open-library')
+}
+
+export function getOpenLibrarySearchKey(query, options = {}) {
+  const normalized = normalizeOpenLibraryOptions(options)
+  let q = typeof query === 'string' ? query.trim() : ''
+  if (normalized.field === 'isbn') q = q.replace(/[ -]/g, '').toUpperCase()
+  const params = new URLSearchParams({ q, field: normalized.field, languageMode: normalized.languageMode, limit: '10' })
+  if (normalized.language !== 'any') params.set('language', normalized.language)
+  return params.toString()
+}
+
+export function forgetOpenLibrarySearch(query, options = {}) {
+  const key = getOpenLibrarySearchKey(query, options)
+  // Alleen deze lokale zoekactie vervalt; afkoeling en gedeelde serverstatus blijven intact.
+  cache.delete(key)
+  pending.delete(key)
 }
 
 export function forgetOpenLibraryEdition(editionId) {
@@ -77,9 +95,7 @@ export async function searchOpenLibrary(query, options = {}) {
   if (!q || [...q].length > 200 || /[\x00-\x1f\x7f]/.test(q) || normalized.field === 'isbn' && !validIsbn(q)) {
     throw new ApiError('Enter a valid search or ISBN checksum.', 422, 'validation_error')
   }
-  const params = new URLSearchParams({ q, field: normalized.field, languageMode: normalized.languageMode, limit: '10' })
-  if (normalized.language !== 'any') params.set('language', normalized.language)
-  const key = params.toString()
+  const key = getOpenLibrarySearchKey(q, normalized)
   const cached = cache.get(key)
   if (cached && cached.expiresAt > Date.now()) {
     cache.delete(key)
@@ -89,7 +105,7 @@ export async function searchOpenLibrary(query, options = {}) {
   cache.delete(key)
   if (pending.has(key)) return pending.get(key)
   const version = generation
-  const promise = request(`/api/v1/pilot/open-library/search?${params}`, { timeoutMs: 11000, handleUnauthorized: false })
+  const promise = request(`/api/v1/pilot/open-library/search?${key}`, { timeoutMs: 11000, handleUnauthorized: false })
     .then(validateOpenLibraryResponse).then((data) => {
       const code = { en: 'eng', nl: 'dut', tr: 'tur' }[normalized.language]
       if (data.items.some(item => normalized.languageMode === 'strict' &&
@@ -97,7 +113,7 @@ export async function searchOpenLibrary(query, options = {}) {
         normalized.field === 'isbn' && !item.selectedEdition?.isbns.includes(q))) {
         throw new ApiError('Invalid edition selection.', 502, 'invalid_response')
       }
-      if (version === generation) {
+      if (version === generation && pending.get(key) === promise) {
         for (const [key, entry] of cache) if (entry.expiresAt <= Date.now()) cache.delete(key)
         cache.set(key, { data, expiresAt: Date.now() + 300000 })
         while (cache.size > 20) cache.delete(cache.keys().next().value)
