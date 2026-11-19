@@ -434,6 +434,186 @@ test('rejected trusted-cache saves require manual search refresh and preserve li
   assert.equal(useLibrary().libraryItems.value.length, 0)
 })
 
+for (const nextEdition of ['same', 'changed', 'missing']) test(`Search again renews the submitted options, isolates drafts and requires manual saving (${nextEdition})`, async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  const searches = []
+  const writes = []
+  let finish
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') {
+      writes.push(JSON.parse(options.body))
+      return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) }
+    }
+    searches.push(path)
+    if (searches.length === 2) return new Promise(resolve => { finish = resolve })
+    return ok(response())
+  }
+  const { view, router } = await page('/discover?type=book&provider=open-library&q=modern&field=title&lang=nl&mode=strict')
+  await view.get('#open-library-query').setValue('Unrelated unsent draft')
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  assert.equal(searches.length, 1)
+  const renew = view.get('.edition-save__renew').element
+  renew.click()
+  renew.click()
+  await flushPromises()
+  assert.equal(searches.length, 2)
+  assert.equal(searches[1], searches[0])
+  assert.equal(view.findAll('.library-add-button').length, 0)
+  assert.equal(view.get('button[type=submit]').attributes('disabled'), '')
+  assert.equal(router.currentRoute.value.query.q, 'modern')
+  const selectedEdition = nextEdition === 'missing' ? null : { ...work.selectedEdition, editionId: nextEdition === 'same' ? 'OL2M' : 'OL3M' }
+  finish(ok(response(nextEdition === 'missing' ? [] : [{ ...work, selectedEdition }])))
+  await flushPromises()
+  assert.equal(view.get('#open-library-query').element.value, 'Unrelated unsent draft')
+  assert.equal(writes.length, 1)
+  assert.equal(view.find('.edition-save__renew').exists(), false)
+  if (nextEdition === 'missing') {
+    assert.equal(view.find('.library-add-button').exists(), false)
+    assert.match(view.text(), /No supported Works/)
+  } else {
+    await view.get('.library-add-button').trigger('click')
+    await flushPromises()
+    assert.equal(writes.length, 2)
+    assert.equal(writes[1].media.sourceId, selectedEdition.editionId)
+  }
+})
+
+test('renewal failures use existing cooldown/error feedback; expiry never retries or saves automatically', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000000 })
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let searches = 0
+  let writes = 0
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') { writes++; return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) } }
+    searches++
+    if (searches === 1 || searches === 3) return ok(response())
+    return { ok: false, status: 429, headers: new Headers({ 'Retry-After': '90' }), json: async () => ({ error: { code: 'rate_limited' } }) }
+  }
+  const { view } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  await view.get('.edition-save__renew').trigger('click')
+  await flushPromises()
+  assert.match(view.get('.catalogue-summary [role=alert]').text(), /Too many searches/)
+  assert.equal(view.get('.catalogue-retry').attributes('disabled'), '')
+  await view.get('.catalogue-retry').trigger('click')
+  assert.equal(searches, 2)
+  t.mock.timers.tick(90000)
+  await flushPromises()
+  assert.equal(searches, 2)
+  assert.equal(view.get('.catalogue-retry').attributes('disabled'), undefined)
+  await view.get('.catalogue-retry').trigger('click')
+  await flushPromises()
+  assert.equal(searches, 3)
+  assert.equal(writes, 1)
+})
+
+test('a late renewal cannot replace another query or a remounted provider', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let searches = 0
+  let finish
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) }
+    searches++
+    if (searches === 2) return new Promise(resolve => { finish = resolve })
+    return ok(response([{ ...work, workTitle: searches === 1 ? 'Old Work' : 'Current Work' }]))
+  }
+  const { view, router } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  await view.get('.edition-save__renew').trigger('click')
+  await flushPromises()
+  await router.push('/discover?provider=open-library&q=current')
+  await flushPromises()
+  finish(ok(response([{ ...work, workTitle: 'Late renewed Work' }])))
+  await flushPromises()
+  assert.match(view.text(), /Current Work/)
+  assert.doesNotMatch(view.text(), /Late renewed Work/)
+  view.unmount()
+  const next = await page('/discover?provider=open-library&q=current')
+  assert.match(next.view.text(), /Current Work/)
+  assert.equal(searches, 3)
+})
+
+test('returning during renewal deduplicates the pending search and never restores the rejected display', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let searches = 0
+  let finish
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) }
+    searches++
+    if (searches === 2) return new Promise(resolve => { finish = resolve })
+    return ok(response())
+  }
+  const first = await page()
+  await first.view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  await first.view.get('.edition-save__renew').trigger('click')
+  first.view.unmount()
+  const next = await page()
+  assert.equal(searches, 2)
+  assert.equal(next.view.find('.edition-save').exists(), false)
+  assert.match(next.view.text(), /Searching Open Library/)
+  finish(ok(response([{ ...work, workTitle: 'Renewed Work', selectedEdition: { ...work.selectedEdition, editionId: 'OL3M' } }])))
+  await flushPromises()
+  assert.match(next.view.text(), /Renewed Work/)
+  assert.equal(next.view.find('.edition-save__renew').exists(), false)
+  assert.equal(searches, 2)
+})
+
+test('a save rejection and renewal preserve another query containing the same Edition; clear disables recovery', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let searches = 0
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) }
+    searches++
+    return ok(response())
+  }
+  const { searchOpenLibrary } = await import('../src/services/openLibrary.js')
+  await searchOpenLibrary('other')
+  const { view } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  await searchOpenLibrary('other')
+  assert.equal(searches, 2)
+  await view.get('.edition-save__renew').trigger('click')
+  await flushPromises()
+  await searchOpenLibrary('other')
+  assert.equal(searches, 3)
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  await view.get('#open-library-query').setValue('')
+  await flushPromises()
+  assert.equal(view.get('.edition-save__renew').attributes('disabled'), '')
+  await view.get('.edition-save__renew').trigger('click')
+  assert.equal(searches, 3)
+})
+
+test('edition eligibility explains only known identity, title and language rejection reasons', async () => {
+  for (const [changes, reason] of [
+    [{ editionId: 'OL2W' }, /identity is missing or unsupported/],
+    [{ title: ' ' }, /title is missing/],
+    [{ languageStatus: 'inconsistent' }, /language information conflicts/],
+    [{ languageStatus: 'mismatch' }, /do not match the requested language/],
+    [{ languageStatus: 'ambiguous' }, /language tags are ambiguous/],
+  ]) {
+    const { view } = await page('/discover', WorkCard, { work: { ...work, selectedEdition: { ...work.selectedEdition, ...changes } } })
+    assert.match(view.get('.open-library-work__unavailable').text(), reason)
+    assert.equal(view.find('.edition-save').exists(), false)
+  }
+})
+
 test('save rate/storage errors wait for manual retry and discard a response after an account transition', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   currentUser.value = { id: '10', email: 'fixture@example.test' }
@@ -466,7 +646,7 @@ test('save rate/storage errors wait for manual retry and discard a response afte
   assert.doesNotMatch(view.text(), /Selected edition added/)
 })
 
-test('loading, empty and omission counts remain distinct; successful empty retry uses cache', async () => {
+test('loading, empty and omission counts remain distinct; explicit retry renews even a cached empty result', async () => {
   let finish
   let calls = 0
   globalThis.fetch = () => { calls++; return new Promise(resolve => { finish = resolve }) }
@@ -479,7 +659,10 @@ test('loading, empty and omission counts remain distinct; successful empty retry
   assert.match(view.text(), /2 language mismatch\/unknown/)
   await view.get('form').trigger('submit')
   await flushPromises()
-  assert.equal(calls, 1)
+  assert.equal(calls, 2)
+  finish(ok(response()))
+  await flushPromises()
+  assert.match(view.text(), /A modern book/)
 })
 
 test('rate-limited and busy states respect cooldown, with no automatic retry after the deadline', async t => {

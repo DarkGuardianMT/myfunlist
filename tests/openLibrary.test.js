@@ -71,6 +71,42 @@ test('discarding rejected Edition snapshots does not bypass an existing provider
   assert.equal(calls, 2)
 })
 
+test('explicit renewal bypasses only the matching client cache and deduplicates pending requests', async () => {
+  let calls = 0
+  let finish
+  globalThis.fetch = async () => { calls++; return ok(result()) }
+  await searchOpenLibrary('retained')
+  await searchOpenLibrary('other')
+  await searchOpenLibrary('retained', { language: 'nl' })
+  globalThis.fetch = () => { calls++; return new Promise(resolve => { finish = resolve }) }
+  const first = searchOpenLibrary('retained', {}, { refresh: true })
+  const duplicate = searchOpenLibrary('retained', {}, { refresh: true })
+  const ordinary = searchOpenLibrary('retained')
+  assert.equal(calls, 4)
+  await searchOpenLibrary('other')
+  await searchOpenLibrary('retained', { language: 'nl' })
+  assert.equal(calls, 4)
+  finish(ok(result([{ ...work, selectedEdition: { ...work.selectedEdition, editionId: 'OL3M' } }])))
+  for (const data of await Promise.all([first, duplicate, ordinary])) assert.equal(data.items[0].selectedEdition.editionId, 'OL3M')
+  assert.equal((await searchOpenLibrary('retained')).items[0].selectedEdition.editionId, 'OL3M')
+  assert.equal(calls, 4)
+})
+
+test('explicit renewal cannot bypass a cooldown and does not clear unrelated cached results', async t => {
+  let now = 1000000
+  t.mock.method(Date, 'now', () => now)
+  let calls = 0
+  globalThis.fetch = async () => { calls++; return ok(result()) }
+  await searchOpenLibrary('other')
+  globalThis.fetch = async () => { calls++; return { ok: false, status: 503, headers: new Headers({ 'Retry-After': '90' }), json: async () => ({ error: { code: 'provider_busy' } }) } }
+  await assert.rejects(searchOpenLibrary('retained', {}, { refresh: true }))
+  await assert.rejects(searchOpenLibrary('other', {}, { refresh: true }))
+  assert.equal(calls, 2)
+  now += 90000
+  await searchOpenLibrary('other')
+  assert.equal(calls, 2)
+})
+
 test('all search fields use one same-origin pilot request; language modes are explicit', async () => {
   for (const field of ['general', 'title', 'author', 'isbn']) {
     for (const language of ['any', 'en', 'nl', 'tr']) {

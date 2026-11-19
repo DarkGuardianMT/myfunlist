@@ -155,7 +155,7 @@ test('Open Library loading, stale responses, empty, malformed and unactivated st
   const before = sandbox.pilotRequests
   await search(page).click()
   await expect(page.getByText(/No supported Works found/)).toBeVisible()
-  expect(sandbox.pilotRequests).toBe(before)
+  expect(sandbox.pilotRequests).toBe(before + 1)
   sandbox.pilotRespond = async () => ({ json: { data: {} } })
   await page.locator('#open-library-query').fill('malformed-fixture')
   await search(page).click()

@@ -8,6 +8,16 @@ Books defaults to Open Library only when `VITE_OPEN_LIBRARY_DISCOVER_ENABLED` is
 
 Bare `/discover` still opens Movies. Existing Books URLs such as `/discover?q=lantern` retain their Books interpretation and canonical explicit `type=book`; they use the configured default unless a valid provider is supplied. Explicit provider/category/filter URLs and Back/Forward navigation remain supported.
 
+## Explicit submissions and staging QA-01
+
+19 November 2026, `review/staging-qa-refinements`, from main `9f58e47`. The owner reports successful PR #14 staging deployment and live acceptance of all five search flows, exact-Edition quick-add and authenticated Library/Lists, without critical/high defects. One medium defect, QA-01, reproduced a stale input draft after a new Home submission; stale-Edition recovery and eligibility wording were related UX opportunities. These are supplied live findings, separate from this branch's mocked local checks.
+
+Root cause: matching result snapshots retained `inputQuery`, and both Discover implementations restored it regardless of whether navigation meant a new submission or a contextual return. Home supplied only the same category/query URL, so its explicit intent was lost. A session-only navigation helper now marks the exact resolved route object for explicit Home submissions across Movies, TV, Games and the configured Books provider. Both loaders use submitted text for that navigation while reusing matching results, and update only that snapshot's input. No marker, draft or result is written to the URL, history payload or storage. Cancelled navigation removes its guard; later Back/Forward produces an ordinary route object and restores drafts normally.
+
+Detail Back, category/provider switches and browser Back/Forward keep contextual restoration. Fresh documents/reloads still rebuild from the URL. Home does not force a provider request or erase unrelated queries/options/categories. Explicit Discover Search/Retry retains its refresh behavior; Open Library now bypasses its matching browser result cache as well as the display snapshot, retaining pending-request deduplication and cooldowns. Its changed-query form submissions also use the explicit navigation helper.
+
+See [Edition renewal and limits](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#staging-qa-recovery-refinements). The [refinement verification record](PROJECT_HISTORY.md#staging-qa-refinements--19-november-2026) retains 97 focused unit passes, 405 full-suite passes with 12 existing Windows skips, build success, 104 headless passes, inspected visual findings, fixture-failure history and release gaps. No new staging deployment or independent live-browser acceptance is claimed.
+
 ## Display snapshots and API caches
 
 Open Library, Google Books, Movies, TV and Games share a bounded **20-entry LRU display-snapshot store** for the current SPA session. Identities include source/category, submitted query and provider-specific search options. Success, empty and error displays can be restored after route unmounts without another provider request, even after the normal API cache TTL expires. A nonempty unsubmitted input draft is retained with the displayed search without being submitted automatically. A displayed result-cache hit also becomes a current display snapshot, so prior snapshot eviction cannot cause an unnecessary request on the next return.
@@ -28,7 +38,7 @@ Other categories, providers, queries and filter variants remain intact. Open Lib
 
 ## Quick-add and stale display limits
 
-The included quick-add action still saves only the exact valid selected Edition. A restored or currently retained card is a display snapshot, not an extension of server metadata freshness. If unseen-Edition trust has expired, the existing save endpoint can return 409 and require an explicit renewed search. No Edition substitution, automatic retry/search, backend metadata refresh or new upstream endpoint is introduced. Existing authentication, membership/loading, duplicate prevention, Library/List behavior and save-error handling remain unchanged.
+The included quick-add action still saves only the exact valid selected Edition. A restored or currently retained card is a display snapshot, not an extension of server metadata freshness. If unseen-Edition trust has expired, the existing save endpoint can return 409. Its feedback now offers an explicit Search again action for the submitted query/options, independent of unsent input. The returned eligible Edition needs another explicit save action. No Edition substitution, automatic retry/search, backend metadata refresh or new upstream endpoint is introduced. Existing authentication, membership/loading, duplicate prevention, Library/List behavior and save-error handling remain unchanged.
 
 ## Verification
 

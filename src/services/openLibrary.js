@@ -86,7 +86,7 @@ export function validateOpenLibraryResponse(data) {
   return data
 }
 
-export async function searchOpenLibrary(query, options = {}) {
+export async function searchOpenLibrary(query, options = {}, { refresh = false } = {}) {
   const activeCooldown = getOpenLibraryCooldown()
   if (activeCooldown) throw activeCooldown.error
   const normalized = normalizeOpenLibraryOptions(options)
@@ -96,14 +96,14 @@ export async function searchOpenLibrary(query, options = {}) {
     throw new ApiError('Enter a valid search or ISBN checksum.', 422, 'validation_error')
   }
   const key = getOpenLibrarySearchKey(q, normalized)
+  if (pending.has(key)) return pending.get(key)
   const cached = cache.get(key)
-  if (cached && cached.expiresAt > Date.now()) {
+  if (!refresh && cached && cached.expiresAt > Date.now()) {
     cache.delete(key)
     cache.set(key, cached)
     return cached.data
   }
   cache.delete(key)
-  if (pending.has(key)) return pending.get(key)
   const version = generation
   const promise = request(`/api/v1/pilot/open-library/search?${key}`, { timeoutMs: 11000, handleUnauthorized: false })
     .then(validateOpenLibraryResponse).then((data) => {

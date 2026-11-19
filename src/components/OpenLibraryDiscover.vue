@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { isDiscoverSubmission, submitDiscoverSearch } from '../router/discoverSubmission.js'
 import { openLibraryDiscoverEnabled, resolveBookProvider } from '../domain/bookProviders.js'
 import { forgetOpenLibrarySearch, getOpenLibraryCooldown, getOpenLibrarySearchKey, normalizeOpenLibraryOptions, openLibraryError, searchOpenLibrary } from '../services/openLibrary.js'
 import { forgetDiscoverSnapshot, getDiscoverSnapshot, rememberDiscoverSnapshot } from '../services/discoverSnapshots.js'
@@ -59,7 +60,8 @@ async function load(refresh = false) {
   const key = getOpenLibrarySearchKey(submitted.value, options.value)
   const previous = !refresh && getDiscoverSnapshot('open-library', key)
   if (previous) {
-    input.value = previous.inputQuery ?? submitted.value
+    input.value = isDiscoverSubmission(router) ? submitted.value : previous.inputQuery ?? submitted.value
+    previous.inputQuery = input.value
     data.value = previous.data
     status.value = previous.status
     message.value = previous.message
@@ -71,9 +73,10 @@ async function load(refresh = false) {
     message.value = error.message
     return
   }
+  if (refresh) forgetDiscoverSnapshot('open-library', key)
   status.value = 'loading'
   try {
-    const result = await searchOpenLibrary(submitted.value, options.value)
+    const result = await searchOpenLibrary(submitted.value, options.value, { refresh })
     if (version !== generation) return
     data.value = result
     status.value = result.items.length ? 'success' : 'empty'
@@ -117,7 +120,11 @@ function setFilter(name, value) {
 function submit() {
   if (!props.enabled || waiting.value || status.value === 'loading' || !query.value.trim()) return
   if (query.value.trim() === submitted.value) return load(true)
-  return router.push(location(query.value.trim()))
+  return submitDiscoverSearch(router, location(query.value.trim()))
+}
+function renewSearch() {
+  if (!props.enabled || waiting.value || status.value === 'loading' || !submitted.value) return
+  return load(true)
 }
 </script>
 
@@ -181,9 +188,9 @@ function submit() {
     <div v-if="status === 'loading'" class="catalogue-skeletons" aria-hidden="true">
       <div v-for="index in 4" :key="index" class="catalogue-skeleton"><span /><div><i /><i /><i /></div></div>
     </div>
-    <button v-if="message && status !== 'invalid'" class="catalogue-retry" type="button" :disabled="waiting" @click="load(true)">{{ waiting ? 'Please wait before retrying' : 'Retry search' }}</button>
+    <button v-if="message && status !== 'invalid'" class="catalogue-retry" type="button" :disabled="waiting || status === 'loading'" @click="renewSearch">{{ waiting ? 'Please wait before retrying' : 'Retry search' }}</button>
     <div v-if="data?.items.length" class="open-library-results" aria-label="Open Library Work search results">
-      <OpenLibraryWorkCard v-for="work in data.items" :key="work.workId" :work="work" />
+      <OpenLibraryWorkCard v-for="work in data.items" :key="work.workId" :work="work" :can-renew="Boolean(submitted) && !waiting && status !== 'loading'" @renew-search="renewSearch" />
     </div>
     <p class="catalogue-attribution">Book metadata and covers: <a href="https://openlibrary.org" target="_blank" rel="noopener noreferrer">Open Library</a>.</p>
   </section>
