@@ -78,10 +78,28 @@ test('Open Library recovery renews retained results and options without submitti
   await page.getByRole('button', { name: /^Add to Library:/ }).click()
   const renew = page.getByRole('button', { name: 'Search again', exact: true })
   await expect(renew).toBeVisible()
+  const rejectedAdd = page.getByRole('button', { name: /^Add to Library:/ })
+  await expect(rejectedAdd).toBeDisabled()
+  await rejectedAdd.evaluate(button => {
+    for (let attempt = 0; attempt < 3; attempt++) button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+  })
+  expect(app.writes()).toBe(1)
+  const originalViewport = page.viewportSize()
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 900 })
+    await checkLayout(page)
+    expect((await renew.boundingBox()).height).toBeGreaterThanOrEqual(44)
+  }
+  await page.setViewportSize(originalViewport)
   await checkLayout(page)
   expect((await renew.boundingBox()).height).toBeGreaterThanOrEqual(44)
   await capture(page, info, 'stale-edition-recovery-light', renew)
   await page.getByRole('button', { name: 'Switch to dark mode', exact: true }).filter({ visible: true }).click()
+  await renew.focus()
+  await renew.press('Shift+Tab')
+  await page.keyboard.press('Tab')
+  await expect(renew).toBeFocused()
+  expect(await renew.evaluate(button => getComputedStyle(button).outlineWidth)).toBe('2px')
   await capture(page, info, 'stale-edition-recovery-dark', renew)
   let finish
   sandbox.pilotRespond = async () => {
@@ -100,6 +118,8 @@ test('Open Library recovery renews retained results and options without submitti
   await expect(page.getByRole('button', { name: /^Add to Library:/ })).toBeEnabled()
   expect(app.writes()).toBe(1)
   await capture(page, info, 'edition-renewed-dark', page.locator('.edition-save'))
+  await page.getByRole('button', { name: 'Switch to light mode', exact: true }).filter({ visible: true }).click()
+  await capture(page, info, 'edition-renewed-light', page.locator('.edition-save'))
   // Ook binnen de client-TTL moet een nieuwe afwijzing werkelijk opnieuw zoeken.
   await page.getByRole('button', { name: /^Add to Library:/ }).click()
   sandbox.pilotRespond = async () => ({ json: { data: openLibraryResult([{ ...openLibraryWork,
@@ -145,6 +165,7 @@ test('Renewal error observes cooldown and manual retry without automatically sav
   sandbox.pilotRespond = async () => ({ status: 503, headers: { 'Retry-After': '2' }, json: { error: { code: 'provider_busy' } } })
   await page.getByRole('button', { name: 'Search again', exact: true }).click()
   await expect(page.locator('.open-library-discover').getByRole('alert')).toContainText('shared provider budget')
+  await expect(page.getByRole('button', { name: /^Add to Library:/ })).toHaveCount(0)
   const retry = page.getByRole('button', { name: 'Please wait before retrying', exact: true })
   await expect(retry).toBeDisabled()
   expect(sandbox.pilotRequests).toBe(2)
@@ -152,6 +173,7 @@ test('Renewal error observes cooldown and manual retry without automatically sav
   await page.clock.setFixedTime(now + 3000)
   const ready = page.getByRole('button', { name: 'Retry search', exact: true })
   await expect(ready).toBeEnabled()
+  await expect(page.getByRole('button', { name: /^Add to Library:/ })).toHaveCount(0)
   expect(sandbox.pilotRequests).toBe(2)
   sandbox.pilotRespond = async () => ({ json: { data: openLibraryResult([]) } })
   await ready.click()

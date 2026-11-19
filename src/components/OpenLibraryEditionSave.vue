@@ -38,7 +38,7 @@ async function retryLibrary() {
 
 async function save() {
   if (!currentUser.value || isAuthLoading.value || !isLibraryLoaded.value || libraryError.value
-    || busy.value || waiting.value || hasLibraryItem(media.value) || !isSupportedMediaIdentity(media.value)) return
+    || busy.value || waiting.value || unverifiable.value || hasLibraryItem(media.value) || !isSupportedMediaIdentity(media.value)) return
   const requestVersion = version
   busy.value = true
   feedback.value = ''
@@ -79,7 +79,7 @@ async function save() {
       <button class="text-button" type="button" @click="retryLibrary">Retry Library</button>
     </div>
     <LibraryAddButton v-else :media="media" :is-library-loaded="isLibraryLoaded" :is-added="hasLibraryItem(media)"
-      :is-adding="busy" :has-identity="isSupportedMediaIdentity(media) && !waiting" @add="save" />
+      :is-adding="busy" :has-identity="isSupportedMediaIdentity(media) && !waiting && !unverifiable" @add="save" />
     <p v-if="feedback" :role="failed ? 'alert' : 'status'" class="edition-save__note">{{ feedback }}</p>
     <button v-if="unverifiable" class="edition-save__renew" type="button" :disabled="!canRenew || busy || waiting" @click="emit('renew-search')">Search again</button>
     <RouterLink v-if="hasLibraryItem(media)" class="inline-link" :to="`/media/book/open-library/${edition.editionId}`">Open saved edition</RouterLink>
@@ -90,7 +90,7 @@ async function save() {
 <style scoped>
 .edition-save { min-width: 0; padding-top: 0.75rem; border-top: 1px solid var(--color-border); }
 .edition-save__note { margin: 0.65rem 0; color: var(--color-text-muted); font-size: var(--text-xs); line-height: 1.65; }
-.edition-save__renew { width: 100%; min-height: 44px; padding: 0.4rem; border: 1px solid var(--color-control-border); border-radius: var(--radius-control); background: var(--color-primary-soft); color: var(--color-primary-ink); font: inherit; font-size: var(--text-xs); cursor: pointer; }
+.edition-save__renew { width: 100%; min-height: 44px; padding: 0.4rem; border: 1px solid var(--color-control-border); border-radius: var(--radius-control); background: var(--color-primary); color: var(--color-on-primary); font: inherit; font-size: var(--text-xs); font-weight: 650; cursor: pointer; }
 .edition-save__renew:disabled { opacity: 0.65; cursor: not-allowed; }
 .edition-save__renew:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
 .edition-save :deep(.library-add-button) { display: inline-flex; justify-content: center; align-items: center; min-height: 44px; width: 100%; box-sizing: border-box; }

@@ -18,6 +18,7 @@ const OpenLibraryDiscover = await loadVueComponent(new URL('../src/components/Op
 OpenLibraryDiscover.name = 'OpenLibraryDiscover'
 const DiscoverView = await loadVueComponent(new URL('../src/views/DiscoverView.vue', import.meta.url))
 const WorkCard = await loadVueComponent(new URL('../src/components/OpenLibraryWorkCard.vue', import.meta.url))
+const LibraryAddButton = await loadVueComponent(new URL('../src/components/LibraryAddButton.vue', import.meta.url))
 const originalFetch = globalThis.fetch
 const mounted = []
 const work = { provider: 'open-library', workId: 'OL1W', workTitle: 'A modern book', authors: [], firstPublicationYear: 2024,
@@ -434,6 +435,86 @@ test('rejected trusted-cache saves require manual search refresh and preserve li
   assert.equal(useLibrary().libraryItems.value.length, 0)
 })
 
+test('an unverifiable card blocks UI and emitted save attempts while unrelated cards remain available', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  const writes = []
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') {
+      writes.push(JSON.parse(options.body).media.sourceId)
+      return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) }
+    }
+    return ok(response([work, { ...work, workId: 'OL3W', selectedEdition: { ...work.selectedEdition, editionId: 'OL4M' } }]))
+  }
+  const { view } = await page()
+  const cards = view.findAll('.open-library-work')
+  const rejected = cards[0].getComponent(LibraryAddButton)
+  await rejected.trigger('click')
+  await flushPromises()
+  assert.equal(rejected.attributes('disabled'), '')
+  assert.equal(cards[0].get('.edition-save__renew').attributes('disabled'), undefined)
+  for (let attempt = 0; attempt < 3; attempt++) rejected.vm.$emit('add')
+  await rejected.trigger('click')
+  await flushPromises()
+  assert.deepEqual(writes, ['OL2M'])
+  assert.equal(cards[1].get('.library-add-button').attributes('disabled'), undefined)
+  assert.equal(cards[1].find('.edition-save__renew').exists(), false)
+  await cards[1].get('.library-add-button').trigger('click')
+  await flushPromises()
+  assert.deepEqual(writes, ['OL2M', 'OL4M'])
+  await view.get('#open-library-query').setValue('')
+  await flushPromises()
+  assert.equal(cards[0].get('.edition-save__renew').attributes('disabled'), '')
+  rejected.vm.$emit('add')
+  await flushPromises()
+  assert.equal(writes.length, 2)
+})
+
+test('other save errors retain explicit retries instead of locking the Edition', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let writes = 0
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') {
+      writes++
+      return { ok: false, status: 500, json: async () => ({ error: { code: 'internal_error' } }) }
+    }
+    return ok(response())
+  }
+  const { view } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  assert.equal(view.get('.library-add-button').attributes('disabled'), undefined)
+  assert.equal(view.find('.edition-save__renew').exists(), false)
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  assert.equal(writes, 2)
+})
+
+test('a late unverifiable rejection cannot disable a new account card', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let finish
+  let writes = 0
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') { writes++; return new Promise(resolve => { finish = resolve }) }
+    return ok(response())
+  }
+  const { view } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  currentUser.value = { id: '20', email: 'other@example.test' }
+  await flushPromises()
+  finish({ ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) })
+  await flushPromises()
+  assert.equal(view.get('.library-add-button').attributes('disabled'), undefined)
+  assert.equal(view.find('.edition-save__renew').exists(), false)
+  assert.equal(writes, 1)
+})
+
 for (const nextEdition of ['same', 'changed', 'missing']) test(`Search again renews the submitted options, isolates drafts and requires manual saving (${nextEdition})`, async () => {
   currentUser.value = { id: '10', email: 'fixture@example.test' }
   const searches = []
@@ -455,6 +536,7 @@ for (const nextEdition of ['same', 'changed', 'missing']) test(`Search again ren
   await view.get('.library-add-button').trigger('click')
   await flushPromises()
   assert.equal(searches.length, 1)
+  assert.equal(view.get('.library-add-button').attributes('disabled'), '')
   const renew = view.get('.edition-save__renew').element
   renew.click()
   renew.click()
@@ -474,6 +556,7 @@ for (const nextEdition of ['same', 'changed', 'missing']) test(`Search again ren
     assert.equal(view.find('.library-add-button').exists(), false)
     assert.match(view.text(), /No supported Works/)
   } else {
+    assert.equal(view.get('.library-add-button').attributes('disabled'), undefined)
     await view.get('.library-add-button').trigger('click')
     await flushPromises()
     assert.equal(writes.length, 2)
@@ -500,6 +583,7 @@ test('renewal failures use existing cooldown/error feedback; expiry never retrie
   await view.get('.edition-save__renew').trigger('click')
   await flushPromises()
   assert.match(view.get('.catalogue-summary [role=alert]').text(), /Too many searches/)
+  assert.equal(view.find('.library-add-button').exists(), false)
   assert.equal(view.get('.catalogue-retry').attributes('disabled'), '')
   await view.get('.catalogue-retry').trigger('click')
   assert.equal(searches, 2)
@@ -507,8 +591,41 @@ test('renewal failures use existing cooldown/error feedback; expiry never retrie
   await flushPromises()
   assert.equal(searches, 2)
   assert.equal(view.get('.catalogue-retry').attributes('disabled'), undefined)
+  assert.equal(view.find('.library-add-button').exists(), false)
   await view.get('.catalogue-retry').trigger('click')
   await flushPromises()
+  assert.equal(searches, 3)
+  assert.equal(writes, 1)
+  assert.equal(view.get('.library-add-button').attributes('disabled'), undefined)
+})
+
+test('failed renewal removes the rejected result until a successful explicit retry returns an eligible Edition', async () => {
+  currentUser.value = { id: '10', email: 'fixture@example.test' }
+  let searches = 0
+  let writes = 0
+  globalThis.fetch = async (path, options) => {
+    if (path === '/api/v1/auth/csrf') return ok({ csrfToken: 'synthetic-token' })
+    if (path === '/api/v1/library' && options.method === 'GET') return ok([])
+    if (path === '/api/v1/library') { writes++; return { ok: false, status: 409, json: async () => ({ error: { code: 'edition_unavailable' } }) } }
+    searches++
+    return searches === 2 ? { ok: false, status: 502, json: async () => ({ error: { code: 'provider_error' } }) } : ok(response())
+  }
+  const { view, router } = await page()
+  await view.get('.library-add-button').trigger('click')
+  await flushPromises()
+  assert.equal(view.get('.library-add-button').attributes('disabled'), '')
+  await view.get('.edition-save__renew').trigger('click')
+  await flushPromises()
+  assert.equal(view.find('.library-add-button').exists(), false)
+  assert.match(view.get('.catalogue-summary [role=alert]').text(), /unsupported data/)
+  await router.push('/library')
+  await router.push('/discover?provider=open-library&q=modern')
+  await flushPromises()
+  assert.equal(searches, 2)
+  assert.equal(view.find('.library-add-button').exists(), false)
+  await view.get('.catalogue-retry').trigger('click')
+  await flushPromises()
+  assert.equal(view.get('.library-add-button').attributes('disabled'), undefined)
   assert.equal(searches, 3)
   assert.equal(writes, 1)
 })

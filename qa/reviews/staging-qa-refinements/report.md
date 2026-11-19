@@ -2,6 +2,18 @@
 
 19 November 2026. Branch: `review/staging-qa-refinements`; clean base: fetched `origin/main` at `9f58e47` (PR #14).
 
+## Independent-review follow-up
+
+The follow-up used only the verified root `C:\Users\game1\Documents\ChatGPT\MyFunList\repository`, with a clean branch matching fetched PR #15 head `04539f5`. No other repository, branch, worktree, clone or PR was created or modified.
+
+Independent review found that the rejected Add action remained enabled after `edition_unavailable`. The existing rejection flag now disables Add and independently guards the handler before another request can start. Search again uses primary theme colors and weight. Saving resumes through a newly returned eligible Edition after successful renewal and still requires a separate explicit save. Failed/rate-limited renewal exposes only the search error/Retry UI; blocked renewal retains the disabled rejected action. Unrelated cards and other save errors keep their existing behavior. Authentication, membership, exact identity, cooldown/deduplication, server verification and account/late-response guards remain.
+
+Latest checks: **101 focused unit tests passed**; full **421 total: 409 passed, 12 existing Windows Linux/POSIX skips**, zero failures; production build passed with 120 modules. The updated focused headless suite passed **18/18**, clean exit, in 39.7s. Full `npm run test:ui -- --global-timeout=600000` passed **104/104** (52 desktop + 52 mobile) in **5.0 minutes**, clean teardown and exit 0. Documentation checks passed **97** local file/heading links, and `git diff --check` passed. Four new unit regressions cover repeated emitted save attempts, unrelated cards, other errors, a late 409 after account change and failed-renewal recovery; existing same/changed/missing and rate-limited renewal checks were strengthened. Browser assertions verify disabled Add, rejected-card click suppression, primary recovery, keyboard focus and no old Add during a renewal error or cooldown expiry. No new failure or skip was introduced; existing warnings listed below remain. No standalone PHP/database suite was rerun for this frontend-only change.
+
+Eight recovery captures were regenerated from the passing focused run and individually opened: disabled Add plus primary Search again in Light/Dark on desktop/mobile, then eligible Add after successful renewal in both themes. The dark rejection frames show the keyboard focus outline. Existing Home and 320px eligibility captures are preserved. The current **12 PNGs total 835,423 bytes**; prior screenshots remain in Git at `04539f5`. No evidence was removed. Responsive recovery assertions pass at 320px, 390px and 768px; the action is at least 44px high and keyboard focus has a 2px outline. Text contrast and wrapping remain readable; mobile Light focuses the recovery area with Details near the fixed-navigation edge, while the Dark frame shows Details above navigation. The existing desktop native language-matching truncation and intentional mobile crops remain limitations.
+
+Incremental scope: `OpenLibraryEditionSave.vue`, `tests/openLibraryView.test.js`, `tests/ui/stagingQaRefinements.spec.js`, four context/history/recovery documents, this report and recovery images. No backend/schema, dependency, flag, workflow or hosting changes. No live provider/account/database access, merge, deployment or branch deletion. Deployed trust-expiry/auth persistence, physical devices and screen readers still require separate acceptance.
+
 ## Scope and supplied staging findings
 
 The owner reports completed live staging QA: successful deployment, five working search flows, exact-Edition quick-add and authenticated Library/Lists, no critical/high defects, medium QA-01 and two related Open Library UX opportunities. This report documents the new branch's local automated and mocked headless checks, not a new staging/live-provider review.
@@ -10,7 +22,7 @@ QA-01 restored `inputQuery` from an earlier matching display snapshot even when 
 
 Unverifiable-Edition feedback now offers Search again. It renews the submitted query/options rather than the input draft, bypasses only the matching client cache, removes only that display snapshot and preserves pending-request deduplication/cooldowns. No save runs automatically. Returned eligible Editions require another explicit Add action; changed/missing Editions are never substituted into an old save. Server trust checks, TTLs, admission, authentication/CSRF and membership guards remain authoritative. Reliable local identity/title/language reasons are explained separately; server `edition_unavailable` remains generic because its exact cause is unavailable to the frontend.
 
-## Executed checks
+## Original implementation checks (`04539f5`)
 
 | Command/check | Result |
 | --- | --- |
@@ -36,16 +48,18 @@ Two existing explicit empty-result Search assertions now expect a genuine renewa
 
 ## Screenshots and actual inspection
 
-All ten selected PNGs were opened and visually inspected. They total **700,245 bytes** and were copied without overwrite from the successful final full run's ignored output into this fresh review directory. Desktop base viewport: 1440×900 with full-page captures; mobile: 390×844 touch emulation with viewport captures; narrow eligibility: 320×900. Only fictional data/artwork is shown.
+The original ten selected PNGs were opened and visually inspected at `04539f5` (700,245 bytes). The independent-review follow-up updates the recovery frames in this same directory, adds two renewed Light captures and preserves the other images, as recorded above. Desktop base viewport: 1440×900 with full-page captures; mobile: 390×844 touch emulation with viewport captures; narrow eligibility: 320×900. Only fictional data/artwork is shown.
 
 | Screenshot | Inspected finding |
 | --- | --- |
 | [Desktop Home submission, Light](desktop-home-submission-fixed-light.png) | Input and result label both show Inception; retained six-card row, artwork and actions align |
 | [Mobile Home submission, Light](mobile-home-submission-fixed-light.png) | Inception input and controls fit above fixed navigation; cards lie below this frame and are asserted separately |
-| [Desktop recovery, Light](desktop-stale-edition-recovery-light.png) | Unsent draft stays separate from submitted lantern label; readable unverifiable feedback and compact full-column Search again with Details closed |
-| [Desktop recovery, Dark](desktop-stale-edition-recovery-dark.png) | Lime/soft action distinction, text contrast, exact-Edition note and optional Details remain readable |
-| [Mobile recovery, Light](mobile-stale-edition-recovery-light.png) | Wrapped feedback, language, Add and 44px Search again fit above fixed navigation; card uses its existing compact column |
-| [Mobile recovery, Dark](mobile-stale-edition-recovery-dark.png) | Action, feedback, Edition caveat and Details remain readable without navigation overlap |
+| [Desktop recovery, Light](desktop-stale-edition-recovery-light.png) | Disabled Add and primary Search again are distinct; readable feedback, exact-Edition note and closed Details |
+| [Desktop recovery, Dark](desktop-stale-edition-recovery-dark.png) | Muted disabled Add contrasts with primary lime Search again and a visible keyboard focus outline |
+| [Mobile recovery, Light](mobile-stale-edition-recovery-light.png) | Disabled Add, wrapped feedback and 44px primary Search again fit above fixed navigation; Details is near this frame's lower edge |
+| [Mobile recovery, Dark](mobile-stale-edition-recovery-dark.png) | Disabled Add, focused primary recovery, feedback, Edition caveat and Details remain readable without navigation overlap |
+| [Desktop renewed Edition, Light](desktop-edition-renewed-light.png) | Eligible Add is enabled after renewal; rejection/recovery removed, draft and submitted label stay distinct |
+| [Mobile renewed Edition, Light](mobile-edition-renewed-light.png) | Eligible Add, exact-Edition note and Details fit above fixed navigation; no automatic save |
 | [Desktop renewed Edition, Dark](desktop-edition-renewed-dark.png) | Fresh eligible Add is enabled; old rejection/action removed; input draft and submitted label remain distinct |
 | [Mobile renewed Edition, Dark](mobile-edition-renewed-dark.png) | Enabled Add, exact-Edition caveat and Details fit above fixed navigation; no automatic save feedback |
 | [320px eligibility, Light](mobile-eligibility-320-light.png) | Specific missing-title explanation fits the first card; no unavailable save action, readable metadata/Details |
@@ -64,7 +78,7 @@ Automated layout checks cover 320px, 390px and 768px, both themes for eligibilit
 - Frontend: `src/router/discoverSubmission.js`, `src/views/HomeView.vue`, `src/composables/useDiscoverSearch.js`, `src/services/openLibrary.js`, `src/components/OpenLibraryDiscover.vue`, `src/components/OpenLibraryWorkCard.vue`, `src/components/OpenLibraryEditionSave.vue`.
 - Tests: `tests/homeDiscoverSubmission.test.js`, `tests/openLibrary.test.js`, `tests/openLibraryView.test.js`, `tests/ui/openLibrary.spec.js`, `tests/ui/stagingQaRefinements.spec.js`.
 - Permanent documentation: `README.md`, `PROJECT_CONTEXT.md`, `docs/PROJECT_HISTORY.md`, `docs/DISCOVER_PROVIDER_STATE.md`, `docs/OPEN_LIBRARY_LIBRARY_INTEGRATION.md`.
-- Temporary review evidence: this report and the ten linked PNGs. Historical evidence is preserved.
+- Temporary review evidence: this updated report and the twelve linked PNGs. Historical evidence is preserved in Git; Home/eligibility captures are unchanged by the follow-up.
 
 ## Remaining release verification
 

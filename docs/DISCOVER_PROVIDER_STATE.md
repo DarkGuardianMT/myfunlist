@@ -38,6 +38,8 @@ Other categories, providers, queries and filter variants remain intact. Open Lib
 
 ## Quick-add and stale display limits
 
+PR #15 independent review additionally requires the rejected displayed Edition's Add action to remain disabled after `edition_unavailable`; the save handler enforces the same guard. Search again is the primary recovery action. Only a successful renewal returning an eligible Edition offers a new explicit save; failure, cooldown expiry or blocked renewal cannot unlock the unchanged rejected card. Unrelated cards and other save errors keep their behavior. See the [follow-up verification](PROJECT_HISTORY.md#pr-15-independent-review-follow-up--19-november-2026).
+
 The included quick-add action still saves only the exact valid selected Edition. A restored or currently retained card is a display snapshot, not an extension of server metadata freshness. If unseen-Edition trust has expired, the existing save endpoint can return 409. Its feedback now offers an explicit Search again action for the submitted query/options, independent of unsent input. The returned eligible Edition needs another explicit save action. No Edition substitution, automatic retry/search, backend metadata refresh or new upstream endpoint is introduced. Existing authentication, membership/loading, duplicate prevention, Library/List behavior and save-error handling remain unchanged.
 
 ## Verification
