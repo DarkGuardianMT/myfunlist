@@ -16,7 +16,7 @@ Root cause: matching result snapshots retained `inputQuery`, and both Discover i
 
 Detail Back, category/provider switches and browser Back/Forward keep contextual restoration. Fresh documents/reloads still rebuild from the URL. Home does not force a provider request or erase unrelated queries/options/categories. Explicit Discover Search/Retry retains its refresh behavior; Open Library now bypasses its matching browser result cache as well as the display snapshot, retaining pending-request deduplication and cooldowns. Its changed-query form submissions also use the explicit navigation helper.
 
-See [Edition renewal and limits](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#staging-qa-recovery-refinements). The [refinement verification record](PROJECT_HISTORY.md#staging-qa-refinements--19-november-2026) retains 97 focused unit passes, 405 full-suite passes with 12 existing Windows skips, build success, 104 headless passes, inspected visual findings, fixture-failure history and release gaps. No new staging deployment or independent live-browser acceptance is claimed.
+See [Edition renewal and limits](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#staging-qa-recovery-refinements). The [retained PR #15 QA record](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#retained-pr-15-qa) preserves the latest recorded 101 focused unit passes, 409 full-suite passes with 12 existing platform skips, 18 focused and 104 full headless passes, build success, 97 pre-cleanup documentation-link passes, inspected visual findings, failure history and release gaps. The owner confirms independent code and visual review complete at `d36a8cb`; documentation/evidence cleanup does not rerun those checks or establish deployed acceptance.
 
 ## Display snapshots and API caches
 
