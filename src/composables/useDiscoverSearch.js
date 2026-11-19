@@ -4,6 +4,7 @@ import { openLibraryDiscoverEnabled, resolveBookProvider } from '../domain/bookP
 import { clearDiscoverSnapshots, forgetDiscoverSnapshot, getDiscoverSnapshot, rememberDiscoverSnapshot } from '../services/discoverSnapshots.js'
 import { MEDIA_TYPES } from '../domain/libraryMedia.js'
 import { resolveDiscoverType } from '../domain/discoverRoute.js'
+import { isDiscoverSubmission } from '../router/discoverSubmission.js'
 import { normalizeBookSearchOptions } from '../domain/bookSearch.js'
 import { filterDiscoveryResults, normalizeResultFilters, resultFilterOptions, RESULT_FILTER_PARAMS } from '../domain/resultFilters.js'
 import { discoverReturnLocation, useBrowsingReady } from '../router/browsingContext.js'
@@ -170,6 +171,8 @@ export function useDiscoverSearch({ openLibraryEnabled = openLibraryDiscoverEnab
       return router.replace({ path: '/discover', query: { ...route.query, type: 'book' }, hash: route.hash })
     }
     rememberContext()
+    const explicitSubmission = isDiscoverSubmission(router)
+    if (explicitSubmission) drafts.delete(type)
     const draft = drafts.get(type)
     const input = draft?.submittedQuery === query ? draft.query : query
     activeSearch.value = { query: input, searchedQuery: query, results: [], status: query ? 'loading' : 'idle', errorMessage: '', languageSummary: null }
@@ -180,7 +183,7 @@ export function useDiscoverSearch({ openLibraryEnabled = openLibraryDiscoverEnab
       if (version !== generation) return
       const { inputQuery, ...display } = state
       Object.assign(activeSearch.value, display)
-      if (draft?.submittedQuery !== query && typeof inputQuery === 'string') activeSearch.value.query = inputQuery
+      if (!explicitSubmission && draft?.submittedQuery !== query && typeof inputQuery === 'string') activeSearch.value.query = inputQuery
       // Ook een zichtbaar API-cachetreffer wordt opnieuw een begrensde terugkeersnapshot.
       rememberDiscoverSnapshot(type, searchKey(type, query, options), { ...display, inputQuery: activeSearch.value.query })
     } catch (error) {

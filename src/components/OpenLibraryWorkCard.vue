@@ -3,14 +3,26 @@ import { computed, ref, watch } from 'vue'
 import OpenLibraryEditionSave from './OpenLibraryEditionSave.vue'
 import { isSupportedMediaIdentity } from '../domain/mediaIdentity.js'
 
-const props = defineProps({ work: { type: Object, required: true } })
+const props = defineProps({ work: { type: Object, required: true }, canRenew: { type: Boolean, default: false } })
+const emit = defineEmits(['renew-search'])
 const failedCover = ref(false)
 const chosen = ref(false)
 const edition = computed(() => props.work.selectedEdition)
-const canChoose = computed(() => typeof edition.value?.title === 'string' && edition.value.title.trim()
-  && typeof props.work.workId === 'string' && props.work.workId.trim() === props.work.workId && /^OL[1-9][0-9]{0,28}W$/.test(props.work.workId)
-  && isSupportedMediaIdentity({ source: 'open-library', mediaType: 'book', sourceId: edition.value.editionId })
-  && !['inconsistent', 'mismatch', 'ambiguous'].includes(edition.value.languageStatus))
+const unavailableReason = computed(() => {
+  if (!edition.value) return 'No supported edition was supplied. This Work cannot be saved as an edition.'
+  if (typeof props.work.workId !== 'string' || props.work.workId.trim() !== props.work.workId || !/^OL[1-9][0-9]{0,28}W$/.test(props.work.workId)
+    || !isSupportedMediaIdentity({ source: 'open-library', mediaType: 'book', sourceId: edition.value.editionId })) {
+    return 'This edition cannot be saved: its catalogue identity is missing or unsupported.'
+  }
+  if (typeof edition.value.title !== 'string' || !edition.value.title.trim()) return 'This edition cannot be saved: its title is missing.'
+  const languageReasons = {
+    inconsistent: 'its language information conflicts.',
+    mismatch: 'its language tags do not match the requested language.',
+    ambiguous: 'its language tags are ambiguous.',
+  }
+  return languageReasons[edition.value.languageStatus] ? `This edition cannot be saved: ${languageReasons[edition.value.languageStatus]}` : ''
+})
+const canChoose = computed(() => !unavailableReason.value)
 const languageNames = { eng: 'English', dut: 'Dutch', tur: 'Turkish' }
 watch(() => props.work, () => { failedCover.value = false; chosen.value = false })
 </script>
@@ -32,9 +44,8 @@ watch(() => props.work, () => { failedCover.value = false; chosen.value = false 
       <a class="open-library-work__source" :href="`https://openlibrary.org/works/${work.workId}`" target="_blank" rel="noopener noreferrer">View Work on Open Library <span aria-hidden="true">↗</span></a>
       <div class="open-library-work__save">
         <p class="open-library-work__language">Edition language: {{ edition?.languages.length ? edition.languages.map(code => languageNames[code] || code).join(', ') : 'Not supplied' }}</p>
-        <OpenLibraryEditionSave v-if="canChoose" :key="edition.editionId" :edition="edition" />
-        <p v-else-if="edition" class="open-library-work__unavailable">This edition cannot be saved: its identity or title is missing or unsupported, or its language metadata is conflicting, mismatched or ambiguous.</p>
-        <p v-else class="open-library-work__unavailable">No supported edition was supplied. This Work cannot be saved as an edition.</p>
+        <OpenLibraryEditionSave v-if="canChoose" :key="edition.editionId" :edition="edition" :can-renew="canRenew" @renew-search="emit('renew-search')" />
+        <p v-else class="open-library-work__unavailable">{{ unavailableReason }}</p>
       </div>
     </div>
     <details class="edition-details">

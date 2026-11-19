@@ -9,7 +9,7 @@ Discover books, movies, TV shows, and games, then organize and track them in a p
 
 - Account registration, login, and logout.
 - Book, movie, TV, and game discovery through external media APIs.
-- Books field/language/sort filters and stable title-relevance ranking over Google Books candidates.
+- Books field and language controls with provider result order preserved, without app-side title reranking. Google Books defaults to provider relevance; Open Library keeps catalogue relevance order.
 - Public Media Detail pages with account Library controls and Add to List for saved entries.
 - A persistent Library with media-specific statuses, filtering, sorting, and optional personal ratings from 0.5 to 10 in half-point steps.
 - Private Custom Lists for organizing Library entries across media types.

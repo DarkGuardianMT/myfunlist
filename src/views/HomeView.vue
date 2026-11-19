@@ -1,6 +1,7 @@
 ﻿<script setup>
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { submitDiscoverSearch } from '../router/discoverSubmission.js'
 import { useAuth } from '../composables/useAuth.js'
 import { useLibrary } from '../composables/useLibrary.js'
 import { getVisibleLibraryItems } from '../utils/libraryDisplay.js'
@@ -31,7 +32,7 @@ watch([currentUser, isAuthLoading], () => loadHomeLibrary(), { immediate: true }
 
 function search() {
   const q = query.value.trim()
-  if (q) router.push({ path: '/discover', query: { type: mediaType.value, q } })
+  if (q) submitDiscoverSearch(router, { path: '/discover', query: { type: mediaType.value, q } })
 }
 </script>
 
