@@ -6,6 +6,42 @@ Base commit `99d5219c85d744e32a17e0146f1baa48cef0a0bd` · Branch `review/tier-li
 
 Run `npm run test:ui:server` from the repository root and open [the Tier Lists preview](http://127.0.0.1:4179/prototypes/tier-lists/). The preview uses the dedicated loopback Vite configuration with the API proxy absent and the real Open Library gate disabled. Reloading restores the sample boards and the default Dark theme. Home, Discover, Library, Lists, Profile and Login in the preview shell lead to navigation examples within the preview.
 
+## Independent design review refinements
+
+This follow-up starts from the clean, fetched PR #16 head `7513eeaab1c0c8a64a1b5ac969afa4c15366a943`.
+
+- Ranked and Unranked cards show up to three lines per title. Artwork wells and Move actions align within each row, including cards with missing artwork. Open **Move** by click, keyboard or tap to see the full title. The full title remains in the card’s accessible text, and the media pickers continue to show wrapping titles.
+- The tier rails use larger names, wider color accents and a clearer edge against the card grid. The six Cinematic colors retain at least 3:1 accent contrast and 4.5:1 text contrast in both themes. Long custom tier names wrap within the rail.
+- A six-dot grip sits beside **Move**, with a hint for desktop pointers. The existing button supports dragging, and opens the same destination and placement dialog by click, keyboard or tap. The existing focus return and move announcements remain part of this interaction.
+
+### Follow-up verification
+
+| Check | Result |
+| --- | --- |
+| `node --test tests/tierListPrototype.test.js` | 8 passed |
+| `npm test` | 417 passed, 12 existing Windows skips, 0 failed |
+| `npm run build` | Passed. The regular app entry and asset names matched the previous build. The output contained no prototype entry, synthetic fixture markers or grip instruction. |
+| `npm run test:ui -- tests/ui/tierListPrototype.spec.js --global-timeout=600000` | 15 passed, 9 intentional skips, 0 failed |
+
+The focused Chromium suite checks visual alignment, actual tier-rail contrast, the full-title dialog and focus return, missing artwork, landscape image proportions and desktop dragging from the grip. Each viewport/theme pair also exercises a 100-item board with a renamed tier holding 82 cards. The first browser attempt matched several headings with a partial name of `S`. Scoping the assertion to the exact tier name fixed the test selector. Inspection also found that the first rail treatment split Unranked on desktop. The final rail gives longer names more room and keeps the larger type for short ranks. Regression checks cover a one-line Unranked label and word wrapping on a long custom name. Node.js 24.22.1 and Playwright 1.64.1 used Chromium headless shell 156.0.8078.4. Browser and network error counters were zero. PowerShell’s native-stderr formatting and the color-setting warning were nonblocking.
+
+### Updated screenshots
+
+| Viewport | Theme | Selected screenshots |
+| --- | --- | --- |
+| 1440×900 | Dark | [Populated editor](desktop-1440-dark-refined-editor.png) · [100-item board](desktop-1440-dark-refined-marathon.png) |
+| 1440×900 | Light | [Populated editor](desktop-1440-light-refined-editor.png) · [Unranked](desktop-1440-light-refined-unranked.png) |
+| 768×1024 | Dark | [Populated editor](desktop-768-dark-refined-editor.png) · [100-item board](desktop-768-dark-refined-marathon.png) |
+| 768×1024 | Light | [Populated editor](desktop-768-light-refined-editor.png) · [Move and full title](desktop-768-light-refined-move.png) |
+| 390×844 | Dark | [Editor](mobile-390-dark-refined-editor.png) · [Unranked](mobile-390-dark-refined-unranked.png) |
+| 390×844 | Light | [Unranked](mobile-390-light-refined-unranked.png) · [Move and full title](mobile-390-light-refined-move.png) |
+| 320×740 | Dark | [Unranked](mobile-320-dark-refined-unranked.png) · [Move and full title](mobile-320-dark-refined-move.png) |
+| 320×740 | Light | [Editor](mobile-320-light-refined-editor.png) · [100-item board](mobile-320-light-refined-marathon.png) |
+
+The final run captured 72 viewport images. I opened the 16 selected captures at their original sizes. They show aligned Move buttons on mobile Unranked, the long title readable in the Move dialog, clearer tier accents, and a long tier name wrapped across whole words on the dense board. The 100-item screenshots show representative viewport sections. Board persistence and provider behavior are simulated. Physical-device and screen-reader acceptance remain open. This is local headless evidence, with staging deployment and independent live-browser QA outside this follow-up.
+
+The following sections preserve the original prototype evidence from `7513eeaab1c0c8a64a1b5ac969afa4c15366a943`.
+
 ## Interactions to review
 
 - Open **After Hours** for mixed media, empty tiers and Unranked. Open **Centennial Marathon** for 100 cards, including 82 in one tier. Use **Preview overview state** below the cards to show empty, loading and failure states.

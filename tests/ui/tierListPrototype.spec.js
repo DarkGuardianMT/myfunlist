@@ -2,6 +2,7 @@ import { test, expect } from './fixtures.js'
 
 const entry = '/prototypes/tier-lists/'
 const longTitle = 'The Cartographer’s Guide to Rivers That Remember the Sea'
+const longTierName = 'Unforgettable Stories to Revisit'
 const navLabels = ['Home', 'Discover', 'Library', 'Lists', 'Tier Lists']
 const editor = page => page.getByRole('link', { name: 'Open After Hours' }).click()
 const lane = (page, name) => page.getByRole('region', { name, exact: true })
@@ -149,7 +150,8 @@ test('tier prototype handles desktop drag and drop using the same draft', async 
   await editor(page)
   const source = action(page, 'Move or remove The Quiet Signal')
   const target = lane(page, 'A').getByRole('article', { name: 'Salt Meridian' })
-  await source.hover()
+  await expect(source).toHaveCSS('cursor', 'grab')
+  await source.locator('.tier-item-grip').hover()
   await page.mouse.down()
   const bounds = await target.boundingBox()
   await page.mouse.move(bounds.x + 20, bounds.y + 20, { steps: 12 })
@@ -177,6 +179,55 @@ async function checkViewport(page) {
   }))
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth)
   expect(geometry.undersized).toEqual([])
+}
+
+async function checkBoardAlignment(page) {
+  const unevenRows = await page.locator('.tier-card-grid').evaluateAll(grids => grids.flatMap(grid => {
+    const rows = new Map()
+    for (const item of grid.children) {
+      const rowTop = item.getBoundingClientRect().top
+      const art = item.querySelector('.media-artwork').getBoundingClientRect()
+      const move = item.querySelector('.tier-item-action').getBoundingClientRect()
+      const reference = rows.get(rowTop)
+      if (reference && (Math.abs(move.top - reference.moveTop) > 1 || Math.abs(art.height - reference.artHeight) > 1)) {
+        return [grid.closest('[data-lane]').dataset.lane]
+      }
+      rows.set(rowTop, { moveTop: move.top, artHeight: art.height })
+    }
+    return []
+  }))
+  expect(unevenRows, 'Artwork wells and Move actions align within each tier row').toEqual([])
+}
+
+async function checkTierContrast(page) {
+  const headings = await page.locator('.tier-lane-heading').evaluateAll(elements => {
+    const canvas = document.createElement('canvas')
+    canvas.width = canvas.height = 1
+    const pixel = canvas.getContext('2d', { willReadFrequently: true })
+    const luminance = (color) => {
+      pixel.fillStyle = color
+      pixel.fillRect(0, 0, 1, 1)
+      const channels = [...pixel.getImageData(0, 0, 1, 1).data].slice(0, 3).map(value => value / 255)
+      return channels.map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+        .reduce((total, value, index) => total + value * [0.2126, 0.7152, 0.0722][index], 0)
+    }
+    const contrast = (first, second) => (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+    return elements.map(element => {
+      const style = getComputedStyle(element)
+      const background = luminance(style.backgroundColor)
+      return {
+        accent: contrast(luminance(style.borderInlineStartColor), background),
+        label: contrast(luminance(getComputedStyle(element.querySelector('h2')).color), background),
+        count: contrast(luminance(getComputedStyle(element.querySelector('p')).color), background),
+      }
+    })
+  })
+  expect(headings).toHaveLength(6)
+  for (const { accent, label, count } of headings) {
+    expect(accent).toBeGreaterThanOrEqual(3)
+    expect(label).toBeGreaterThanOrEqual(4.5)
+    expect(count).toBeGreaterThanOrEqual(4.5)
+  }
 }
 
 async function capture(page, testInfo, name) {
@@ -210,7 +261,7 @@ for (const project of Object.keys(dimensions)) {
         await page.keyboard.press('Escape')
         await expect(page.getByLabel('Account menu', { exact: true })).toBeFocused()
 
-        const shot = name => capture(page, testInfo, `${project}-${width}-${theme}-${name}`)
+        const shot = name => capture(page, testInfo, `${project}-${width}-${theme}-refined-${name}`)
         await shot('overview')
         await page.getByRole('link', { name: 'Create Tier List' }).click()
         if (width === 320) {
@@ -224,38 +275,81 @@ for (const project of Object.keys(dimensions)) {
         await page.getByRole('link', { name: 'Back to Tier Lists' }).click()
         await editor(page)
         await expect(page.getByRole('heading', { name: 'After Hours' })).toBeFocused()
+        await expect(page.getByText('Move shows the full title and placement options.', { exact: false })).toBeVisible()
+        if (project === 'desktop') await expect(page.locator('.tier-drag-guide')).toBeVisible()
+        else await expect(page.locator('.tier-drag-guide')).toBeHidden()
+        await expect(lane(page, 'S').getByRole('heading', { name: 'S', exact: true })).toHaveCSS('font-size', width >= 768 ? '24px' : '19.2px')
+        await checkTierContrast(page)
+        await checkBoardAlignment(page)
         const artwork = lane(page, 'S').getByRole('article', { name: 'Lantern Coast' })
         await expect(artwork.locator('.media-artwork')).toHaveCSS('aspect-ratio', '2 / 3')
         await expect(artwork.getByRole('img')).toHaveCSS('object-fit', 'contain')
+        const imageProportions = await artwork.getByRole('img').evaluate(async image => {
+          await image.decode()
+          const { width, height } = image.getBoundingClientRect()
+          return { rendered: width / height, natural: image.naturalWidth / image.naturalHeight }
+        })
+        expect(imageProportions.natural).toBeGreaterThan(1)
+        expect(imageProportions.rendered).toBeCloseTo(imageProportions.natural, 2)
         if (width >= 768) {
           const add = await page.locator('.tier-editor-controls').getByRole('button', { name: 'Add media' }).boundingBox()
           const jump = await page.getByLabel('Jump to tier').boundingBox()
           expect(Math.abs(add.y - jump.y)).toBeLessThanOrEqual(1)
         }
+        if (project === 'mobile') await page.getByLabel('Jump to tier').selectOption('s')
         await shot('editor')
+        if (project === 'mobile') await page.evaluate(() => window.scrollTo(0, 0))
         await action(page, 'Configure tiers').click()
         await shot('configure')
         await action(page, 'Done').click()
         await openPicker(page)
+        await expect(dialog(page).getByRole('heading', { name: longTitle })).toHaveCSS('-webkit-line-clamp', 'none')
         await shot('library')
         await chooseBookSearch(page)
         if (width <= 390) await action(page, 'Search again').scrollIntoViewIfNeeded()
         await shot('discover')
         await action(page, 'Done').click()
         await page.getByLabel('Jump to tier').selectOption('unranked')
-        await expect(page.getByRole('heading', { name: 'Unranked' })).toBeFocused()
+        const unrankedHeading = page.getByRole('heading', { name: 'Unranked' })
+        await expect(unrankedHeading).toBeFocused()
+        expect(await unrankedHeading.evaluate(heading => heading.getBoundingClientRect().height
+          / parseFloat(getComputedStyle(heading).lineHeight))).toBeCloseTo(1, 2)
         await expect(lane(page, 'Unranked').getByText('No cover', { exact: true })).toBeVisible()
-        await expect(lane(page, 'Unranked').getByRole('heading', { name: longTitle })).toBeVisible()
+        const compactTitle = lane(page, 'Unranked').getByRole('heading', { name: longTitle })
+        await expect(compactTitle).toBeVisible()
+        await expect(compactTitle).toHaveCSS('-webkit-line-clamp', '3')
+        expect(await compactTitle.evaluate(heading => heading.getBoundingClientRect().height
+          / parseFloat(getComputedStyle(heading).lineHeight))).toBeCloseTo(3, 2)
         await shot('unranked')
-        await action(page, `Move or remove ${longTitle}`).click()
+        const fullTitleAction = action(page, `Move or remove ${longTitle}`)
+        await expect(fullTitleAction).toHaveAttribute('aria-haspopup', 'dialog')
+        if (project === 'mobile') await fullTitleAction.tap()
+        else await fullTitleAction.press('Enter')
+        await expect(dialog(page).getByText(longTitle, { exact: true })).toBeVisible()
         await page.getByLabel('Destination tier').selectOption('a')
         await page.getByLabel('Placement').selectOption({ label: 'First' })
         await shot('move')
         await page.keyboard.press('Escape')
+        await expect(fullTitleAction).toBeFocused()
         await page.getByRole('link', { name: 'Back to Tier Lists' }).click()
         await page.getByRole('link', { name: 'Open Centennial Marathon' }).click()
         await expect(page.locator('.tier-board .tier-media-card')).toHaveCount(100)
         await expect(lane(page, 'S').locator('.tier-media-card')).toHaveCount(82)
+        await action(page, 'Configure tiers').click()
+        await page.locator('#name-s').fill(longTierName)
+        await action(page, 'Done').click()
+        await expect(lane(page, longTierName).getByText('82 items')).toBeVisible()
+        const longHeading = page.getByRole('heading', { name: longTierName })
+        const labelFits = await longHeading.evaluate(heading => {
+          const firstWord = document.createRange()
+          firstWord.setStart(heading.firstChild, 0)
+          firstWord.setEnd(heading.firstChild, heading.textContent.indexOf(' '))
+          return { overflow: heading.scrollWidth - heading.clientWidth, firstWordLines: firstWord.getClientRects().length }
+        })
+        expect(labelFits, 'A long tier name wraps at word boundaries when space allows').toEqual({ overflow: 0, firstWordLines: 1 })
+        await checkBoardAlignment(page)
+        if (project === 'mobile') await page.getByLabel('Jump to tier').selectOption('s')
+        await shot('marathon')
         await page.getByLabel('Jump to tier').selectOption('unranked')
         await checkViewport(page)
         const moveButton = lane(page, 'Unranked').getByRole('button', { name: /Move or remove/ }).last()

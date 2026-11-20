@@ -311,13 +311,16 @@ function drop(event) {
         </div>
       </div>
       <p v-if="saveError" class="tier-notice tier-error" role="alert">{{ saveError }}</p>
+      <p v-if="includedKeys.size" class="tier-move-guide"><span class="tier-drag-guide">Drag using the dotted grip. </span>Move shows the full title and placement options.</p>
       <div class="tier-board">
         <section v-for="tier in boardLanes" :key="tier.id" class="tier-lane"
           :data-color="tier.color" :data-lane="tier.id" :class="{ 'tier-unranked': tier.id === UNRANKED,
             'tier-lane-target': insertion?.tierId === tier.id && !insertion.key }"
           :aria-labelledby="`tier-${tier.id}`" @dragover="targetDrop($event, tier)" @drop="drop">
           <header class="tier-lane-heading">
-            <div><h2 :id="`tier-${tier.id}`" tabindex="-1">{{ tier.name || 'Unnamed tier' }}</h2>
+            <div>
+              <h2 :id="`tier-${tier.id}`" :class="{ 'tier-name-short': tier.name && tier.name.length <= 4 }"
+                tabindex="-1">{{ tier.name || 'Unnamed tier' }}</h2>
               <p>{{ tier.items.length }} {{ tier.items.length === 1 ? 'item' : 'items' }}</p>
             </div>
             <button v-if="tier.id === UNRANKED && !tier.items.length" type="button" class="tl-button" :disabled="saving"
@@ -330,9 +333,9 @@ function drop(event) {
               @dragover.stop="targetDrop($event, tier, item, index)">
               <TierMediaCard :media="item">
                 <button :id="focusKey(getMediaKey(item))" class="tl-button tier-item-action" type="button"
-                  :aria-label="`Move or remove ${item.title}`" :disabled="saving" draggable="true"
+                  :aria-label="`Move or remove ${item.title}`" aria-haspopup="dialog" :disabled="saving" draggable="true"
                   @dragstart.stop="startDrag($event, tier, item, index)" @dragend="stopDrag"
-                  @click="moveAction(tier, item, $event)"><span aria-hidden="true">⠿</span> Move</button>
+                  @click="moveAction(tier, item, $event)"><span class="tier-item-grip" aria-hidden="true"></span>Move</button>
               </TierMediaCard>
             </li>
           </ul>
