@@ -1,5 +1,11 @@
 # MyFunList project history
 
+## PR #16 Tier Lists prototype approval — 21 November 2026
+
+The owner approved the prototype for the next development phase after independent code and visual review at `9d8c1d8682da20b17879bdc21602bae524c82002`. The [Tier Lists design](TIER_LISTS_DESIGN.md) records the approved UX, proposed backend architecture, unresolved security and rollout decisions, and historical validation.
+
+Before cleanup, the original sixteen screenshots matched their first review blobs. All 33 files in the [immutable review archive](https://github.com/DarkGuardianMT/myfunlist/tree/9d8c1d8682da20b17879bdc21602bae524c82002/qa/reviews/tier-list-ui-prototype) were checked against the reviewed Git tree and GitHub downloads. The report and all 32 screenshots were archived in the owner’s local report and screenshot folders and read back by SHA-256 and byte size. This cleanup removes those 33 temporary paths from the review branch after verification. The prototype and its tests are retained. The test and visual results in the design document are historical.
+
 ## PR #15 final review cleanup — 19 November 2026
 
 The owner confirmed independent code and visual review complete for PR #15 at reviewed HEAD `d36a8cba7ecd59f05050fdf3d07524c45731fb01` and authorized removing only this cycle's temporary report and twelve PNGs from `qa/reviews/staging-qa-refinements/`. The [permanent QA record](OPEN_LIBRARY_LIBRARY_INTEGRATION.md#retained-pr-15-qa) retains the supplied PR #14 live staging findings, navigation/recovery contracts, exact-Edition and account/cache/cooldown safeguards, latest validation counts, actual Light/Dark desktop/mobile findings, failure history, warnings, known UI limits and deployment/production gaps.
