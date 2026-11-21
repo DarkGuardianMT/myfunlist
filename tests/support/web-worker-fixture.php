@@ -2,6 +2,32 @@
 
 declare(strict_types=1);
 
+namespace MyFunList\WebDiagnostic;
+
+use RuntimeException;
+use Throwable;
+
+function flock(mixed $handle, int $operation, ?int &$blocked = null): bool
+{
+    $name = $_SERVER['argv'][2] ?? '';
+    if (in_array($name, ['ready', 'ack'], true) && $operation === (LOCK_EX | LOCK_NB)) {
+        $path = stream_get_meta_data($handle)['uri'];
+        if (basename($path) === $name) {
+            // Laat precies één echte gedeelde leesvergrendeling de eerste schrijfpoging blokkeren.
+            unset($_SERVER['argv'][2]);
+            $reader = fopen($path, 'rb');
+            Policy::need(is_resource($reader));
+            try {
+                Policy::need(\flock($reader, LOCK_SH | LOCK_NB));
+                $acquired = \flock($handle, $operation, $blocked);
+                Policy::need(!$acquired && $blocked === 1);
+                return $acquired;
+            } finally { fclose($reader); }
+        }
+    }
+    return \flock($handle, $operation, $blocked);
+}
+
 // Lokale bestandsproeven, nooit HTTP-verkeer of echte configuratie.
 ini_set('display_errors', '0');
 ini_set('log_errors', '0');
@@ -11,6 +37,7 @@ $result = ['status' => 'inconclusive'];
 $success = false;
 try {
     if (PHP_SAPI !== 'cli') throw new RuntimeException();
+    $expectBlockedWrite = isset($_SERVER['argv'][2]);
     require dirname(__DIR__, 2) . '/diagnostics/web-worker/Policy.php';
     require dirname(__DIR__, 2) . '/diagnostics/web-worker/Fixture.php';
     $config = json_decode(stream_get_contents(STDIN, 8193), true, 12, JSON_THROW_ON_ERROR);
@@ -24,6 +51,7 @@ try {
     } else {
         $result = $fixture->execute($argv[1] ?? '');
     }
+    Policy::need(!$expectBlockedWrite || !isset($_SERVER['argv'][2]));
     $success = true;
 } catch (Throwable) {
     if (class_exists(\MyFunList\WebDiagnostic\Policy::class)) $result = \MyFunList\WebDiagnostic\Policy::result('inconclusive');

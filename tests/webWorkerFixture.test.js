@@ -13,7 +13,7 @@ const available = spawnSync('php', ['-r', 'exit(PHP_OS_FAMILY === "Linux" && fun
 const linux = { skip: process.platform !== 'linux' || available.status !== 0
   ? 'Local Linux PHP/POSIX required; no HTTP/server or Hostinger substitute is used.' : false }
 
-async function fixture(callback) {
+async function fixture(callback, { contendControlWrites = false } = {}) {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'mfl-web-worker-')))
   chmodSync(home, 0o700)
   for (const name of ['private','public','checkout']) mkdirSync(join(home, name), { mode: 0o700 })
@@ -27,7 +27,9 @@ async function fixture(callback) {
   const send = (action, timeout) => new Promise(resolveResult => {
     let body = ''
     let errors = 0
-    const child = spawn('php', ['-d','display_errors=0','-d','log_errors=0',helper,action], { stdio: ['pipe','pipe','pipe'] })
+    const control = contendControlWrites && { holder: 'ready', contender: 'ack' }[action]
+    const child = spawn('php', ['-d','display_errors=0','-d','log_errors=0',helper,action,
+      ...(control ? [control] : [])], { stdio: ['pipe','pipe','pipe'] })
     const timer = setTimeout(() => child.kill('SIGKILL'), timeout)
     child.stdout.on('data', value => { body += value })
     child.stderr.on('data', value => { errors += value.length })
@@ -63,6 +65,16 @@ test('synthetic file protocol uses concurrent independent local PHP processes an
     assert.ok(flags.every(name => result[name]))
     assert.equal(existsSync(root), false)
   })
+})
+
+test('control record writers recover from a transient shared reader lock', linux, async () => {
+  await fixture(async ({ invoke, send, root }) => {
+    passed(invoke('prepare'))
+    const result = await runPlan(send)
+    assert.equal(result.status, 'pass')
+    assert.ok(flags.every(name => result[name]))
+    assert.equal(existsSync(root), false)
+  }, { contendControlWrites: true })
 })
 
 test('sequential worker requests cannot establish concurrency or a cross-worker pass', linux, async () => {
