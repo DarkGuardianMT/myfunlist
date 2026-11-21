@@ -1,0 +1,90 @@
+name: Review web-worker tests
+
+on:
+  push:
+    branches: [review/web-worker-ci-stability]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.15.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify Linux PHP and POSIX prerequisites
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          printf 'Runner OS %s\n' "$PRETTY_NAME"
+          test "$(node --version)" = v24.15.0
+          node --version
+          php -r '
+            if (PHP_OS_FAMILY !== "Linux" || PHP_VERSION_ID < 80200 || PHP_SAPI !== "cli") {
+              fwrite(STDERR, "Linux PHP CLI 8.2 or newer is required.\n");
+              exit(1);
+            }
+            foreach (["posix_geteuid", "flock", "fsync", "fflush", "ftruncate", "hrtime", "usleep", "getmypid"] as $function) {
+              if (!function_exists($function)) {
+                fwrite(STDERR, "Missing fixture prerequisite: $function\n");
+                exit(1);
+              }
+            }
+            printf("PHP %s CLI. POSIX and fixture prerequisites passed.\n", PHP_VERSION);
+          '
+          fixture_dir=$(mktemp -d "$RUNNER_TEMP/web-worker-review.XXXXXX")
+          printf 'MFL_REVIEW_FIXTURE_DIR=%s\n' "$fixture_dir" >> "$GITHUB_ENV"
+
+      - name: Run focused suite and five repetitions
+        run: |
+          set -euo pipefail
+          export TMPDIR="$MFL_REVIEW_FIXTURE_DIR"
+          for attempt in {1..6}; do
+            printf 'Focused run %s of 6\n' "$attempt"
+            log="$RUNNER_TEMP/web-worker-focused-$attempt.log"
+            node --test tests/webWorkerDiagnostics.test.js tests/webWorkerFixture.test.js | tee "$log"
+            grep -Eq ' skipped 0$' "$log"
+            test -z "$(find "$TMPDIR" -mindepth 1 -print -quit)"
+            printf 'Focused run %s left no fixture files.\n' "$attempt"
+          done
+
+      - name: Run full unit suite
+        run: |
+          set -euo pipefail
+          export TMPDIR="$MFL_REVIEW_FIXTURE_DIR"
+          log="$RUNNER_TEMP/web-worker-full-suite.log"
+          npm test | tee "$log"
+          grep -Eq ' skipped 0$' "$log"
+
+      - name: Verify the fixture directory is empty
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -z "${MFL_REVIEW_FIXTURE_DIR:-}" ]]; then
+            echo "Fixture directory was not initialized."
+            exit 1
+          fi
+          case "$MFL_REVIEW_FIXTURE_DIR" in
+            "$RUNNER_TEMP"/web-worker-review.*) ;;
+            *) exit 1 ;;
+          esac
+          rmdir -- "$MFL_REVIEW_FIXTURE_DIR"
+          echo "No fixture files remained after the test run."
