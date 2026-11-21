@@ -10,6 +10,7 @@ use Throwable;
 final class Fixture
 {
     private const FILES = ['owner', 'lease', 'ledger', 'fixture', 'ready', 'ack'];
+    private const METADATA_LOCK_WAIT_NS = 100000000;
     private string $root;
     private ?array $proof = null;
     private mixed $lease = null;
@@ -128,7 +129,7 @@ final class Fixture
     {
         $handle = $this->open('ledger', 'r+b');
         try {
-            $limit = hrtime(true) + 100000000;
+            $limit = hrtime(true) + self::METADATA_LOCK_WAIT_NS;
             while (!flock($handle, LOCK_EX | LOCK_NB)) {
                 $this->tick();
                 Policy::need(hrtime(true) < $limit);
@@ -161,9 +162,17 @@ final class Fixture
         $handle = $this->open($name, $data === null ? 'rb' : 'r+b');
         try {
             $blocked = 0;
-            if (!flock($handle, ($data === null ? LOCK_SH : LOCK_EX) | LOCK_NB, $blocked)) {
-                Policy::need($allowBusy && $data === null && $blocked === 1);
-                return null;
+            $limit = hrtime(true) + self::METADATA_LOCK_WAIT_NS;
+            while (!flock($handle, ($data === null ? LOCK_SH : LOCK_EX) | LOCK_NB, $blocked)) {
+                Policy::need($blocked === 1);
+                if ($data === null) {
+                    Policy::need($allowBusy);
+                    return null;
+                }
+                // Een gelijktijdige lezer mag het publiceren van ready of ack niet direct afbreken.
+                usleep(1000);
+                $this->tick();
+                Policy::need(hrtime(true) < $limit);
             }
             if ($data !== null) { self::write($handle, json_encode($data, JSON_THROW_ON_ERROR)); return $data; }
             $raw = self::read($handle);
