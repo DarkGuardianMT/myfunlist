@@ -67,6 +67,9 @@ jobs:
           done
 
       - name: Run full unit suite
+        env:
+          # Voorkom dat de optionele npm-cache in de fixturemap terechtkomt.
+          NODE_DISABLE_COMPILE_CACHE: '1'
         run: |
           set -euo pipefail
           export TMPDIR="$MFL_REVIEW_FIXTURE_DIR"
