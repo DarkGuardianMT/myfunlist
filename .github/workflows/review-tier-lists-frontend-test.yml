@@ -1,0 +1,340 @@
+name: Review Tier Lists frontend integration tests
+
+on:
+  push:
+    branches: [review/tier-lists-frontend-integration]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ENV: testing
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_DATABASE: myfunlist_test
+      DB_USERNAME: tier_lists_ci
+      DB_PASSWORD: disposable-ci-only
+      TIER_LISTS_ENABLED: 'false'
+      OPEN_LIBRARY_PILOT_ENABLED: 'false'
+      OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED: 'false'
+      GOOGLE_BOOKS_API_KEY: ''
+      TMDB_API_TOKEN: ''
+      RAWG_API_KEY: ''
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: myfunlist_test
+          MARIADB_USER: tier_lists_ci
+          MARIADB_PASSWORD: disposable-ci-only
+          MARIADB_RANDOM_ROOT_PASSWORD: '1'
+        ports:
+          - 127.0.0.1:3306:3306
+        options: >-
+          --tmpfs /var/lib/mysql:rw,size=512m
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out reviewed source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24.15.0'
+          cache: npm
+
+      - name: Set up PHP and Composer
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        with:
+          php-version: '8.2'
+          extensions: curl, pdo_mysql, posix
+          coverage: none
+          tools: composer:v2
+
+      - name: Verify commit, tools and PHP syntax
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          printf 'Runner OS %s\n' "$PRETTY_NAME"
+          node --version
+          php --version
+          composer --version
+          php -r 'foreach (["curl", "pdo_mysql", "posix"] as $extension) {
+              if (!extension_loaded($extension)) { fwrite(STDERR, "Missing extension: $extension\n"); exit(1); }
+          }'
+          test "$(node --version)" = v24.15.0
+          test "$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')" = 8.2
+          test ! -e .env && test ! -e backend/.env
+          git diff --check fa88d109db5863353684f3e5d316aac1277c61da...HEAD
+          git diff --exit-code a86af9cf95b81d003d6f1b199ed56f2446270faf HEAD -- . ':(exclude).github/workflows/review-tier-lists-frontend-test.yml'
+          find backend/src backend/config backend/public backend/bin backend/tests backend/database \
+            -type f -name '*.php' -print0 | xargs -0 -n 1 php -l
+          composer --working-dir=backend validate --strict
+
+      - name: Install locked dependencies
+        run: |
+          set -euo pipefail
+          composer --working-dir=backend install --no-interaction --prefer-dist --no-progress
+          npm ci
+
+      - name: Verify the disposable database target
+        env:
+          SERVICE_CONTAINER: ${{ job.services.mariadb.id }}
+        run: |
+          set -euo pipefail
+          php backend/tests/database_safety.php
+          test "$(docker inspect --format '{{.Config.Image}}' "$SERVICE_CONTAINER")" = mariadb:10.11
+          test "$(docker port "$SERVICE_CONTAINER" 3306/tcp)" = 127.0.0.1:3306
+          test "$(docker inspect --format '{{index .HostConfig.Tmpfs "/var/lib/mysql"}}' "$SERVICE_CONTAINER")" = rw,size=512m
+          export CI_DB_HOSTNAME="$(docker inspect --format '{{.Config.Hostname}}' "$SERVICE_CONTAINER")"
+          php <<'PHP'
+          <?php
+          require 'backend/config/environment.php';
+          require 'backend/tests/support/database.php';
+          $config = MyFunList\Config::database();
+          assertSafeTestDatabase($config, getenv('APP_ENV'));
+          if ($config['host'] !== '127.0.0.1' || $config['port'] !== 3306 || getenv('TIER_LISTS_ENABLED') !== 'false') {
+              throw new RuntimeException('Unsafe CI test settings.');
+          }
+          $database = (new MyFunList\Infrastructure\Database())->connect();
+          $server = $database->query('SELECT DATABASE(), @@hostname, @@port, VERSION()')->fetch(PDO::FETCH_NUM);
+          if ($server[0] !== 'myfunlist_test' || $server[1] !== getenv('CI_DB_HOSTNAME') || (int) $server[2] !== 3306
+              || !preg_match('/^10\.11\..*MariaDB/', $server[3]) || $database->query('SHOW TABLES')->fetch() !== false) {
+              throw new RuntimeException('The connection does not point to the fresh MariaDB service.');
+          }
+          printf("Verified APP_ENV=testing, TIER_LISTS_ENABLED=false, %s:%d/%s, MariaDB %s on the job service.\n",
+              $config['host'], $config['port'], $server[0], $server[3]);
+          PHP
+          root="$(mktemp -d "$RUNNER_TEMP/tier-lists-frontend-review.XXXXXX")"
+          mkdir -m 700 "$root/php" "$root/sessions" "$root/node"
+          printf 'TIER_LISTS_CI_DIR=%s\n' "$root" >> "$GITHUB_ENV"
+
+      - name: Run full PHP suite and focused Tier Lists validation
+        run: |
+          set -euo pipefail
+          export TMPDIR="$TIER_LISTS_CI_DIR/php"
+          export SESSION_SAVE_PATH="$TIER_LISTS_CI_DIR/sessions"
+          export https_proxy=http://127.0.0.1:1 http_proxy=http://127.0.0.1:1
+          export no_proxy=127.0.0.1,localhost
+          composer --working-dir=backend test
+          composer --working-dir=backend run test:providers
+          composer --working-dir=backend run test:api
+          php backend/tests/tier_lists_api.php
+          composer --working-dir=backend run test:tier-lists-mysql
+
+      - name: Verify Open Library access modes and durable preparation quota
+        run: |
+          set -euo pipefail
+          export https_proxy=http://127.0.0.1:1 http_proxy=http://127.0.0.1:1
+          export no_proxy=127.0.0.1,localhost
+          php <<'PHP'
+          <?php
+          use MyFunList\Auth\AuthenticatedUser;
+          use MyFunList\Config;
+          use MyFunList\Http\ApiException;
+          use MyFunList\Http\JsonResponse;
+          use MyFunList\Http\Middleware\RateLimitMiddleware;
+          use MyFunList\Infrastructure\Database;
+          use MyFunList\Infrastructure\MediaRepository;
+          use MyFunList\Provider\OpenLibraryAccess;
+          use MyFunList\Provider\OpenLibraryMediaResolver;
+          use MyFunList\Provider\OpenLibraryPilot;
+          use MyFunList\Provider\OpenLibraryStateStore;
+          use MyFunList\Provider\ProviderHttpClient;
+          use MyFunList\RateLimit\RateLimiter;
+          use MyFunList\TierLists\TierListMediaPreparation;
+          use MyFunList\TierLists\TierListService;
+
+          require 'backend/config/environment.php';
+          require 'backend/tests/support/database.php';
+          require 'backend/tests/support/open_library_pdo.php';
+          assertSafeTestDatabase(Config::database(), getenv('APP_ENV'));
+          $database = new Database();
+          $db = $database->connect();
+          if ($db->query('SELECT DATABASE()')->fetchColumn() !== 'myfunlist_test' || getenv('TIER_LISTS_ENABLED') !== 'false') {
+              throw new RuntimeException('Unexpected test environment.');
+          }
+          function check(bool $condition, string $message): void
+          {
+              if (!$condition) throw new RuntimeException($message);
+          }
+          function reject(callable $request, int $status, string $code): void
+          {
+              try {
+                  $request();
+              } catch (ApiException $exception) {
+                  check($exception->status === $status && $exception->errorCode === $code, "Expected $status $code.");
+                  return;
+              }
+              throw new RuntimeException("Expected $status $code.");
+          }
+
+          $http = new class implements ProviderHttpClient {
+              public int $calls = 0;
+              public function get(string $url, array $headers = []): array
+              {
+                  $this->calls++;
+                  throw new RuntimeException('Open Library preparation must not make upstream requests.');
+              }
+          };
+          $catalogue = new MediaRepository($db);
+          $identity = ['source' => 'open-library', 'mediaType' => 'book', 'sourceId' => 'OL900000019M'];
+          $workId = 'OL900000019W';
+          $work = ['provider' => 'open-library', 'workId' => $workId, 'workTitle' => 'Synthetic Work', 'cover' => null,
+              'selectedEdition' => ['editionId' => $identity['sourceId'], 'title' => 'Synthetic Edition', 'languageStatus' => 'match']];
+          $budget = new OpenLibraryTestPDO();
+          $budget->now = 1000;
+          $state = $budget->state();
+          $key = str_repeat('a', 64);
+          $state['cache'][$key] = ['expiresAt' => 1050, 'data' => ['provider' => 'open-library', 'items' => [$work]]];
+          $budget->raw = json_encode($state, JSON_THROW_ON_ERROR);
+          $_SERVER['REMOTE_ADDR'] = '192.0.2.19';
+
+          $make = static function (bool $enabled, bool $public, string $testers) use ($database, $http, $budget, $catalogue): TierListMediaPreparation {
+              $_ENV['OPEN_LIBRARY_PILOT_ENABLED'] = $enabled ? 'true' : 'false';
+              $_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] = $public ? 'true' : 'false';
+              $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = $testers;
+              $pilot = new OpenLibraryPilot($http, $enabled, true, new OpenLibraryStateStore(static fn (): PDO => $budget),
+                  'MyFunList (fixture@example.test)', str_repeat('fixture-', 8));
+              $resolver = new OpenLibraryMediaResolver($pilot, static fn (string $id): ?array =>
+                  $catalogue->findByIdentity('open-library', 'book', $id));
+              return new TierListMediaPreparation($database, $resolver, OpenLibraryAccess::fromEnvironment());
+          };
+
+          $users = [];
+          $mediaId = null;
+          $policy = 'tier_list_prepare_user';
+          try {
+              $insert = $db->prepare('INSERT INTO users (email,password_hash) VALUES (?,?)');
+              foreach (['owner', 'other'] as $label) {
+                  $insert->execute(["workflow-open-library-$label@example.test", 'synthetic-only']);
+                  $users[] = $db->lastInsertId();
+              }
+              [$owner, $other] = array_map(static fn (string $id): AuthenticatedUser => new AuthenticatedUser($id), $users);
+              $boards = new TierListService($database);
+              $board = $boards->create($owner, ['title' => 'Open Library fixture'], null)['board'];
+              $otherBoard = $boards->create($other, ['title' => 'Second board'], null)['board'];
+              $id = $board['id'];
+              $request = static fn (): array => $identity;
+              $read = static fn (): ?array => $catalogue->findByIdentity('open-library', 'book', $identity['sourceId']);
+              check($read() === null, 'The Edition fixture must begin outside the catalogue.');
+
+              $disabled = $make(false, true, $owner->id);
+              reject(static fn () => $disabled->prepare($owner, $id, $request), 404, 'not_found');
+              $tester = $make(true, false, $owner->id);
+              reject(static fn () => $tester->prepare($other, $otherBoard['id'], $request), 403, 'forbidden');
+              reject(static fn () => $tester->prepare($owner, $id, static fn (): array =>
+                  array_replace($identity, ['sourceId' => $workId])), 422, 'validation_error');
+              $budget->now = 1060;
+              reject(static fn () => $tester->prepare($owner, $id, $request), 409, 'edition_unavailable');
+              check($read() === null, 'An expired snapshot must not create an Edition.');
+              $state['cache'][$key]['expiresAt'] = 1100;
+              $budget->raw = json_encode($state, JSON_THROW_ON_ERROR);
+
+              $public = $make(true, true, 'malformed-and-ignored');
+              $card = $public->prepare($other, $otherBoard['id'], $request);
+              $mediaId = $read()['id'] ?? null;
+              check($mediaId !== null && $card === $identity + ['title' => 'Synthetic Edition', 'artworkImage' => null],
+                  'Public preparation must resolve the exact trusted Edition.');
+              $budget->now = 1110;
+              check($public->prepare($other, $otherBoard['id'], $request) === $card, 'Public access must reuse a trusted persisted Edition.');
+              $tester = $make(true, false, $owner->id);
+              check($tester->prepare($owner, $id, $request) === $card, 'An allowlisted tester must reuse the exact persisted Edition.');
+              reject(static fn () => $tester->prepare($other, $otherBoard['id'], $request), 403, 'forbidden');
+              $disabled = $make(false, false, $owner->id);
+              reject(static fn () => $disabled->prepare($owner, $id, $request), 404, 'not_found');
+              check($http->calls === 0 && $boards->get($owner, $id) === $board && $boards->get($other, $otherBoard['id']) === $otherBoard,
+                  'The mode checks must leave both boards intact and make zero upstream requests.');
+              echo "Open Library disabled, tester-only and public preparation passed. Work ID rejected, expired snapshot rejected, renewed exact Edition prepared and persisted Edition reused. Zero upstream requests.\n";
+
+              $window = intdiv(time(), 60) * 60;
+              $limits = new RateLimitMiddleware(new RateLimiter($database, require 'backend/config/rate_limits.php',
+                  str_repeat('quota-fixture-', 4), static fn (): int => $window + 10));
+              $admit = $limits->user($policy, static fn (): JsonResponse => JsonResponse::data([]));
+              for ($attempt = 1; $attempt <= 20; $attempt++) {
+                  check($admit($owner)->status === 200, 'Expected twenty admitted preparation attempts.');
+              }
+              $blocked = $admit($owner);
+              $headers = (new ReflectionProperty(JsonResponse::class, 'headers'))->getValue($blocked);
+              check($blocked->status === 429 && json_decode($blocked->body(), true)['error']['code'] === 'rate_limited'
+                  && $headers['Retry-After'] === '50' && $admit($other)->status === 200, 'Preparation quota must isolate accounts and send the remaining window.');
+              echo "MariaDB admitted 20 preparation attempts, rejected attempt 21 with 429 and Retry-After: 50, and admitted another account.\n";
+          } finally {
+              $deleteUser = $db->prepare('DELETE FROM users WHERE id = ?');
+              foreach ($users as $user) $deleteUser->execute([$user]);
+              if ($mediaId !== null) $db->prepare('DELETE FROM media WHERE id = ?')->execute([$mediaId]);
+              $db->prepare('DELETE FROM rate_limit_counters WHERE policy = ?')->execute([$policy]);
+          }
+          PHP
+
+      - name: Run frontend unit tests and build
+        env:
+          NODE_DISABLE_COMPILE_CACHE: '1'
+        run: |
+          set -euo pipefail
+          TMPDIR="$TIER_LISTS_CI_DIR/node" npm test | tee "$RUNNER_TEMP/tier-lists-frontend.log"
+          grep -Eq ' skipped 0$' "$RUNNER_TEMP/tier-lists-frontend.log"
+          npm run build
+
+      - name: Verify disabled frontend build and enabled Tier Lists bundle
+        run: |
+          set -euo pipefail
+          test -z "$(find dist/assets -maxdepth 1 -name 'TierListsView-*' -print -quit)"
+          test -z "$(find dist/assets -maxdepth 1 -name 'TierListPicker-*' -print -quit)"
+          VITE_TIER_LISTS_ENABLED=true npm run build -- --outDir "$RUNNER_TEMP/tier-lists-enabled-build"
+          test -n "$(find "$RUNNER_TEMP/tier-lists-enabled-build/assets" -maxdepth 1 -name 'TierListsView-*' -print -quit)"
+          echo "Default-off build excludes Tier Lists routes and chunks; enabled test build contains the editor."
+
+      - name: Run isolated headless Chromium integration and Open Library regression
+        run: |
+          set -euo pipefail
+          npx playwright install --with-deps --only-shell chromium
+          MYFUNLIST_UI_TEST_TIER_LISTS=true npm run test:ui -- tests/ui/tierListsIntegration.spec.js --global-timeout=600000 | tee "$RUNNER_TEMP/tier-lists-enabled-playwright.log"
+          grep -Eq '17 passed' "$RUNNER_TEMP/tier-lists-enabled-playwright.log"
+          MYFUNLIST_UI_TEST_TIER_LISTS=false npm run test:ui -- tests/ui/tierListsIntegration.spec.js tests/ui/tierListPrototype.spec.js tests/ui/openLibrary.spec.js tests/ui/openLibraryLibrary.spec.js --global-timeout=600000 | tee "$RUNNER_TEMP/tier-lists-disabled-playwright.log"
+          grep -Eq '31 passed' "$RUNNER_TEMP/tier-lists-disabled-playwright.log"
+          echo "Headless integration and default-off regressions completed using synthetic data only."
+
+      - name: Verify fixture cleanup and final diff
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          require 'backend/config/environment.php';
+          $db = (new MyFunList\Infrastructure\Database())->connect();
+          foreach (['users', 'media', 'user_media', 'lists', 'list_items', 'tier_lists', 'tier_list_tiers', 'tier_list_items'] as $table) {
+              if ((int) $db->query("SELECT COUNT(*) FROM $table")->fetchColumn() !== 0) {
+                  throw new RuntimeException("Unexpected fixture rows in $table.");
+              }
+          }
+          if ((int) $db->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() !== 6
+              || $db->query('SHOW TRIGGERS')->fetch() !== false) {
+              throw new RuntimeException('Unexpected migration or trigger state.');
+          }
+          echo "No account, catalogue, Library, Custom List or Tier List fixture rows remain. Six migrations and no triggers remain.\n";
+          PHP
+          test -z "$(find "$TIER_LISTS_CI_DIR/node" -mindepth 1 -print -quit)"
+          for dir in "$TIER_LISTS_CI_DIR/php" "$TIER_LISTS_CI_DIR/sessions"; do
+            test -z "$(find "$dir" -mindepth 1 ! -name 'sess_*' -print -quit)"
+            find "$dir" -maxdepth 1 -type f -name 'sess_*' -delete
+            rmdir "$dir"
+          done
+          rm -- "$RUNNER_TEMP/tier-lists-frontend.log" "$RUNNER_TEMP/tier-lists-enabled-playwright.log" "$RUNNER_TEMP/tier-lists-disabled-playwright.log"
+          rmdir "$TIER_LISTS_CI_DIR/node" "$TIER_LISTS_CI_DIR"
+          git diff --check
+          test -z "$(git status --porcelain=v1)"
+          echo "Synthetic sessions and test scratch files cleaned. Working tree is clean."
