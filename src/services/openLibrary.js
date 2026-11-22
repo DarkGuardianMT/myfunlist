@@ -86,7 +86,7 @@ export function validateOpenLibraryResponse(data) {
   return data
 }
 
-export async function searchOpenLibrary(query, options = {}, { refresh = false } = {}) {
+export async function searchOpenLibrary(query, options = {}, { refresh = false, reuse = true, isCurrent } = {}) {
   const activeCooldown = getOpenLibraryCooldown()
   if (activeCooldown) throw activeCooldown.error
   const normalized = normalizeOpenLibraryOptions(options)
@@ -96,16 +96,16 @@ export async function searchOpenLibrary(query, options = {}, { refresh = false }
     throw new ApiError('Enter a valid search or ISBN checksum.', 422, 'validation_error')
   }
   const key = getOpenLibrarySearchKey(q, normalized)
-  if (pending.has(key)) return pending.get(key)
-  const cached = cache.get(key)
+  if (reuse && pending.has(key)) return pending.get(key)
+  const cached = reuse && cache.get(key)
   if (!refresh && cached && cached.expiresAt > Date.now()) {
     cache.delete(key)
     cache.set(key, cached)
     return cached.data
   }
-  cache.delete(key)
+  if (reuse) cache.delete(key)
   const version = generation
-  const promise = request(`/api/v1/pilot/open-library/search?${key}`, { timeoutMs: 11000, handleUnauthorized: false })
+  const promise = request(`/api/v1/pilot/open-library/search?${key}`, { timeoutMs: 11000, handleUnauthorized: false, isCurrent })
     .then(validateOpenLibraryResponse).then((data) => {
       const code = { en: 'eng', nl: 'dut', tr: 'tur' }[normalized.language]
       if (data.items.some(item => normalized.languageMode === 'strict' &&
@@ -113,21 +113,21 @@ export async function searchOpenLibrary(query, options = {}, { refresh = false }
         normalized.field === 'isbn' && !item.selectedEdition?.isbns.includes(q))) {
         throw new ApiError('Invalid edition selection.', 502, 'invalid_response')
       }
-      if (version === generation && pending.get(key) === promise) {
+      if (reuse && version === generation && pending.get(key) === promise) {
         for (const [key, entry] of cache) if (entry.expiresAt <= Date.now()) cache.delete(key)
         cache.set(key, { data, expiresAt: Date.now() + 300000 })
         while (cache.size > 20) cache.delete(cache.keys().next().value)
       }
       return data
     }).catch(error => {
-      if (version === generation && [429, 503].includes(error.status)) {
+      if (version === generation && (!isCurrent || isCurrent()) && [429, 503].includes(error.status)) {
         const seconds = Math.max(error.code === 'provider_busy' ? 2 : 60, error.retryAfter || 0)
         const retryAt = Date.now() + seconds * 1000
         if (!cooldown || retryAt > cooldown.retryAt) cooldown = { retryAt, error }
       }
       throw error
     }).finally(() => { if (pending.get(key) === promise) pending.delete(key) })
-  pending.set(key, promise)
+  if (reuse) pending.set(key, promise)
   return promise
 }
 

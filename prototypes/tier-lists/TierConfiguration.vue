@@ -3,14 +3,14 @@ import { nextTick, ref } from 'vue'
 import { addTier, MAX_TIERS, PALETTE, removeTier, renameTier, shiftTier } from './board.js'
 import TierDialog from './TierDialog.vue'
 
-const props = defineProps({ board: Object })
+const props = defineProps({ board: Object, savedKeys: Set, nameLimit: { type: Number, default: 32 } })
 const emit = defineEmits(['close', 'announce'])
 const removal = ref(null)
 let sequence = 0
 
 function add() {
   let id
-  do { id = `new-tier-${++sequence}` } while (props.board.tiers.some(tier => tier.id === id))
+  do { id = `new-tier-${++sequence}` } while (props.savedKeys?.has(id) || props.board.tiers.some(tier => tier.id === id))
   if (addTier(props.board, id)) nextTick(() => document.getElementById(`name-${id}`)?.focus())
 }
 
@@ -56,7 +56,7 @@ function cancelRemoval() {
     <fieldset class="tier-config-list" :disabled="Boolean(removal)" aria-label="Editable tiers">
       <div v-for="(tier, index) in board.tiers" :key="tier.id" class="tier-config-row" :data-color="tier.color">
         <label>Tier name
-          <input :id="`name-${tier.id}`" :value="tier.name" maxlength="32" @input="renameTier(board, tier.id, $event.target.value)" />
+          <input :id="`name-${tier.id}`" :value="tier.name" :maxlength="nameLimit" @input="renameTier(board, tier.id, $event.target.value)" />
         </label>
         <div>
           <label :for="`color-${tier.id}`">Color</label>
@@ -78,7 +78,7 @@ function cancelRemoval() {
       </div>
       <button id="add-tier" class="tl-button" type="button" :disabled="board.tiers.length >= MAX_TIERS" @click="add">Add tier</button>
     </fieldset>
-    <p v-if="board.tiers.length === MAX_TIERS" class="tier-picker-message">This preview supports up to {{ MAX_TIERS }} ranked tiers.</p>
+    <p v-if="board.tiers.length === MAX_TIERS" class="tier-picker-message">A board supports up to {{ MAX_TIERS }} ranked tiers.</p>
     <template #footer>
       <button class="tl-button tl-primary" type="button" @click="emit('close')">Done</button>
     </template>

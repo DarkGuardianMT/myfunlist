@@ -8,7 +8,9 @@ const router = useRouter()
 const route = useRoute()
 const { currentUser, isAuthLoading, logout } = useAuth()
 const { theme, toggleTheme } = useTheme()
+const tierListsEnabled = import.meta.env?.VITE_TIER_LISTS_ENABLED === 'true'
 const listsActive = computed(() => route.path === '/lists' || route.path.startsWith('/lists/'))
+const tierListsActive = computed(() => route.path === '/tier-lists' || route.path.startsWith('/tier-lists/'))
 const logoutError = ref('')
 const isLoggingOut = ref(false)
 const desktopMenu = ref(null)
@@ -67,6 +69,8 @@ async function handleLogout() {
         <RouterLink to="/discover">Discover</RouterLink>
         <RouterLink to="/library">Library</RouterLink>
         <RouterLink to="/lists" :class="{ 'nav-section-active': listsActive }">Lists</RouterLink>
+        <RouterLink v-if="tierListsEnabled" to="/tier-lists" :class="{ 'nav-section-active': tierListsActive }"
+          :aria-current="tierListsActive ? 'page' : undefined">Tier Lists</RouterLink>
         <RouterLink to="/profile">Profile</RouterLink>
         <button type="button" class="theme-toggle" :aria-label="`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`"
           :aria-pressed="theme === 'dark'" @click="toggleTheme">
@@ -119,7 +123,12 @@ async function handleLogout() {
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h1M3 12h1M3 18h1" /></svg>
       <span>Lists</span>
     </RouterLink>
-    <RouterLink :to="currentUser ? '/profile' : '/login'">
+    <RouterLink v-if="tierListsEnabled" to="/tier-lists" :class="{ 'mobile-nav-active': tierListsActive }"
+      :aria-current="tierListsActive ? 'page' : undefined">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5h18v4H3zM3 10h13v4H3zM3 15h9v4H3z" /></svg>
+      <span>Tier Lists</span>
+    </RouterLink>
+    <RouterLink v-else :to="currentUser ? '/profile' : '/login'">
       <svg v-if="currentUser" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>
       <svg v-else viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3h8v18h-8M3 12h13m-5-5 5 5-5 5" /></svg>
       <span>{{ currentUser ? 'Profile' : 'Login' }}</span>

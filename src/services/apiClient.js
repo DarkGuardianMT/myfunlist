@@ -28,11 +28,11 @@ export function clearCsrfToken() {
   csrfPromise = null
 }
 
-export async function refreshCsrfToken() {
+export async function refreshCsrfToken(timeoutMs = 0) {
   if (!csrfPromise) {
     clearCsrfToken()
     const version = csrfVersion
-    csrfPromise = request('/api/v1/auth/csrf', { handleUnauthorized: false })
+    csrfPromise = request('/api/v1/auth/csrf', { handleUnauthorized: false, timeoutMs })
       .then((data) => {
         if (typeof data?.csrfToken !== 'string' || !data.csrfToken) {
           throw new ApiError('Invalid CSRF response.', 0, 'invalid_response')
@@ -46,12 +46,13 @@ export async function refreshCsrfToken() {
 }
 
 export async function request(path, options = {}) {
-  const { method = 'GET', body, handleUnauthorized = true, timeoutMs = 0, isCurrent } = options
+  const { method = 'GET', body, handleUnauthorized = true, timeoutMs = 0, isCurrent, idempotencyKey } = options
   const requestEpoch = authEpoch
   const headers = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (idempotencyKey !== undefined) headers['Idempotency-Key'] = idempotencyKey
   if (!['GET', 'HEAD'].includes(method)) {
-    headers['X-CSRF-Token'] = csrfToken || await refreshCsrfToken()
+    headers['X-CSRF-Token'] = csrfToken || await refreshCsrfToken(timeoutMs)
   }
   if (requestEpoch !== authEpoch) {
     throw new ApiError('Account changed during request.', 0, 'stale_request')

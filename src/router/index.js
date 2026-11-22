@@ -10,6 +10,7 @@ import RegisterView from '../views/RegisterView.vue'
 import MediaDetailView from '../views/MediaDetailView.vue'
 import { browsingScrollBehavior, rememberBrowsingPosition, rememberDetailOrigin } from './browsingContext.js'
 
+const tierListSection = { render: () => null }
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   scrollBehavior: browsingScrollBehavior,
@@ -20,6 +21,14 @@ const router = createRouter({
     { path: '/library', component: LibraryView },
     { path: '/lists', component: ListsView },
     { path: '/lists/:id', component: ListDetailView },
+    ...(import.meta.env && import.meta.env.VITE_TIER_LISTS_ENABLED === 'true' ? [{
+      path: '/tier-lists', component: () => import('../views/TierListsView.vue'),
+      children: [
+        { path: '', name: 'tier-lists', component: tierListSection },
+        { path: 'new', name: 'tier-lists-create', component: tierListSection },
+        { path: ':id', name: 'tier-lists-board', component: tierListSection },
+      ],
+    }] : []),
     { path: '/profile', component: ProfileView },
     { path: '/login', component: LoginView },
     { path: '/register', component: RegisterView },

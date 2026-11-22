@@ -217,7 +217,8 @@
 .tier-board { display: grid; gap: 0.55rem; }
 .tier-lane {
   display: grid;
-  grid-template-columns: 156px minmax(0, 1fr);
+  /* Houd langere rangnamen op woordgrenzen bij verschillende lettertypen. */
+  grid-template-columns: 184px minmax(0, 1fr);
   min-height: 92px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
