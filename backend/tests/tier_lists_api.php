@@ -17,6 +17,23 @@ namespace MyFunList\Http {
     }
 }
 
+namespace MyFunList\Provider {
+    final class CurlProviderHttpClient implements ProviderHttpClient
+    {
+        public static ?\Closure $fixture = null;
+        public static int $calls = 0;
+
+        public function get(string $url, array $headers = []): array
+        {
+            self::$calls++;
+            if (self::$fixture === null || \MyFunList\Infrastructure\Database::$connection?->inTransaction()) {
+                throw new \RuntimeException('Unexpected provider request or open transaction.');
+            }
+            return (self::$fixture)($url);
+        }
+    }
+}
+
 namespace MyFunList\Infrastructure {
     final class Database
     {
@@ -34,7 +51,10 @@ namespace MyFunList\Infrastructure {
         public array $tiers = [];
         public array $items = [];
         public array $media = [];
+        public array $preparationCounts = [];
         public bool $failItems = false;
+        public bool $failMediaRead = false;
+        public bool $raceMediaInsert = false;
         public int $lockedWrites = 0;
         private int $lastId = 0;
         private ?array $snapshot = null;
@@ -50,7 +70,7 @@ namespace MyFunList\Infrastructure {
 
         public function beginTransaction(): bool
         {
-            $this->snapshot = [$this->boards, $this->tiers, $this->items];
+            $this->snapshot = [$this->boards, $this->tiers, $this->items, $this->media];
             return true;
         }
 
@@ -67,14 +87,14 @@ namespace MyFunList\Infrastructure {
 
         public function rollBack(): bool
         {
-            [$this->boards, $this->tiers, $this->items] = $this->snapshot;
+            [$this->boards, $this->tiers, $this->items, $this->media] = $this->snapshot;
             $this->snapshot = null;
             return true;
         }
 
         public function prepare(string $query, array $options = []): \PDOStatement|false
         {
-            if (!str_starts_with($query, 'SELECT') && !$this->inTransaction()) {
+            if (!str_starts_with($query, 'SELECT') && !$this->inTransaction() && !str_contains($query, 'rate_limit_counters')) {
                 throw new \RuntimeException('Tier List writes must be transactional.');
             }
             return new TierListFixtureStatement($this, preg_replace('/\s+/', ' ', $query));
@@ -93,6 +113,37 @@ namespace MyFunList\Infrastructure {
                 $this->boards[$id] = ['id' => $id, 'user_id' => $owner, 'title' => $title, 'description' => $description,
                     'allowed_types' => $types, 'revision' => 1, 'creation_key' => $key, 'creation_hash' => $hash,
                     'created_at' => '2026-11-22 00:00:00.000000', 'updated_at' => '2026-11-22 00:00:00.000000'];
+            } elseif (str_starts_with($sql, 'SELECT allowed_types FROM tier_lists FORCE INDEX')) {
+                if ($this->inTransaction() !== str_ends_with($sql, ' LOCK IN SHARE MODE')) {
+                    throw new \RuntimeException('Only the transactional ownership recheck may lock the board.');
+                }
+                $board = $this->boards[$params[1]] ?? null;
+                return $board !== null && $board['user_id'] === $params[0] ? [['allowed_types' => $board['allowed_types']]] : [];
+            } elseif (str_starts_with($sql, 'INSERT INTO rate_limit_counters ')) {
+                if ($params[0] !== 'tier_list_prepare_user') throw new \RuntimeException('Wrong preparation policy.');
+                $this->preparationCounts[$params[1]] = ($this->preparationCounts[$params[1]] ?? 0) + 1;
+            } elseif (str_starts_with($sql, 'SELECT request_count FROM rate_limit_counters ')) {
+                return [['request_count' => $this->preparationCounts[$params[1]]]];
+            } elseif (str_starts_with($sql, 'DELETE FROM rate_limit_counters ')) {
+                return [];
+            } elseif (str_starts_with($sql, 'INSERT INTO media ')) {
+                $id = (string) ++$this->lastId;
+                $row = ['id' => $id] + $params;
+                if ($this->raceMediaInsert) {
+                    // De winnaar komt uit een andere transactie en overleeft deze rollback.
+                    $row['title'] = 'Concurrent winner';
+                    $this->snapshot[3][$id] = $row;
+                    $error = new \PDOException('synthetic duplicate', 23000);
+                    $error->errorInfo = ['23000', 1062];
+                    throw $error;
+                }
+                $this->media[$id] = $row;
+            } elseif (str_contains($sql, 'FROM media WHERE id = :id')) {
+                if ($this->failMediaRead) throw new \RuntimeException('synthetic SQL failure after insert');
+                return isset($this->media[$params['id']]) ? [$this->media[$params['id']]] : [];
+            } elseif (str_contains($sql, 'FROM media WHERE source = :source AND media_type = :media_type AND source_id = :source_id')) {
+                return array_values(array_filter($this->media, static fn (array $row): bool =>
+                    $row['source'] === $params['source'] && $row['media_type'] === $params['media_type'] && $row['source_id'] === $params['source_id']));
             } elseif (str_contains($sql, 'FROM tier_lists FORCE INDEX') && str_contains($sql, ' WHERE user_id = ? AND id = ?')) {
                 if (!$this->inTransaction() || (!str_ends_with($sql, ' FOR UPDATE') && !str_ends_with($sql, ' LOCK IN SHARE MODE'))) {
                     throw new \RuntimeException('Board lookup must lock an owned row.');
@@ -201,6 +252,11 @@ namespace MyFunList\Infrastructure {
         {
             return $this->rows;
         }
+
+        public function fetchColumn(int $column = 0): mixed
+        {
+            return array_values($this->rows[0] ?? [])[$column] ?? false;
+        }
     }
 }
 
@@ -209,6 +265,8 @@ namespace {
     use MyFunList\Http\JsonResponse;
     use MyFunList\Infrastructure\Database;
     use MyFunList\Infrastructure\PhpSession;
+    use MyFunList\Provider\CurlProviderHttpClient;
+    use MyFunList\Provider\ProviderException;
 
     function check(bool $condition, string $message): void
     {
@@ -218,13 +276,15 @@ namespace {
         }
     }
 
-    function request(Application $app, string $method, string $path, array|string|null $body, int $status): array
+    function request(Application $app, string $method, string $path, array|string|null $body, int $status, bool $retry = false): array
     {
         $GLOBALS['tierListBody'] = is_string($body) ? $body : json_encode($body, JSON_THROW_ON_ERROR);
         $response = $app->handle($method, $path);
         check($response->status === $status, "Unexpected status for {$method} {$path}: {$response->status} {$response->body()}");
-        check((new ReflectionProperty(JsonResponse::class, 'headers'))->getValue($response)['Cache-Control'] === 'private, no-store',
+        $headers = (new ReflectionProperty(JsonResponse::class, 'headers'))->getValue($response);
+        check($headers['Cache-Control'] === 'private, no-store',
             'Every response in the Tier Lists namespace must be private and non-cacheable.');
+        if ($retry) check((int) ($headers['Retry-After'] ?? 0) > 0, 'Rate limiting or temporary provider failure must include Retry-After.');
         return $response->body() === '' ? [] : json_decode($response->body(), true, 512, JSON_THROW_ON_ERROR);
     }
 
@@ -236,7 +296,8 @@ namespace {
     unset($_SERVER['HTTPS'], $_SERVER['HTTP_X_CSRF_TOKEN'], $_SERVER['HTTP_IDEMPOTENCY_KEY'], $_SERVER['HTTP_COOKIE']);
     $_GET = [];
     $base = '/api/v1/tier-lists';
-    $routes = [['GET', $base], ['POST', $base], ['GET', "$base/1"], ['PUT', "$base/1"], ['DELETE', "$base/1"]];
+    $routes = [['GET', $base], ['POST', $base], ['GET', "$base/1"], ['PUT', "$base/1"], ['DELETE', "$base/1"],
+        ['POST', "$base/1/media/prepare"]];
     try {
         putenv('TIER_LISTS_ENABLED');
         unset($_ENV['TIER_LISTS_ENABLED'], $_SERVER['TIER_LISTS_ENABLED']);
@@ -346,7 +407,114 @@ namespace {
         request($app, 'GET', $path, null, 404);
         check(count($connection->media) === 3 && count($connection->boards) === 1 && $connection->lockedWrites > 0,
             'Deletion must preserve the catalogue and other accounts.');
-        echo "Tier Lists API checks passed ({$checks} assertions; no database or network I/O).\n";
+        $initialChecks = $checks;
+        $_ENV['TMDB_API_TOKEN'] = 'synthetic';
+        $_ENV['RAWG_API_KEY'] = 'synthetic';
+        $_ENV['GOOGLE_BOOKS_API_KEY'] = '';
+        $_ENV['OPEN_LIBRARY_PILOT_ENABLED'] = 'false';
+        $app = require dirname(__DIR__) . '/config/bootstrap.php';
+        unset($_SERVER['HTTP_IDEMPOTENCY_KEY']);
+        $owned = request($app, 'POST', $base, ['title' => 'Discover'], 201)['data'];
+        $preparedBoardId = $owned['id'];
+        $prepare = "$base/$preparedBoardId/media/prepare";
+        $narrow = request($app, 'POST', $base, ['title' => 'Books', 'allowedTypes' => ['book']], 201)['data'];
+        check(request($app, 'POST', "$base/{$foreign['id']}/media/prepare", '{broken', 404)
+            === request($app, 'POST', "$base/999/media/prepare", '{broken', 404), 'Missing and foreign prepare must be indistinguishable.');
+        request($app, 'POST', "$base/{$narrow['id']}/media/prepare", $movie, 422);
+        request($app, 'POST', $prepare, '{broken', 400);
+        request($app, 'POST', $prepare, str_repeat(' ', 1025), 413);
+        $edition = ['source' => 'open-library', 'mediaType' => 'book', 'sourceId' => 'OL202M'];
+        foreach ([$movie + ['title' => 'untrusted'], array_replace($movie, ['sourceId' => ' 1']),
+            array_replace($movie, ['mediaType' => 'book']), array_replace($edition, ['sourceId' => 'OL202W'])] as $invalid) {
+            request($app, 'POST', $prepare, $invalid, 422);
+        }
+        check(CurlProviderHttpClient::$calls === 0 && count($connection->media) === 3, 'Rejected requests must not resolve or insert media.');
+        $cached = request($app, 'POST', $prepare, $book, 200)['data'];
+        check($cached === $book + ['title' => 'Catalogue 103', 'artworkImage' => 'https://example.test/art']
+            && CurlProviderHttpClient::$calls === 0, 'Existing catalogue metadata must bypass the provider.');
+
+        CurlProviderHttpClient::$fixture = static function (string $url): array {
+            $path = parse_url($url, PHP_URL_PATH);
+            $id = basename($path);
+            return match (true) {
+                str_starts_with($path, '/books/') => ['id' => $id, 'volumeInfo' => ['title' => 'Google ' . $id]],
+                str_starts_with($path, '/3/movie/') => ['id' => (int) $id, 'title' => 'Movie ' . $id, 'poster_path' => '/fixture.jpg'],
+                str_starts_with($path, '/3/tv/') => ['id' => (int) $id, 'name' => 'TV ' . $id],
+                str_starts_with($path, '/api/games/') => ['id' => (int) $id, 'name' => 'Game ' . $id],
+                default => throw new RuntimeException('Unexpected provider route.'),
+            };
+        };
+        $fixture = CurlProviderHttpClient::$fixture;
+        $movie90 = array_replace($movie, ['sourceId' => '90']);
+        $mediaInputs = [$movie90, array_replace($tv, ['sourceId' => '90']),
+            ['source' => 'rawg', 'mediaType' => 'game', 'sourceId' => '90'],
+            array_replace($book, ['sourceId' => 'casesensitive'])];
+        $titles = ['Movie 90', 'TV 90', 'Game 90', 'Google casesensitive'];
+        foreach ($mediaInputs as $index => $input) {
+            $card = request($app, 'POST', $prepare, $input, 200)['data'];
+            check($card === $input + ['title' => $titles[$index], 'artworkImage' => $index === 0
+                ? 'https://image.tmdb.org/t/p/w342/fixture.jpg' : null], 'Prepared provider metadata must be normalized and exact.');
+        }
+        check(CurlProviderHttpClient::$calls === 4 && count($connection->media) === 7, 'Each missing identity must add exactly one shared row.');
+        $connection->preparationCounts = [];
+        $media91 = array_replace($movie, ['sourceId' => '91']);
+        foreach ([404 => [404, 'media_not_found'], 429 => [503, 'provider_unavailable'], 502 => [502, 'provider_error'],
+            500 => [503, 'provider_unavailable']] as $status => [$expected, $code]) {
+            CurlProviderHttpClient::$fixture = static fn () => throw new ProviderException($status, 'unsafe', 'SYNTHETIC_PRIVATE_ERROR');
+            $error = request($app, 'POST', $prepare, $media91, $expected, $expected === 503);
+            check($error['error']['code'] === $code && !str_contains(json_encode($error), 'SYNTHETIC_PRIVATE_ERROR'), 'Upstream errors must be opaque.');
+        }
+        $_ENV['TMDB_API_TOKEN'] = '';
+        $calls = CurlProviderHttpClient::$calls;
+        request($app, 'POST', $prepare, $media91, 503, true);
+        check(CurlProviderHttpClient::$calls === $calls, 'Missing credentials must stop before provider I/O.');
+        $_ENV['TMDB_API_TOKEN'] = 'synthetic';
+        CurlProviderHttpClient::$fixture = static fn (): array => ['id' => 999, 'title' => 'Wrong identity'];
+        request($app, 'POST', $prepare, $media91, 502);
+        CurlProviderHttpClient::$fixture = static function (string $url) use ($connection, $preparedBoardId, $fixture): array {
+            $connection->boards[$preparedBoardId]['allowed_types'] = 'book';
+            return $fixture($url);
+        };
+        request($app, 'POST', $prepare, $media91, 422);
+        $connection->boards[$preparedBoardId]['allowed_types'] = 'movie,tv,book,game';
+        CurlProviderHttpClient::$fixture = $fixture;
+        $connection->failMediaRead = true;
+        $error = request($app, 'POST', $prepare, $media91, 500);
+        check($error['error']['code'] === 'internal_error' && count($connection->media) === 7
+            && !$connection->inTransaction(), 'Storage failure after insert must roll back and return a safe error.');
+        $connection->failMediaRead = false;
+        $connection->raceMediaInsert = true;
+        $raced = request($app, 'POST', $prepare, $media91, 200)['data'];
+        $connection->raceMediaInsert = false;
+        check($raced['title'] === 'Concurrent winner' && count($connection->media) === 8
+            && request($app, 'POST', $prepare, $media91, 200)['data'] === $raced, 'A racing insert must return the committed winner.');
+
+        $connection->media['201'] = ['id' => '201', 'source' => 'open-library', 'media_type' => 'book', 'source_id' => 'OL202M',
+            'title' => 'Exact Edition', 'metadata' => '{"workId":"OL101W","metadataSource":"open-library-search"}'];
+        request($app, 'POST', $prepare, $edition, 404);
+        $_ENV['OPEN_LIBRARY_PILOT_ENABLED'] = 'true';
+        $_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] = 'false';
+        $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = '20';
+        $app = require dirname(__DIR__) . '/config/bootstrap.php';
+        request($app, 'POST', $prepare, $edition, 403);
+        $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] = '10';
+        $calls = CurlProviderHttpClient::$calls;
+        $card = request($app, 'POST', $prepare, $edition, 200)['data'];
+        check($card === $edition + ['title' => 'Exact Edition', 'artworkImage' => null]
+            && CurlProviderHttpClient::$calls === $calls, 'A permitted trusted Edition must be reused without provider traffic.');
+        $connection->preparationCounts = [];
+        for ($attempt = 1; $attempt <= 20; $attempt++) {
+            request($app, 'POST', $prepare, $movie90, 200);
+        }
+        check(request($app, 'POST', $prepare, $media91, 429, true)['error']['code'] === 'rate_limited'
+            && CurlProviderHttpClient::$calls === $calls, 'The twentieth request is admitted and the next is blocked before resolution.');
+        $_SESSION['user_id'] = '20';
+        request($app, 'POST', "$base/{$foreign['id']}/media/prepare", $movie90, 200);
+        $_SESSION['user_id'] = '10';
+        check(request($app, 'GET', "$base/$preparedBoardId", null, 200)['data'] === $owned,
+            'Preparation must leave all board fields, lanes, memberships and revision untouched.');
+        echo "Tier Lists API checks passed ({$initialChecks} assertions; no database or network I/O).\n";
+        echo 'Tier Lists preparation API checks passed (', $checks - $initialChecks, " assertions; no database or network I/O).\n";
     } finally {
         if (session_status() === PHP_SESSION_ACTIVE) {
             $_SESSION = [];

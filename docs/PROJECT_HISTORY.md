@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Tier Lists Discover catalogue preparation — 22 November 2026
+
+The Phase 4 review starts from `cd00eb4d29a36b2c84ff16aa4e0ca396a1791d63` after PR #18. The board-scoped preparation endpoint reuses trusted catalogue data or resolves new media with the existing providers. It rechecks ownership and allowed types before a catalogue write and keeps board Save explicit. Open Library remains exact-Edition, trusted-cache-only and subject to the existing pilot access rules. The feature remains disabled. [Preparation contract and rollout](TIER_LISTS_DESIGN.md#phase-4-discover-catalogue-preparation) · [Successful staging baseline](https://github.com/DarkGuardianMT/myfunlist/actions/runs/45037940721)
+
 ## Tier Lists backend review candidate — 22 November 2026
 
 The approved prototype moved to a backend-only review branch from `ee32a71524a2d161d45d9847d6ee051074a8403f`. Migration 006 adds owned boards, ranked and Unranked lanes, and independent catalogue membership. The authenticated API supports atomic revision-checked saves and stays disabled until deliberate migration and activation. See the [Tier Lists contract and verification](TIER_LISTS_DESIGN.md#phase-3-backend-review-candidate).
