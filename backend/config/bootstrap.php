@@ -16,6 +16,7 @@ use MyFunList\Http\Controllers\ListController;
 use MyFunList\Http\Controllers\MediaController;
 use MyFunList\Http\Controllers\OpenLibraryController;
 use MyFunList\Http\Controllers\ProfileController;
+use MyFunList\Http\Controllers\TierListController;
 use MyFunList\Http\JsonResponse;
 use MyFunList\Http\Middleware\AuthMiddleware;
 use MyFunList\Http\Middleware\RateLimitMiddleware;
@@ -33,6 +34,8 @@ use MyFunList\Infrastructure\PhpSession;
 use MyFunList\Infrastructure\SessionCurrentUserProvider;
 use MyFunList\Infrastructure\UserRepository;
 use MyFunList\RateLimit\RateLimiter;
+use MyFunList\TierLists\TierListDraft;
+use MyFunList\TierLists\TierListService;
 
 require __DIR__ . '/environment.php';
 
@@ -134,4 +137,17 @@ $router->add('DELETE', '/api/v1/lists/{listId}/items/{entryId}', $middleware->re
     $middleware->csrf([$lists, 'removeItem']),
 ));
 
-return new Application($router);
+$tierListsPath = '/api/v1/tier-lists';
+$tierListsEnabled = ($_ENV['TIER_LISTS_ENABLED'] ?? $_SERVER['TIER_LISTS_ENABLED'] ?? getenv('TIER_LISTS_ENABLED')) === 'true';
+if ($tierListsEnabled) {
+    $tierLists = new TierListController(new TierListService($database));
+    $details = $tierListsPath . '/{id}';
+    $id = ['id' => TierListDraft::validId(...)];
+    $router->add('GET', $tierListsPath, $middleware->requireUser([$tierLists, 'all']));
+    $router->add('POST', $tierListsPath, $middleware->requireUser($middleware->csrf([$tierLists, 'create'])));
+    $router->add('GET', $details, $middleware->requireUser([$tierLists, 'show']), $id);
+    $router->add('PUT', $details, $middleware->requireUser($middleware->csrf([$tierLists, 'save'])), $id);
+    $router->add('DELETE', $details, $middleware->requireUser($middleware->csrf([$tierLists, 'delete'])), $id);
+}
+
+return new Application($router, [$tierListsPath]);
