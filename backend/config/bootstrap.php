@@ -27,6 +27,7 @@ use MyFunList\Lists\ListService;
 use MyFunList\Provider\CurlProviderHttpClient;
 use MyFunList\Provider\ProviderMediaResolver;
 use MyFunList\Provider\OpenLibraryPilot;
+use MyFunList\Provider\OpenLibraryAccess;
 use MyFunList\Provider\OpenLibraryMediaResolver;
 use MyFunList\Infrastructure\MediaRepository;
 use MyFunList\Infrastructure\Database;
@@ -35,6 +36,7 @@ use MyFunList\Infrastructure\SessionCurrentUserProvider;
 use MyFunList\Infrastructure\UserRepository;
 use MyFunList\RateLimit\RateLimiter;
 use MyFunList\TierLists\TierListDraft;
+use MyFunList\TierLists\TierListMediaPreparation;
 use MyFunList\TierLists\TierListService;
 
 require __DIR__ . '/environment.php';
@@ -60,14 +62,9 @@ $lists = new ListController(new ListService($database));
 $discover = new DiscoverController($providers);
 $media = new MediaController($providers);
 $openLibrary = new OpenLibraryController($pilot);
-$openLibraryEnabled = ($_ENV['OPEN_LIBRARY_PILOT_ENABLED'] ?? $_SERVER['OPEN_LIBRARY_PILOT_ENABLED'] ?? getenv('OPEN_LIBRARY_PILOT_ENABLED')) === 'true';
-$openLibraryPublic = ($_ENV['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] ?? $_SERVER['OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED'] ?? getenv('OPEN_LIBRARY_PUBLIC_ACCESS_ENABLED')) === 'true';
-$testerSearch = $middleware->requireUser(static function (AuthenticatedUser $identity) use ($openLibrary): JsonResponse {
-    $testers = $_ENV['OPEN_LIBRARY_TESTER_USER_IDS'] ?? $_SERVER['OPEN_LIBRARY_TESTER_USER_IDS'] ?? getenv('OPEN_LIBRARY_TESTER_USER_IDS');
-    // Alleen exacte account-ID's; ontbrekende of ongeldige configuratie weigert alle testers.
-    if (!is_string($testers) || strlen($testers) > 419
-        || preg_match('/^[1-9][0-9]{0,19}(?:,[1-9][0-9]{0,19}){0,19}$/D', $testers) !== 1
-        || !in_array($identity->id, explode(',', $testers), true)) {
+$openLibraryAccess = OpenLibraryAccess::fromEnvironment();
+$testerSearch = $middleware->requireUser(static function (AuthenticatedUser $identity) use ($openLibrary, $openLibraryAccess): JsonResponse {
+    if (!$openLibraryAccess->isTester($identity->id)) {
         return JsonResponse::error(403, 'forbidden', 'Open Library pilot access is restricted.', ['Cache-Control' => 'no-store']);
     }
     return $openLibrary->search($_GET);
@@ -76,7 +73,7 @@ $testerSearch = $middleware->requireUser(static function (AuthenticatedUser $ide
 $router->add('GET', '/api/v1/health', new HealthController($database));
 $router->add('GET', '/api/v1/pilot/open-library/search',
     // De uitgeschakelde pilot stopt in de controller; publieke reads starten geen sessie.
-    static fn (): JsonResponse => !$openLibraryEnabled || $openLibraryPublic ? $openLibrary->search($_GET) : $testerSearch());
+    static fn (): JsonResponse => !$openLibraryAccess->enabled || $openLibraryAccess->public ? $openLibrary->search($_GET) : $testerSearch());
 foreach (['movie', 'tv', 'game'] as $mediaType) {
     $router->add('GET', '/api/v1/discover/' . $mediaType,
         $limits->ip('discover_ip', static fn (): JsonResponse => $discover->search($mediaType, $_GET)));
@@ -140,7 +137,7 @@ $router->add('DELETE', '/api/v1/lists/{listId}/items/{entryId}', $middleware->re
 $tierListsPath = '/api/v1/tier-lists';
 $tierListsEnabled = ($_ENV['TIER_LISTS_ENABLED'] ?? $_SERVER['TIER_LISTS_ENABLED'] ?? getenv('TIER_LISTS_ENABLED')) === 'true';
 if ($tierListsEnabled) {
-    $tierLists = new TierListController(new TierListService($database));
+    $tierLists = new TierListController(new TierListService($database), new TierListMediaPreparation($database, $providers, $openLibraryAccess));
     $details = $tierListsPath . '/{id}';
     $id = ['id' => TierListDraft::validId(...)];
     $router->add('GET', $tierListsPath, $middleware->requireUser([$tierLists, 'all']));
@@ -148,6 +145,9 @@ if ($tierListsEnabled) {
     $router->add('GET', $details, $middleware->requireUser([$tierLists, 'show']), $id);
     $router->add('PUT', $details, $middleware->requireUser($middleware->csrf([$tierLists, 'save'])), $id);
     $router->add('DELETE', $details, $middleware->requireUser($middleware->csrf([$tierLists, 'delete'])), $id);
+    $router->add('POST', $details . '/media/prepare', $middleware->requireUser(
+        $middleware->csrf($limits->user('tier_list_prepare_user', [$tierLists, 'prepare'])),
+    ), $id);
 }
 
 return new Application($router, [$tierListsPath]);

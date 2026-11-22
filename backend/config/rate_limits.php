@@ -9,5 +9,6 @@ return [
     'discover_ip' => ['limit' => 60, 'window' => 60],
     'media_detail_ip' => ['limit' => 30, 'window' => 60],
     'import_user' => ['limit' => 120, 'window' => 3600],
+    'tier_list_prepare_user' => ['limit' => 20, 'window' => 60],
     'password_user' => ['limit' => 10, 'window' => 900],
 ];

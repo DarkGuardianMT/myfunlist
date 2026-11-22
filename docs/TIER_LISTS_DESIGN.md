@@ -21,7 +21,7 @@ The layout follows the [Cinematic design system](UI_DESIGN_SYSTEM.md) in Light a
 
 ## Phase 3 backend review candidate
 
-The branch introduces authenticated persistence for media already in the shared catalogue. The prototype remains a separate development entry. The production UI and Discover preparation are future work.
+Phase 3 introduced authenticated persistence for media already in the shared catalogue. The prototype remains a separate development entry.
 
 ### Schema and ownership
 
@@ -77,7 +77,7 @@ POST accepts an optional `Idempotency-Key` header of 1–128 ASCII letters, digi
 
 `TIER_LISTS_ENABLED` is a private PHP-side setting and defaults to disabled. Only the exact value `true` registers the routes. While disabled, the namespace returns a controlled `404 not_found` without starting a session, opening a database connection or accessing Tier Lists tables. The usual deployment can deliver the code with the setting disabled. Before any separately approved enablement, follow the backup and manual migration procedure, verify migration 006 and its three tables on the intended database, then verify that the PHP workers see the private setting. Disable the setting first for a rollback. [Test safeguards](DEVELOPMENT.md#database-and-http-tests) · [Backup and migration procedure](DEPLOYMENT.md#database-backup-and-rollback)
 
-The backend reads existing catalogue records and makes no provider calls during board operations. Discover preparation will need decisions on catalogue visibility before Save, rate limits, failure recovery and attribution. Open Library must retain the exact-Edition and trusted-cache rules and make zero extra upstream calls during preparation. The UI still needs API integration, account-switch draft invalidation, revision conflict handling and separate acceptance on physical touch devices and screen readers before navigation is enabled. [Open Library Edition contracts](OPEN_LIBRARY_LIBRARY_INTEGRATION.md) · [Discovery access and rollout](OPEN_LIBRARY_PUBLIC_ACCESS.md)
+Board list, detail and Save use existing catalogue records without provider calls. [Phase 4 preparation](#phase-4-discover-catalogue-preparation) adds a separate endpoint for an explicit Discover selection.
 
 ### Backend verification
 
@@ -85,6 +85,34 @@ The backend reads existing catalogue records and makes no provider calls during 
 - Full `composer test` passed from a clean snapshot without private provider settings, using disposable loopback MariaDB 10.4.32, `APP_ENV=testing` and `DB_DATABASE=myfunlist_test`. The initial run in the configured checkout stopped at a Library HTTP assertion. The clean rerun passed it. The 17 Tier Lists database assertions cover owner isolation, constraints, one winner for concurrent saves at the same revision, 100 ordered items, Library independence and cascades. Run the focused suite with `composer --working-dir=backend run test:tier-lists-mysql` after confirming the database safeguards. MySQL 8 was outside this test run.
 - A separate 005-to-006 rehearsal preserved all seven preexisting data tables, including seeded Library and Custom List rows. All five Tier Lists routes returned 404 before migration with the feature disabled. The second migration run skipped the applied version.
 - Windows `npm test` passed 417 tests with 13 existing Linux-only skips, and `npm run build` passed. There was no staging migration, enablement or live-browser validation for this branch.
+
+## Phase 4 Discover catalogue preparation
+
+`POST /api/v1/tier-lists/{id}/media/prepare` requires a session and `X-CSRF-Token`. Send an `application/json` object of at most 1 KiB with exactly `source`, `mediaType` and the case-sensitive `sourceId`. For example, `{"source":"tmdb","mediaType":"movie","sourceId":"123"}`. Successful new, reused and concurrent preparations all return `200` with `data` containing the same canonical identity, catalogue `title`, and nullable HTTPS `artworkImage`. Responses, including errors, use `Cache-Control: private, no-store`.
+
+The server checks the owning account and the board's allowed types before catalogue or provider access. It reuses matching records and resolves missing TMDb movies and TV, RAWG games, and Google Books through the existing authoritative metadata resolvers. The short write transaction starts after resolution. It rechecks the board under a shared lock and the exact identity before inserting. A duplicate-key loser rolls back and reads the winner's committed record. Concurrent catalogue misses can each resolve metadata before either one commits. The endpoint stores at most one row per canonical identity, and TMDb movie and TV identities stay distinct.
+
+Open Library preparation requires the existing enabled pilot and public or allowlisted tester access. A trusted persisted Edition can be reused without IP admission or an upstream request. A missing Edition uses the existing shared-budget readiness checks, IP admission and fresh, consistent trusted search snapshot. The exact `OL…M` Edition ID is required. A Work ID, ISBN or title cannot substitute for it. Expired or unusable snapshots return `409 edition_unavailable` without creating a record. The user should rerun the original search and explicitly inspect and select the Edition again. [Open Library Edition contracts](OPEN_LIBRARY_LIBRARY_INTEGRATION.md) · [Discovery access and rollout](OPEN_LIBRARY_PUBLIC_ACCESS.md)
+
+The dedicated durable account policy admits 20 preparation requests per 60-second fixed window across the user's boards. Every authenticated, CSRF-valid attempt counts, including catalogue hits. This initial limit gives manual selection room for a burst while bounding provider calls and catalogue writes. The existing limiter sends `429 rate_limited` with `Retry-After` when exhausted and fails closed if its storage is unavailable. Open Library retains its separate admission controls. Existing Library, Discover and Open Library policies retain their current limits.
+
+| Response | Meaning |
+| --- | --- |
+| `400 invalid_json` / `invalid_request` and `413 request_too_large` | Invalid JSON or content type, or a body over 1 KiB. |
+| `401 unauthenticated` and `403 invalid_csrf` | Session or write token required. |
+| `404 not_found` | The Tier Lists route is disabled, or the Open Library pilot is disabled for an Edition request. |
+| `403 forbidden` | The Open Library pilot is restricted to testers and the current account is ineligible. |
+| `404 tier_list_not_found` | The board is missing or belongs to another account. |
+| `422 validation_error` | Unexpected fields, unsupported or invalid identity, or media type outside the board's allowed set. |
+| `404 media_not_found` | The provider could not find the exact media. |
+| `502 provider_error` | Invalid normalized provider data. |
+| `503 provider_unavailable` / `provider_busy` | Missing credentials, temporary provider or trusted-cache unavailability, or contention. These responses carry retry guidance. Database and rate-limit storage errors use the service's generic errors. |
+
+Successful preparation can create a shared catalogue record immediately, even if the user discards the draft. Existing catalogue-backed public detail can show that media, including Open Library's persisted Edition detail. It exposes no association with an account, board, draft or membership. Preparation creates neither Library nor Custom List membership and leaves the board, its placements and its revision unchanged. Only the aggregate PUT persists draft membership.
+
+The next phase connects the approved editor to preparation and aggregate Save. An explicit successful selection enters the local Unranked lane. The UI needs account-switch and late-response guards, expiry and retry feedback, and revision-conflict recovery. Physical touch and screen-reader acceptance, public board quotas and write budgets, and MySQL 8 compatibility testing for MySQL-backed hosts remain rollout work. The existing private Tier Lists gate stays off until separately approved migration and activation.
+
+Phase 4 verification passed 126 isolated preparation API assertions and 12 database preparation assertions, plus the existing API and provider suites and full `composer test`. The guarded loopback MariaDB 10.4.32 run used `APP_ENV=testing` and `DB_DATABASE=myfunlist_test`. Two synchronized processes returned the same committed catalogue record. A forced failure after insertion rolled the row back. The existing exact-Edition resolver rejected an expired synthetic snapshot and completed fresh and persisted reuse with upstream HTTP forbidden by the test double. The Windows unit suite passed 417 tests with 13 existing Linux-only skips. The production build, Composer validation and PHP syntax checks passed.
 
 ## Retained QA
 

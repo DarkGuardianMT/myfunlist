@@ -6,6 +6,7 @@ namespace MyFunList\Infrastructure;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use MyFunList\TierLists\TierListMedia;
 use PDO;
 use PDOException;
 use UnexpectedValueException;
@@ -41,6 +42,13 @@ final class TierListRepository
         $row = $this->run('SELECT ' . self::BOARD . ' FROM tier_lists FORCE INDEX (uq_tier_lists_user_id)'
             . ' WHERE user_id = ? AND id = ?' . ($write ? ' FOR UPDATE' : ' LOCK IN SHARE MODE'), [$userId, $id])->fetch();
         return $row === false ? null : self::board($row);
+    }
+
+    public function allowedTypesForUser(string $userId, string $id, bool $lock = false): ?array
+    {
+        $row = $this->run('SELECT allowed_types FROM tier_lists FORCE INDEX (uq_tier_lists_user_id)'
+            . ' WHERE user_id = ? AND id = ?' . ($lock ? ' LOCK IN SHARE MODE' : ''), [$userId, $id])->fetchColumn();
+        return $row === false ? null : explode(',', $row);
     }
 
     public function insert(string $userId, array $settings, ?string $key, ?string $hash): ?string
@@ -81,7 +89,7 @@ SQL, [$id])->fetchAll();
             $key = $row['tier_key'];
             $lanes[$key] ??= ['key' => $key, 'name' => $row['name'], 'color' => $row['color'], 'items' => []];
             if ($row['source'] !== null) {
-                $lanes[$key]['items'][] = self::media($row);
+                $lanes[$key]['items'][] = TierListMedia::card($row, json_decode($row['metadata'], true, 512, JSON_THROW_ON_ERROR));
             }
         }
         return $lanes;
@@ -152,18 +160,5 @@ SQL, [$id])->fetchAll();
             throw new UnexpectedValueException('Stored Tier List timestamp is invalid.');
         }
         return $date->format('Y-m-d\TH:i:s.u\Z');
-    }
-
-    private static function media(array $row): array
-    {
-        $metadata = json_decode($row['metadata'], true, 512, JSON_THROW_ON_ERROR);
-        $image = $metadata['artworkImage'] ?? $metadata['posterImage'] ?? $metadata['coverImage'] ?? null;
-        $url = is_string($image) && filter_var($image, FILTER_VALIDATE_URL) !== false ? parse_url($image) : false;
-        return [
-            'source' => $row['source'], 'mediaType' => $row['media_type'], 'sourceId' => $row['source_id'],
-            'title' => $row['title'],
-            'artworkImage' => ($url['scheme'] ?? null) === 'https' && !empty($url['host'])
-                && !isset($url['user']) && !isset($url['pass']) ? $image : null,
-        ];
     }
 }

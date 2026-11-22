@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace MyFunList\TierLists;
 
-use MyFunList\Domain\MediaRules;
 use MyFunList\Http\ApiException;
 use stdClass;
 
@@ -177,15 +176,10 @@ final class TierListDraft
             if (!$item instanceof stdClass) {
                 throw self::invalid('items', 'Each item must contain only its catalogue identity.');
             }
-            self::only(get_object_vars($item), ['source', 'mediaType', 'sourceId'], 'items');
-            $source = $item->source ?? null;
-            $type = $item->mediaType ?? null;
-            $id = $item->sourceId ?? null;
-            if (!is_string($source) || !in_array($type, $types, true) || !is_string($id)
-                || !MediaRules::supports($source, $type) || !MediaRules::isValidSourceId($source, $id)) {
-                throw self::invalid('items', 'Use a supported catalogue identity and an allowed media type.');
+            $identity = TierListMedia::identity(get_object_vars($item));
+            if (!in_array($identity['mediaType'], $types, true)) {
+                throw self::invalid('items', 'Use an allowed media type.');
             }
-            $identity = ['source' => $source, 'mediaType' => $type, 'sourceId' => $id];
             $key = self::identityKey($identity);
             if (isset($seen[$key])) {
                 throw self::invalid('items', 'A media item can appear only once per board.');
