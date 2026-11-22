@@ -1,5 +1,9 @@
 # MyFunList project history
 
+## Tier Lists authenticated frontend review — 22 November 2026
+
+The frontend review starts from `fa88d109db5863353684f3e5d316aac1277c61da`, after PR #19. The approved Tier Lists editor uses the existing authenticated API for boards, explicit catalogue preparation, and revision-checked Save. The build excludes the editor while gated off. The historical fixture-driven prototype remains separate. [Integration contract and verification](TIER_LISTS_DESIGN.md#phase-5-authenticated-frontend-integration) · [Successful staging baseline](https://github.com/DarkGuardianMT/myfunlist/actions/runs/45045555309)
+
 ## Tier Lists Discover catalogue preparation — 22 November 2026
 
 The Phase 4 review starts from `cd00eb4d29a36b2c84ff16aa4e0ca396a1791d63` after PR #18. The board-scoped preparation endpoint reuses trusted catalogue data or resolves new media with the existing providers. It rechecks ownership and allowed types before a catalogue write and keeps board Save explicit. Open Library remains exact-Edition, trusted-cache-only and subject to the existing pilot access rules. The feature remains disabled. [Preparation contract and rollout](TIER_LISTS_DESIGN.md#phase-4-discover-catalogue-preparation) · [Successful staging baseline](https://github.com/DarkGuardianMT/myfunlist/actions/runs/45037940721)
