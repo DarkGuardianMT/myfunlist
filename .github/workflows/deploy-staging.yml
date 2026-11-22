@@ -42,6 +42,7 @@ jobs:
 
       - name: Build frontend
         env:
+          VITE_TIER_LISTS_ENABLED: 'true'
           VITE_GOOGLE_BOOKS_API_KEY: ${{ secrets.VITE_GOOGLE_BOOKS_API_KEY }}
         run: npm run build
 
