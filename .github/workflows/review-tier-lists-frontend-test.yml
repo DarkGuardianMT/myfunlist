@@ -303,6 +303,21 @@ jobs:
         run: |
           set -euo pipefail
           npx playwright install --with-deps --only-shell chromium
+          # Vergelijk de oorspronkelijke prototypeweergave op exact dezelfde Linux-runner.
+          baseline="$(mktemp -d "$RUNNER_TEMP/tier-lists-baseline.XXXXXX")"
+          git worktree add --detach "$baseline" fa88d109db5863353684f3e5d316aac1277c61da
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$baseline/node_modules"
+          set +e
+          (
+            cd "$baseline"
+            MYFUNLIST_UI_TEST_TIER_LISTS=false npm run test:ui -- tests/ui/tierListPrototype.spec.js --project=desktop --grep 'tier prototype visual review (1440|768)' --global-timeout=180000
+          ) > "$RUNNER_TEMP/tier-lists-baseline-comparison.log" 2>&1
+          baseline_status=$?
+          set -e
+          printf 'Original main prototype baseline exit status: %s\\n' "$baseline_status"
+          grep -E 'firstWordLines|[0-9]+ failed|[0-9]+ passed|A long tier name wraps' "$RUNNER_TEMP/tier-lists-baseline-comparison.log" | tail -30 || true
+          git worktree remove --force "$baseline"
+          rm -- "$RUNNER_TEMP/tier-lists-baseline-comparison.log"
           MYFUNLIST_UI_TEST_TIER_LISTS=true npm run test:ui -- tests/ui/tierListsIntegration.spec.js --global-timeout=600000 | tee "$RUNNER_TEMP/tier-lists-enabled-playwright.log"
           grep -Eq '17 passed' "$RUNNER_TEMP/tier-lists-enabled-playwright.log"
           MYFUNLIST_UI_TEST_TIER_LISTS=false npm run test:ui -- tests/ui/tierListsIntegration.spec.js tests/ui/tierListPrototype.spec.js tests/ui/openLibrary.spec.js tests/ui/openLibraryLibrary.spec.js --global-timeout=600000 | tee "$RUNNER_TEMP/tier-lists-disabled-playwright.log"
