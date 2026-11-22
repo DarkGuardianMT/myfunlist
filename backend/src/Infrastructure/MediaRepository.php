@@ -69,6 +69,28 @@ SQL);
         return $this->hydrate($statement->fetch());
     }
 
+    public function findIdsByIdentities(array $identities): array
+    {
+        if ($identities === []) {
+            return [];
+        }
+        $tuples = implode(', ', array_fill(0, count($identities), '(?, ?, ?)'));
+        $values = [];
+        foreach ($identities as $identity) {
+            array_push($values, $identity['source'], $identity['mediaType'], $identity['sourceId']);
+        }
+        $statement = $this->connection->prepare(
+            'SELECT id, source, media_type, source_id FROM media WHERE (source, media_type, source_id) IN (' . $tuples . ')',
+        );
+        $statement->execute($values);
+
+        $ids = [];
+        foreach ($statement->fetchAll() as $row) {
+            $ids[implode(':', [$row['source'], $row['media_type'], $row['source_id']])] = (string) $row['id'];
+        }
+        return $ids;
+    }
+
     private function hydrate(array|false $row): ?array
     {
         if ($row === false) {

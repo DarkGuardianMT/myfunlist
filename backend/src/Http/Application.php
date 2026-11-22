@@ -10,11 +10,23 @@ use Throwable;
 
 final class Application
 {
-    public function __construct(private readonly Router $router)
+    public function __construct(private readonly Router $router, private readonly array $privatePaths = [])
     {
     }
 
     public function handle(string $method, string $path): JsonResponse
+    {
+        $response = $this->dispatch($method, $path);
+        $normalized = '/' . trim($path, '/');
+        foreach ($this->privatePaths as $prefix) {
+            if ($normalized === $prefix || str_starts_with($normalized, $prefix . '/')) {
+                return $response->withHeaders(['Cache-Control' => 'private, no-store']);
+            }
+        }
+        return $response;
+    }
+
+    private function dispatch(string $method, string $path): JsonResponse
     {
         try {
             return $this->router->dispatch($method, $path);

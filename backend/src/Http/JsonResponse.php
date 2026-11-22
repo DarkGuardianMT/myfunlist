@@ -39,6 +39,11 @@ final class JsonResponse
         return new self(204, null);
     }
 
+    public function withHeaders(array $headers): self
+    {
+        return new self($this->status, $this->payload, array_replace($this->headers, $headers));
+    }
+
     public function body(): string
     {
         return $this->payload === null

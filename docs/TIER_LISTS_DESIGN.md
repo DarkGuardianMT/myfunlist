@@ -19,26 +19,72 @@ Run `npm run test:ui:server` and open the [local preview](http://127.0.0.1:4179/
 
 The layout follows the [Cinematic design system](UI_DESIGN_SYSTEM.md) in Light and Dark. Desktop and tablet use a distinct tinted tier rail with stronger accents, prominent short ranks and smaller type for names that need to wrap. Phones stack the heading above the cards, with two columns at 320px and three when space allows at 390px. The poster ratio stays consistent, and the sticky Save/status strip and fixed bottom navigation leave room to scroll to remaining actions. Pickers and tier settings use a full-screen dialog on phones. **Jump to tier** makes the long board navigable. The prototype tested 100 cards, including 82 in one tier, without adding virtualization.
 
-## Architecture for the next phase
+## Phase 3 backend review candidate
 
-The approved design describes the experience. The following persistence and API choices are recommendations for implementation review. Tier Lists currently have no real server API, storage, provider integration or production navigation.
+The branch introduces authenticated persistence for media already in the shared catalogue. The prototype remains a separate development entry. The production UI and Discover preparation are future work.
 
-### Ownership and storage
+### Schema and ownership
 
-- Use separate `tier_lists`, `tier_list_tiers` and `tier_list_items` tables for private boards, ordered tiers and ordered media membership. Link a board to its owner and an item to shared `media`. Existing Custom Lists refer to personal `user_media` entries, which ties them to Library removal. Tier Lists require a separate membership lifecycle. See the [shared catalogue and Library schema](../backend/database/migrations/001_create_core_schema.php) and [Custom Lists schema](../backend/database/migrations/003_create_custom_lists.php).
-- Give tiers stable board-scoped keys and a reserved Unranked key. Enforce same-board attachment with a composite foreign key and uniqueness with `(list_id, media_id)`. Store ordered positions and a board revision. Preserve ranked items when deleting a tier, delete board memberships on whole-board deletion, and keep shared catalogue records available to their other consumers.
-- Reuse the exact provider/type/source-ID identity and server-normalized catalogue fields for titles and artwork. Movie and TV identities stay distinct even when a provider reuses the numeric ID. Open Library selection uses the exact Edition ID `OL…M` and keeps Work identity `OL…W` separate. Deduplicate by canonical identity rather than title or ISBN. [Frontend identity rules](../src/domain/mediaIdentity.js) · [Server media rules](../backend/src/Domain/MediaRules.php)
+[Migration 006](../backend/database/migrations/006_create_tier_lists.php) adds three InnoDB tables through the existing manual migration runner.
 
-### API, Save and security decisions
-
-| Area | Proposed contract and remaining decision |
+| Table | Contract |
 | --- | --- |
-| API surface | Use owner-scoped list, create, detail, save and delete under `/api/v1/tier-lists`. Consider one aggregate `PUT` for a board draft and an idempotent creation key. Confirm the final JSON contract, limits, validation/error fields, and whether selection needs a separate preparation endpoint. |
-| Authentication and isolation | Reuse same-origin sessions and authenticated route middleware. Require CSRF on every write. Derive ownership from the session, check it before reading or writing board state, and scope every nested tier and item to its board. Use private `no-store` responses and the same missing/foreign-board response. Validate types, palette keys, identities, ordering, duplicates, and request size on the server. Clear private drafts and reject late responses on logout, session expiry or account change. |
-| Concurrent updates and retries | Save settings, ordering and membership atomically with an expected revision. Reject stale saves or deletes without overwriting a newer board. Preserve the current draft for review on conflict and for retry on network failure. Read back the saved snapshot when the outcome is uncertain. Confirm agreed conflict, deletion and recovery details before exposing the API. Keep provider I/O outside the board transaction. |
-| Provider verification | Prefer preparing authoritative shared media when a user selects a Discover result, subject to approval of its visibility implications. A prepared Open Library catalogue snapshot could become visible through the existing public media detail route before board Save. That route exposes catalogue metadata without a board or account association. If cancellation must leave no new catalogue record, use bounded save-time resolution. Confirm per-account and IP limits, provider budgets, attribution, and how retries and partial failures are surfaced. |
-| Open Library trust | Preserve the existing pilot, tester/public access, shared admission, cooldown and trusted-cache boundaries. First resolution of an unseen Edition must use fresh, consistent server-trusted search data and the exact selected Edition. Accept only identity from the client. When trust fails, offer explicit renewal for the submitted search, respect cooldown and require a fresh user selection without silently changing the Edition. The preparation path must add zero upstream Open Library calls and must not become another discovery path. [Existing Edition persistence and detail contracts](OPEN_LIBRARY_LIBRARY_INTEGRATION.md) · [Discovery access and rollout](OPEN_LIBRARY_PUBLIC_ACCESS.md) |
-| Rollout and verification | Confirm the production board and title limits, provider budgets, and navigation rollout after reviewing the next implementation. Plan an additive migration, an approved backup and manual migration sequence, and safe rollback. Test access boundaries, concurrency, duplicate insertion, cascades and recovery against the guarded disposable `myfunlist_test` setup where required. Physical touch, native picker and screen-reader acceptance, staging deployment checks and independent live-browser verification remain separate. [Development and test safeguards](DEVELOPMENT.md) · [Deployment](DEPLOYMENT.md) |
+| `tier_lists` | One `users.id` owner, title, nullable description, nonempty allowed-media set, positive revision and UTC timestamps. The owner index serves board lookup and pagination. Optional creation keys are unique per owner and store a hash of the normalized create settings. |
+| `tier_list_tiers` | Board-scoped key and unique position. Ranked positions are 0–11. The reserved `unranked` row uses position 12, name Unranked and color Slate. Palette checks allow Lime, Amber, Coral, Teal, Violet and Slate. |
+| `tier_list_items` | Unique `(list_id, media_id)` membership and unique position within a lane. A composite `(list_id, tier_key)` foreign key binds every item to a tier on its own board. Media references use the shared `media.id` with `ON DELETE RESTRICT`. |
+
+Deleting a user cascades through their boards, tiers and memberships. Deleting a board removes its tiers and memberships and preserves the shared catalogue. Library removal affects `user_media` and its existing Custom List memberships. Tier Lists have an independent relationship to `media`. [Shared catalogue and Library schema](../backend/database/migrations/001_create_core_schema.php) · [Custom Lists schema](../backend/database/migrations/003_create_custom_lists.php)
+
+### HTTP contract
+
+The collection path is `/api/v1/tier-lists`. Routes use the existing same-origin session. POST, PUT and DELETE require `X-CSRF-Token` from that session and `Content-Type: application/json`. Successful JSON responses use a `data` envelope. All responses in the Tier Lists namespace use `Cache-Control: private, no-store`.
+
+| Method and path | Request and successful response |
+| --- | --- |
+| `GET /api/v1/tier-lists` | Optional `beforeId` cursor. Returns `200` with `data.boards` and `data.nextCursor`. Boards are ordered by descending ID, 50 per page. Each summary contains `id`, `title`, `description`, `allowedTypes`, `revision`, `createdAt`, `updatedAt` and `itemCount`. |
+| `POST /api/v1/tier-lists` | JSON `title`, optional `description` and optional `allowedTypes`. Returns `201` with the complete board at revision 1, including S/A/B/C/D and an empty Unranked lane. Omitted `allowedTypes` defaults to all four types. |
+| `GET /api/v1/tier-lists/{id}` | Returns `200` with the complete ordered board. Board IDs are decimal strings. |
+| `PUT /api/v1/tier-lists/{id}` | Replace the settings, ordered ranked tiers and ordered Unranked items using the current integer `revision`. Returns `200` with the persisted board and its incremented revision. |
+| `DELETE /api/v1/tier-lists/{id}` | JSON with the current integer `revision` as the only field. Returns `204`. |
+
+The complete board contains the summary fields through `updatedAt`, `tiers` and `unranked`. Each ranked tier has `key`, `name`, `color` and `items`. Each returned item has `source`, `mediaType`, `sourceId`, the catalogue `title`, and nullable `artworkImage`. Timestamps are UTC ISO 8601 strings. Request items contain only the exact canonical identity. A compact PUT example follows.
+
+```json
+{
+  "title": "Favorites",
+  "description": null,
+  "allowedTypes": ["movie", "tv", "book", "game"],
+  "revision": 1,
+  "tiers": [{"key": "s", "name": "S", "color": "Lime", "items": [{"source": "tmdb", "mediaType": "movie", "sourceId": "123"}]}],
+  "unranked": []
+}
+```
+
+Array order defines tiers and item positions. Each PUT supplies every kept tier and both ranked and Unranked placements. When a tier is dropped, previously ranked items that are absent from all submitted placements append to Unranked in their previous order. To intentionally remove one of those items in the same save, include its identity in optional `removedItems`. This field accepts only unplaced items from tiers dropped by that save. Items omitted from retained lanes leave the board. The resulting board must respect the allowed media types and item limit.
+
+PUT and DELETE lock the owned board row before validating the revision. A successful save applies one transaction and increments the revision once. A stale valid save or delete returns `409 revision_conflict`. After an uncertain save, GET the board and compare its revision and contents before retrying. At the unsigned 32-bit revision ceiling, saves return `409 revision_exhausted`. The owner can still read or delete the board. Missing and foreign boards return the same `404 tier_list_not_found`. Anonymous requests on enabled routes return `401 unauthenticated`, and invalid write tokens return `403 invalid_csrf`.
+
+POST accepts an optional `Idempotency-Key` header of 1–128 ASCII letters, digits, underscores or hyphens. A retry with the same owner, key and normalized settings returns `200` with the current snapshot of the existing board. Different settings for that key return `409 idempotency_conflict`. The key lasts for the lifetime of the board. Delete releases the key.
+
+### Validation and catalogue scope
+
+- Titles have 1–120 Unicode characters, descriptions have at most 1,000, and ranked tier names have 1–40. Text is trimmed. An empty optional description becomes `null`. Control characters are rejected, with tabs and line breaks allowed in descriptions.
+- Boards require 1–12 ranked tiers and support up to 100 items across all lanes. Tier keys start with a lowercase ASCII letter and use up to 40 lowercase ASCII letters, digits, hyphens or underscores. Keys are unique within the board and `unranked` is reserved. Requests use the six palette names shown in the schema table.
+- Types are a nonempty, distinct selection from `movie`, `tv`, `book`, `game`. Identities and provider/type pairs follow the existing rules. TMDb movie and TV IDs remain distinct. Source IDs are case-sensitive and Open Library accepts only exact Edition IDs (`OL…M`). A missing catalogue identity returns `422 unknown_media` with a generic `items` message. [Server media rules](../backend/src/Domain/MediaRules.php)
+- POST, PUT and DELETE limit bodies to 8 KiB, 64 KiB and 4 KiB respectively. Malformed JSON or the wrong content type returns 400. A body above its limit returns `413 request_too_large`. Other validation failures return `422 validation_error` with safe field details. Internal errors use the existing generic response. Body metadata, owner IDs and client-supplied positions are rejected.
+
+### Rollout and remaining work
+
+`TIER_LISTS_ENABLED` is a private PHP-side setting and defaults to disabled. Only the exact value `true` registers the routes. While disabled, the namespace returns a controlled `404 not_found` without starting a session, opening a database connection or accessing Tier Lists tables. The usual deployment can deliver the code with the setting disabled. Before any separately approved enablement, follow the backup and manual migration procedure, verify migration 006 and its three tables on the intended database, then verify that the PHP workers see the private setting. Disable the setting first for a rollback. [Test safeguards](DEVELOPMENT.md#database-and-http-tests) · [Backup and migration procedure](DEPLOYMENT.md#database-backup-and-rollback)
+
+The backend reads existing catalogue records and makes no provider calls during board operations. Discover preparation will need decisions on catalogue visibility before Save, rate limits, failure recovery and attribution. Open Library must retain the exact-Edition and trusted-cache rules and make zero extra upstream calls during preparation. The UI still needs API integration, account-switch draft invalidation, revision conflict handling and separate acceptance on physical touch devices and screen readers before navigation is enabled. [Open Library Edition contracts](OPEN_LIBRARY_LIBRARY_INTEGRATION.md) · [Discovery access and rollout](OPEN_LIBRARY_PUBLIC_ACCESS.md)
+
+### Backend verification
+
+- PHP 8.2.12 syntax checks, Composer strict validation, database-independent API and provider suites, and the database safety suite passed. The 153 Tier Lists API assertions exercise the real router, session middleware and JSON parser with synthetic storage and request input.
+- Full `composer test` passed from a clean snapshot without private provider settings, using disposable loopback MariaDB 10.4.32, `APP_ENV=testing` and `DB_DATABASE=myfunlist_test`. The initial run in the configured checkout stopped at a Library HTTP assertion. The clean rerun passed it. The 17 Tier Lists database assertions cover owner isolation, constraints, one winner for concurrent saves at the same revision, 100 ordered items, Library independence and cascades. Run the focused suite with `composer --working-dir=backend run test:tier-lists-mysql` after confirming the database safeguards. MySQL 8 was outside this test run.
+- A separate 005-to-006 rehearsal preserved all seven preexisting data tables, including seeded Library and Custom List rows. All five Tier Lists routes returned 404 before migration with the feature disabled. The second migration run skipped the applied version.
+- Windows `npm test` passed 417 tests with 13 existing Linux-only skips, and `npm run build` passed. There was no staging migration, enablement or live-browser validation for this branch.
 
 ## Retained QA
 

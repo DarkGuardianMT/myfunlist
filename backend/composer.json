@@ -29,8 +29,10 @@
       "@php tests/media_api.php",
       "@php tests/media_rate_limit.php",
       "@php tests/list_memberships_api.php",
+      "@php tests/tier_lists_api.php",
       "@php tests/foundation.php",
       "@php tests/schema.php",
+      "@php tests/tier_lists_mysql.php",
       "@php tests/open_library_mysql.php",
       "@php tests/rate_limit.php",
       "@php tests/auth_http.php",
@@ -52,8 +54,10 @@
       "@php tests/router.php",
       "@php tests/media_api.php",
       "@php tests/media_rate_limit.php",
-      "@php tests/list_memberships_api.php"
+      "@php tests/list_memberships_api.php",
+      "@php tests/tier_lists_api.php"
     ],
+    "test:tier-lists-mysql": "@php tests/tier_lists_mysql.php",
     "test:open-library-mysql": "@php tests/open_library_mysql.php",
     "test:open-library-library": "@php tests/open_library_library.php",
     "migrate": "@php bin/migrate.php migrate",

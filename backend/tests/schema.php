@@ -60,9 +60,12 @@ $existing = $connection->query(<<<'SQL'
 SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()
 SQL)->fetchAll(PDO::FETCH_COLUMN);
 verify(array_diff($existing, ['schema_migrations', 'users', 'media', 'user_media', 'lists', 'list_items',
-    'rate_limit_counters', 'open_library_state']) === [],
+    'rate_limit_counters', 'open_library_state', 'tier_lists', 'tier_list_tiers', 'tier_list_items']) === [],
     'The test database contains unexpected tables; refusing to reset it.');
 
+$connection->exec('DROP TABLE IF EXISTS tier_list_items');
+$connection->exec('DROP TABLE IF EXISTS tier_list_tiers');
+$connection->exec('DROP TABLE IF EXISTS tier_lists');
 $connection->exec('DROP TABLE IF EXISTS open_library_state');
 $connection->exec('DROP TABLE IF EXISTS rate_limit_counters');
 $connection->exec('DROP TABLE IF EXISTS list_items');
@@ -83,13 +86,14 @@ $versions = [
     '003_create_custom_lists' => 'pending',
     '004_create_rate_limit_counters' => 'pending',
     '005_create_open_library_state' => 'pending',
+    '006_create_tier_lists' => 'pending',
 ];
 verify($runner->status() === $versions, 'Fresh migrations must be pending.');
 verify($runner->migrate() === array_fill_keys(array_keys($versions), 'applied'), 'Fresh migrations must apply once.');
-verify($runner->status() === array_fill_keys(array_keys($versions), 'applied'), 'Migration tracking must record both versions.');
+verify($runner->status() === array_fill_keys(array_keys($versions), 'applied'), 'Migration tracking must record all versions.');
 verify($runner->migrate() === array_fill_keys(array_keys($versions), 'already applied'), 'Rerunning must not reapply DDL.');
-verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === 5,
-    'Migration tracking must contain five versions.');
+verify((int) $connection->query('SELECT COUNT(*) FROM schema_migrations')->fetchColumn() === count($versions),
+    'Migration tracking must contain only the expected versions.');
 
 $displayColumn = $connection->query(<<<'SQL'
 SELECT is_nullable, character_maximum_length FROM information_schema.columns
@@ -104,7 +108,7 @@ SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()
 SQL)->fetchAll(PDO::FETCH_COLUMN);
 sort($tables);
 verify($tables === ['list_items', 'lists', 'media', 'open_library_state', 'rate_limit_counters', 'schema_migrations',
-    'user_media', 'users'],
+    'tier_list_items', 'tier_list_tiers', 'tier_lists', 'user_media', 'users'],
     'The migration must create only the expected tables.');
 
 $indexes = $connection->query(<<<'SQL'

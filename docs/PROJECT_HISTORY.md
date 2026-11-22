@@ -1,5 +1,11 @@
 # MyFunList project history
 
+## Tier Lists backend review candidate — 22 November 2026
+
+The approved prototype moved to a backend-only review branch from `ee32a71524a2d161d45d9847d6ee051074a8403f`. Migration 006 adds owned boards, ranked and Unranked lanes, and independent catalogue membership. The authenticated API supports atomic revision-checked saves and stays disabled until deliberate migration and activation. See the [Tier Lists contract and verification](TIER_LISTS_DESIGN.md#phase-3-backend-review-candidate).
+
+The owner authorized remote deletion of the merged branches for PRs #16 and #17. Both squash commits were verified in main, and the existing staging workflow passed at that baseline. The report and 32 prototype screenshots were verified in the local and immutable GitHub archives before deletion. [Successful staging baseline](https://github.com/DarkGuardianMT/myfunlist/actions/runs/44847588474) · [Retained prototype QA](TIER_LISTS_DESIGN.md#immutable-evidence-archive)
+
 ## PR #16 Tier Lists prototype approval — 21 November 2026
 
 The owner approved the prototype for the next development phase after independent code and visual review at `9d8c1d8682da20b17879bdc21602bae524c82002`. The [Tier Lists design](TIER_LISTS_DESIGN.md) records the approved UX, proposed backend architecture, unresolved security and rollout decisions, and historical validation.
