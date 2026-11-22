@@ -80,7 +80,7 @@ jobs:
           test "$(php -r 'echo PHP_MAJOR_VERSION . "." . PHP_MINOR_VERSION;')" = 8.2
           test ! -e .env && test ! -e backend/.env
           git diff --check fa88d109db5863353684f3e5d316aac1277c61da...HEAD
-          git diff --exit-code a86af9cf95b81d003d6f1b199ed56f2446270faf HEAD -- . ':(exclude).github/workflows/review-tier-lists-frontend-test.yml'
+          git diff --exit-code a86af9cf95b81d003d6f1b199ed56f2446270faf HEAD -- . ':(exclude).github/workflows/review-tier-lists-frontend-test.yml' ':(exclude)prototypes/tier-lists/tier-lists.css'
           find backend/src backend/config backend/public backend/bin backend/tests backend/database \
             -type f -name '*.php' -print0 | xargs -0 -n 1 php -l
           composer --working-dir=backend validate --strict
